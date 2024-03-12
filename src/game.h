@@ -61,19 +61,6 @@ struct TemporaryMemory {
     size_t used;
 };
 
-struct GameMemory {
-    // NOTE: Spec memory to be initialized to zero.
-    void *permanent_memory;
-    void *transient_memory;
-    u64 permanent_memory_capacity;
-    u64 transient_memory_capacity;
-
-    DEBUG_PLATFORM_READ_FILE_ *debug_platform_read_file;
-    DEBUG_PLATFORM_WRITE_FILE_ *debug_platform_write_file;
-    DEBUG_PLATFORM_FREE_MEMORY_ *debug_platform_free_memory;
-
-    debug_cycle_counter debugCycleCounters[256];
-};
 
 struct Position {
     s32 chunkX;
@@ -165,6 +152,7 @@ struct GameState {
 struct TransientState {
     b32 isInit;
     MemoryArena transientArena;
+    PlatformWorkQueue *renderQueue;
 };
 
 internal void *
@@ -193,5 +181,9 @@ InitArena(MemoryArena *arena, size_t size, u8 *base) {
 #define GAME_MAIN(name) void name(GameMemory *gameMemory, GameState *gameState, \
         GameInput *gameInput, GameScreenBuffer *gameScreenBuffer)
 typedef GAME_MAIN(GameMain_);
+
+global_var debug_cycle_counter *g_DebugCycleCounters;
+global_var PlatformAddEntry *platformAddEntry;
+global_var PlatformCompleteAllWork *platformCompleteAllWork;
 
 #endif

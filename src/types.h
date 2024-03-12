@@ -14,8 +14,6 @@ $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
 #define global_var    static
 #define local_persist static
 
-#define EVER ;;
-
 typedef int8_t int8;  
 typedef int16_t int16; 
 typedef int32_t int32; 

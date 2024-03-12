@@ -11,9 +11,7 @@ $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
 
 #include "types.h"
 #include "game.h"
-debug_cycle_counter *g_debugCycleCounters;
 #include "render_group.cpp"
-
 
 internal Bitmap
 LoadBmp(GameMemory *gameMemory, DEBUG_PLATFORM_READ_FILE_ *ReadFile, const char *filename) {
@@ -452,10 +450,13 @@ EndTemporaryMemory(TemporaryMemory *temporaryMemory) {
 
 extern "C"
 GAME_MAIN(GameMain) {
+    platformAddEntry = gameMemory->platformAddEntry;
+    platformCompleteAllWork = gameMemory->platformCompleteAllWork;
+
     if (!gameState->init) {
         gameState->init = true;
 
-        g_debugCycleCounters = gameMemory->debugCycleCounters;
+        g_DebugCycleCounters = gameMemory->debugCycleCounters;
 
         InitArena(&gameState->worldArena,
                 gameMemory->permanent_memory_capacity - sizeof(GameState),
@@ -519,11 +520,13 @@ GAME_MAIN(GameMain) {
     TransientState *transState = (TransientState *)transMem;
 
     if (!transState->isInit) {
+        transState->isInit = true;
+
         InitArena(&transState->transientArena,
                 transMemCap - sizeof(TransientState),
                 (u8 *)transMem + sizeof(TransientState));
 
-        transState->isInit = true;
+        transState->renderQueue = gameMemory->highPriorityQueue;
     }
 
     TemporaryMemory renderMemory = BeginTemporaryMemory(&transState->transientArena);
@@ -623,7 +626,7 @@ GAME_MAIN(GameMain) {
     }
     
 
-    RenderGroupToOutput(renderGroup, &drawBuffer);
+    RenderGroupToOutput(renderGroup, &drawBuffer, transState->renderQueue);
 
 
     EndTemporaryMemory(&renderMemory);

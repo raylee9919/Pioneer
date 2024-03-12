@@ -37,26 +37,6 @@ typedef DEBUG_PLATFORM_FREE_MEMORY(DEBUG_PLATFORM_FREE_MEMORY_);
 #define DEBUG_PLATFORM_READ_FILE(name) DebugReadFileResult name(const char *filename)
 typedef DEBUG_PLATFORM_READ_FILE(DEBUG_PLATFORM_READ_FILE_);
 
-typedef struct {
-    b32 is_set;
-} GameKey;
-
-typedef struct{
-    r32 dt_per_frame;
-    GameKey move_up;
-    GameKey move_down;
-    GameKey move_left;
-    GameKey move_right;
-} GameInput;
-
-typedef struct {
-    void *memory;
-    u32 width;
-    u32 height;
-    u32 bpp;
-    u32 pitch;
-} GameScreenBuffer;
-
 #ifdef MSVC_COMPILER
     #include "intrin.h"
     
@@ -72,12 +52,12 @@ typedef struct {
     };
     
     #define RDTSC_BEGIN(name) \
-        RdtscBegin_(g_debugCycleCounters, DebugCycleCounter_##name);
+        RdtscBegin_(g_DebugCycleCounters, DebugCycleCounter_##name);
     #define RDTSC_END(name) \
-        RdtscEnd_(g_debugCycleCounters, DebugCycleCounter_##name);
+        RdtscEnd_(g_DebugCycleCounters, DebugCycleCounter_##name);
     #define RDTSC_END_ADDCOUNT(name, count) \
-        RdtscEnd_(g_debugCycleCounters, DebugCycleCounter_##name); \
-        g_debugCycleCounters[DebugCycleCounter_##name].hitCount += (count - 1);
+        RdtscEnd_(g_DebugCycleCounters, DebugCycleCounter_##name); \
+        g_DebugCycleCounters[DebugCycleCounter_##name].hitCount += (count - 1);
     
     internal void
     RdtscBegin_(debug_cycle_counter *debugCycleCounters, s32 idx) {
@@ -96,6 +76,55 @@ typedef struct {
     #define RDTSC_BEGIN(name)
     #define RDTSC_END(name)
 #endif
+
+
+typedef struct {
+    b32 is_set;
+} GameKey;
+
+typedef struct {
+    r32 dt_per_frame;
+    GameKey move_up;
+    GameKey move_down;
+    GameKey move_left;
+    GameKey move_right;
+} GameInput;
+
+struct PlatformWorkQueue;
+#define PLATFORM_WORK_QUEUE_CALLBACK(Name) \
+    void Name(PlatformWorkQueue *queue, void *data)
+typedef PLATFORM_WORK_QUEUE_CALLBACK(PlatformWorkQueueCallback);
+
+typedef void PlatformAddEntry(PlatformWorkQueue *queue, PlatformWorkQueueCallback *callback, void *data);
+typedef void PlatformCompleteAllWork(PlatformWorkQueue *queue);
+typedef struct {
+    // NOTE: Spec memory to be initialized to zero.
+    void *permanent_memory;
+    u64 permanent_memory_capacity;
+
+    void *transient_memory;
+    u64 transient_memory_capacity;
+
+    PlatformWorkQueue *highPriorityQueue;
+
+    PlatformAddEntry *platformAddEntry;
+    PlatformCompleteAllWork *platformCompleteAllWork;
+
+    DEBUG_PLATFORM_READ_FILE_ *debug_platform_read_file;
+    DEBUG_PLATFORM_WRITE_FILE_ *debug_platform_write_file;
+    DEBUG_PLATFORM_FREE_MEMORY_ *debug_platform_free_memory;
+
+    debug_cycle_counter debugCycleCounters[256];
+} GameMemory;
+
+typedef struct {
+    void *memory;
+    u32 width;
+    u32 height;
+    u32 bpp;
+    u32 pitch;
+} GameScreenBuffer;
+
 
 #define SW_PLATFORM_H
 #endif

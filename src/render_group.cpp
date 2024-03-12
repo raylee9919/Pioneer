@@ -249,7 +249,7 @@ DrawRectSlow(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp) {
     __m128 zero_4x = _mm_set1_ps(0.0f);
     __m128 one_4x = _mm_set1_ps(1.0f);
     __m128i minusOne_4x = _mm_set1_epi32(-1);
-    __m128i one_epi32_4x = _mm_set1_epi32(1);
+    __m128i one_epi32 = _mm_set1_epi32(1);
     __m128 m255_4x = _mm_set1_ps(255.0f);
     __m128 inv255_4x = _mm_set1_ps(1.0f / 255.0f);
     __m128i maskFF_4x = _mm_set1_epi32(0xFF);
@@ -257,12 +257,14 @@ DrawRectSlow(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp) {
     __m128 bmpMaxX_4x = _mm_set1_ps((r32)(bmp->width - 1));
     __m128 bmpMaxY_4x = _mm_set1_ps((r32)(bmp->height - 1));
 
-    __m128i bufWidth_4x = _mm_set1_epi32(buffer->width);
+    __m128i bufWidthMinusOne = _mm_set1_epi32(buffer->width - 1);
 
     RDTSC_BEGIN(PerPixel);
 
 #define M(m, i)  ((r32 *)&m)[i]
 #define Mi(m, i) ((u32 *)&m)[i]
+#define mm_clamp_ps(A, lo, hi) _mm_min_ps(_mm_max_ps(A, lo), hi)
+#define mm_clamp_epi32(A, lo, hi) _mm_min_epi32(_mm_max_epi32(A, lo), hi)
 
     for (s32 Y = minY;
             Y <= maxY;
@@ -272,7 +274,7 @@ DrawRectSlow(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp) {
                 X += 4) {
             if (Y < 0 || Y >= buffer->height) { continue; }
 
-            __m128i Xi_4x = _mm_setr_epi32(X, X + 1, X + 2, X + 3);
+            __m128i Xi_4x = mm_clamp_epi32(_mm_setr_epi32(X, X + 1, X + 2, X + 3), one_epi32, bufWidthMinusOne);
             __m128i Yi_4x = _mm_set1_epi32(Y);
 
             __m128 X_4x = _mm_cvtepi32_ps(Xi_4x);
@@ -290,7 +292,6 @@ DrawRectSlow(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp) {
             dx_4x = _mm_mul_ps(dx_4x, bmpMaxX_4x);
             dy_4x = _mm_mul_ps(dy_4x, bmpMaxY_4x);
 
-#define mm_clamp_ps(A, lo, hi) _mm_min_ps(_mm_max_ps(A, lo), hi)
             // NOTE: Floor and Ceil to get 4 texels. Clamp 0~bmpDim
             __m128i dxI = _mm_cvttps_epi32(dx_4x);
             __m128i dyI = _mm_cvttps_epi32(dy_4x);
@@ -401,8 +402,22 @@ DrawRectSlow(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp) {
     RDTSC_END(RenderRectSlow);
 }
 
+struct DrawBmpWorkData {
+    Bitmap *buffer;
+    vec2 origin;
+    vec2 axisX;
+    vec2 axisY;
+    Bitmap *bmp;
+};
+
+internal
+PLATFORM_WORK_QUEUE_CALLBACK(DrawBmpWork) {
+    DrawBmpWorkData *work = (DrawBmpWorkData *)data;
+    DrawRectSlow(work->buffer, work->origin, work->axisX, work->axisY, work->bmp);
+}
+
 internal void
-RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *drawBuffer) {
+RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *drawBuffer, PlatformWorkQueue *renderQueue) {
     vec2 screenCenter = vec2{
         0.5f * (r32)drawBuffer->width,
         0.5f * (r32)drawBuffer->height
@@ -423,7 +438,21 @@ RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *drawBuffer) {
                 vec2 origin = piece->origin;
                 vec2 axisX = piece->axisX;
                 vec2 axisY = piece->axisY;
-                DrawRectSlow(drawBuffer, origin, axisX, axisY, piece->bmp);
+
+                DrawBmpWorkData data = {};
+                data.buffer = drawBuffer;
+                data.origin = origin;
+                data.axisX = axisX;
+                data.axisY = axisY;
+                data.bmp = piece->bmp;
+#if 0
+                // Multi-threaded path
+                platformAddEntry(renderQueue, DrawBmpWork, &data);
+#else
+                // Single-threaded path
+                // DrawRectSlow(drawBuffer, origin, axisX, axisY, piece->bmp);
+                DrawBmpWork(renderQueue, &data);
+#endif
                 at += sizeof(*piece);
             } break;
 
