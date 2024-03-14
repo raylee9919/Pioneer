@@ -138,6 +138,8 @@ struct GameState {
 
     MemoryArena renderArena;
 
+    Bitmap drawBuffer;
+
     Camera camera;
 
     Entity *player;

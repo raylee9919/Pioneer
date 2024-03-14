@@ -95,6 +95,12 @@ LenSquare(vec2 A) {
 }
 
 inline r32
+InvLenSquare(vec2 A) {
+    r32 result = 1.0f / Inner(A, A);
+    return result;
+}
+
+inline r32
 Len(vec2 A) {
     r32 result = Sqrt(LenSquare(A));
     return result;

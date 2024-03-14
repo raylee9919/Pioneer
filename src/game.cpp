@@ -453,6 +453,7 @@ GAME_MAIN(GameMain) {
     platformAddEntry = gameMemory->platformAddEntry;
     platformCompleteAllWork = gameMemory->platformCompleteAllWork;
 
+
     if (!gameState->init) {
         gameState->init = true;
 
@@ -574,8 +575,11 @@ GAME_MAIN(GameMain) {
     drawBuffer.pitch = gameScreenBuffer->pitch;
     drawBuffer.memory = gameScreenBuffer->memory;
 
+    gameState->time += 0.01f;
+    r32 angle = gameState->time;
+
     PushRect(renderGroup, vec2{},
-            vec2{(r32)drawBuffer.width, (r32)drawBuffer.height},
+            vec2{(r32)gameScreenBuffer->width, (r32)gameScreenBuffer->height},
             vec4{0.2f, 0.2f, 0.2f, 1.0f});
 
     for (s32 Y = minPos.chunkY;
@@ -601,7 +605,20 @@ GAME_MAIN(GameMain) {
                     case EntityType_Player: {
                         s32 face = entity->face;
                         vec2 bmpDim = vec2{(r32)gameState->playerBmp[face].width, (r32)gameState->playerBmp[face].height};
+#if 1
                         PushBmp(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, &gameState->playerBmp[face]);
+#else
+                        PushBmp(renderGroup,
+                                cen - 0.5f * bmpDim,
+                                bmpDim.x * vec2{Cos(angle), Sin(angle)},
+                                bmpDim.y * vec2{-Sin(angle), Cos(angle)},
+                                &gameState->playerBmp[face]);
+                        vec2 dotDim {5.0f, 5.0f};
+                        vec2 origin = cen - 0.5f * bmpDim;
+                        PushRect(renderGroup, origin - 0.5f * dotDim, origin + 0.5f * dotDim, vec4{1.0f, 1.0f, 1.0f, 1.0f});
+                        PushRect(renderGroup, origin + vec2{bmpDim.x * Cos(angle), bmpDim.x * Sin(angle)} - 0.5f * dotDim, origin + vec2{bmpDim.x * Cos(angle), bmpDim.x * Sin(angle)} + 0.5f * dotDim, vec4{1.0f, 0.2f, 0.2f, 1.0f});
+                        PushRect(renderGroup, origin + vec2{bmpDim.y * -Sin(angle), bmpDim.y * Cos(angle)} - 0.5f * dotDim, origin + vec2{bmpDim.y * -Sin(angle), bmpDim.y * Cos(angle)} + 0.5f * dotDim, vec4{0.2f, 1.0f, 0.2f, 1.0f});
+ #endif
                     } break;
 
                     case EntityType_Tree: {
