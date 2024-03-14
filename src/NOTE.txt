@@ -107,3 +107,17 @@ Create by 'S'ean 'T'. 'B'arrett
 
 We'll use stb_truetype.h
 They are sensibly made, integrates very cleanly.
+
+
+
+
+
+
+
+                                CPU SIMD
+
+  Unaligned Store can be pretty expensive. Most of the time, you wanna keep the 
+perspective to keep things aligned. Since, We are now using 128-bit wide vector,
+memory must be aligned to 4-bytes, which means the lowest 1-byte of the memory
+address must be cleared to zero.
+
