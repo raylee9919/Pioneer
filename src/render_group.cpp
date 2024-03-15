@@ -391,8 +391,13 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
     __m128 axisYx = _mm_set1_ps(axisY.x);
     __m128 axisYy = _mm_set1_ps(axisY.y);
 
-    __m128 bmpWidthMinusOne = _mm_set1_ps((r32)(bmp->width - 1));
-    __m128 bmpHeightMinusOne = _mm_set1_ps((r32)(bmp->height - 1));
+    // TODO: This is bit incorrect mathematically, but looks fine.
+    __m128 bmpWidthMinusTwo = _mm_set1_ps((r32)(bmp->width - 2));
+    __m128 bmpHeightMinusTwo = _mm_set1_ps((r32)(bmp->height - 2));
+
+#define M(m, i)  ((r32 *)&m)[i]
+#define Mi(m, i) ((u32 *)&m)[i]
+#define _mm_clamp01_ps(A) _mm_max_ps(_mm_min_ps(A, Onef), Zerof)
 
     for (s32 Y = minY;
             Y <= maxY;
@@ -417,20 +422,20 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
 
             __m128 InvLenSquareX = _mm_set1_ps(InvLenSquare(axisX));
             __m128 InvLenSquareY = _mm_set1_ps(InvLenSquare(axisY));
-            __m128 Uf = _mm_mul_ps(_mm_add_ps(_mm_mul_ps(Px, axisXx), _mm_mul_ps(Py, axisXy)), InvLenSquareX);
-            __m128 Vf = _mm_mul_ps(_mm_add_ps(_mm_mul_ps(Px, axisYx), _mm_mul_ps(Py, axisYy)), InvLenSquareY);
+            
+            // NOTE: We'll just clamp U and V to guarantee that
+            // we fetch from valid memory. Then, whatever the value is,
+            // we'll knock out useless ones with write mask.
+            __m128 Uf = _mm_clamp01_ps(_mm_mul_ps(_mm_add_ps(_mm_mul_ps(Px, axisXx), _mm_mul_ps(Py, axisXy)), InvLenSquareX));
+            __m128 Vf = _mm_clamp01_ps(_mm_mul_ps(_mm_add_ps(_mm_mul_ps(Px, axisYx), _mm_mul_ps(Py, axisYy)), InvLenSquareY));
 
-            // TODO: SIMD + InnerProductDetection
-            // Fetch bmp -> X
-            // Fetch buffer -> O
-            // Write buffer -> O
-            __m128 Bool1 = _mm_and_ps( _mm_cmpge_ps(Uf, Zerof), _mm_cmple_ps(Uf, Onef) );
-            __m128 Bool2 = _mm_and_ps( _mm_cmpge_ps(Vf, Zerof), _mm_cmple_ps(Vf, Onef) );
-            __m128 InnerMaskf = _mm_and_ps(Bool1, Bool2);
-            __m128i InnerMask = _mm_castps_si128(InnerMaskf);
+            // NOTE: Write Mask from inner product.
+            __m128i WriteMask = _mm_castps_si128(_mm_and_ps(
+                        _mm_and_ps( _mm_cmpge_ps(Uf, Zerof), _mm_cmple_ps(Uf, Onef) ),
+                        _mm_and_ps( _mm_cmpge_ps(Vf, Zerof), _mm_cmple_ps(Vf, Onef) )));
 
-            Uf = _mm_mul_ps(Uf, bmpWidthMinusOne);
-            Vf = _mm_mul_ps(Vf, bmpHeightMinusOne);
+            Uf = _mm_mul_ps(Uf, bmpWidthMinusTwo);
+            Vf = _mm_mul_ps(Vf, bmpHeightMinusTwo);
 
             // NOTE: Floor and get weight.
             __m128i Ui = _mm_cvttps_epi32(Uf);
@@ -438,39 +443,29 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
             __m128 Rx = _mm_sub_ps(Uf, _mm_cvtepi32_ps(Ui));
             __m128 Ry = _mm_sub_ps(Vf, _mm_cvtepi32_ps(Vi));
 
-#define M(m, i)  ((r32 *)&m)[i]
-#define Mi(m, i) ((u32 *)&m)[i]
             __m128i texel0 = _mm_set1_epi32(0);
             __m128i texel1 = _mm_set1_epi32(0);
             __m128i texel2 = _mm_set1_epi32(0);
             __m128i texel3 = _mm_set1_epi32(0);
 
             // NOTE: Fetch 4 texels for each pixel.
-            // TODO: Obliterate this loop.
+            // Sadly, there's no such things as SIMD fetch.
+            // So the loop will stay.
             for (int I = 0;
                     I < 4;
                     ++I) {
-                if (Mi(InnerMask, I) != 0) {
-                    s32 movY = (Mi(Vi, I) * bmp->pitch);
-                    s32 movX = (Mi(Ui, I) * sizeof(u32));
-                    u8 *txl0 = (u8 *)bmp->memory + movY + movX;
-                    u8 *txl1 = txl0 + sizeof(u32);
-                    if ((s32)Mi(Ui, I) == bmp->width - 1) {
-                        txl1 -= sizeof(u32);
-                    }
-                    u8 *txl2 = txl0 + bmp->pitch;
-                    if ((s32)Mi(Vi, I) == bmp->height - 1) {
-                        txl2 -= bmp->pitch;
-                    }
-                    u8 *txl3 = txl2 + sizeof(u32);
+                s32 movY = (Mi(Vi, I) * bmp->pitch);
+                s32 movX = (Mi(Ui, I) * sizeof(u32));
 
-                    Mi(texel0, I) = *(u32 *)txl0;
-                    Mi(texel1, I) = *(u32 *)txl1;
-                    Mi(texel2, I) = *(u32 *)txl2;
-                    Mi(texel3, I) = *(u32 *)txl3;
-                } else {
+                u8 *txl0 = (u8 *)bmp->memory + movY + movX;
+                u8 *txl1 = txl0 + sizeof(u32);
+                u8 *txl2 = txl0 + bmp->pitch;
+                u8 *txl3 = txl2 + sizeof(u32);
 
-                }
+                Mi(texel0, I) = *(u32 *)txl0;
+                Mi(texel1, I) = *(u32 *)txl1;
+                Mi(texel2, I) = *(u32 *)txl2;
+                Mi(texel3, I) = *(u32 *)txl3;
             }
 
             // NOTE: Square to move out from sRGB.
@@ -518,12 +513,12 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
             __m128 FB = _mm_sqrt_ps(_mm_mul_ps(_mm_add_ps(SB, _mm_mul_ps(DB, _mm_sub_ps(Onef, SA))), m255f)); // 0-255
             __m128 FA = _mm_mul_ps(_mm_add_ps(SA, _mm_mul_ps(DA, _mm_sub_ps(Onef, SA))), m255f);              // 0-255
 
-            __m128i F = _mm_or_si128(
-                _mm_or_si128(_mm_slli_epi32(_mm_cvttps_epi32(FA), 24), _mm_slli_epi32(_mm_cvttps_epi32(FR), 16)), 
-                _mm_or_si128(_mm_slli_epi32(_mm_cvttps_epi32(FG),  8), _mm_slli_epi32(_mm_cvttps_epi32(FB),  0)) );
+            __m128i F =  _mm_or_si128(
+                    _mm_or_si128(_mm_slli_epi32(_mm_cvttps_epi32(FA), 24), _mm_slli_epi32(_mm_cvttps_epi32(FR), 16)), 
+                    _mm_or_si128(_mm_slli_epi32(_mm_cvttps_epi32(FG),  8), _mm_slli_epi32(_mm_cvttps_epi32(FB),  0)) );
             
             // NOTE: Write to buffer.
-            _mm_storeu_si128((__m128i *)dst, F);
+            _mm_storeu_si128((__m128i *)dst, _mm_and_si128(F, WriteMask));
         }
     }
 

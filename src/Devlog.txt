@@ -11,11 +11,37 @@
 
 
 
+                            Theme 0. CPU SIMD
+
+  Unaligned Store can be pretty expensive. Most of the time, you wanna keep the 
+perspective to keep things aligned. Since, We are now using 128-bit wide vector,
+memory must be aligned to 4-bytes, which means the lowest 1-byte of the memory
+address must be cleared to zero.
+
+
+  128-bit wide SIMD, the hardest problem for me was hoisting out the for loop
+fetching texels from bitmap data. Since it atomically fetches 4 pixel data, it
+could really read from invalid memory, which is outside of the bitmap memory
+boundary.
+  A solution that emerged was clipping U and V. Then it is guaranteed to read
+from valid memory. But, it isn't the value we want to do math with and write to
+the screen buffer. And that's another problem. A solution for this is generating
+mask with SIMD comparison instructions. Whatever wrong values we read, as long as
+we read from valid memory, we will knock out the values with generated mask.
+  Sadly, it seems like there's no such thing like SIMD fetch. So, for loop for
+fetching texel will stay. What can I say?
 
 
 
 
-                                    Font
+
+
+                            Theme 1. Asset System
+
+
+
+
+                                Theme 2. Font
 
 Character Set Encoding
 ASCII / ANSI
@@ -101,8 +127,7 @@ To sum it up, we need
 
 
 
-                                STB Library
-
+STB Library
 Create by 'S'ean 'T'. 'B'arrett
 
 We'll use stb_truetype.h
@@ -113,11 +138,4 @@ They are sensibly made, integrates very cleanly.
 
 
 
-
-                                CPU SIMD
-
-  Unaligned Store can be pretty expensive. Most of the time, you wanna keep the 
-perspective to keep things aligned. Since, We are now using 128-bit wide vector,
-memory must be aligned to 4-bytes, which means the lowest 1-byte of the memory
-address must be cleared to zero.
 
