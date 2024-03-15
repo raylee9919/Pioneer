@@ -27,7 +27,8 @@ boundary.
 from valid memory. But, it isn't the value we want to do math with and write to
 the screen buffer. And that's another problem. A solution for this is generating
 mask with SIMD comparison instructions. Whatever wrong values we read, as long as
-we read from valid memory, we will knock out the values with generated mask.
+we read from valid memory, we will knock out the values from final pixel values
+with generated write-mask.
   Sadly, it seems like there's no such thing like SIMD fetch. So, for loop for
 fetching texel will stay. What can I say?
 

@@ -395,6 +395,9 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
     __m128 bmpWidthMinusTwo = _mm_set1_ps((r32)(bmp->width - 2));
     __m128 bmpHeightMinusTwo = _mm_set1_ps((r32)(bmp->height - 2));
 
+    __m128 InvLenSquareX = _mm_set1_ps(InvLenSquare(axisX));
+    __m128 InvLenSquareY = _mm_set1_ps(InvLenSquare(axisY));
+
 #define M(m, i)  ((r32 *)&m)[i]
 #define Mi(m, i) ((u32 *)&m)[i]
 #define _mm_clamp01_ps(A) _mm_max_ps(_mm_min_ps(A, Onef), Zerof)
@@ -402,6 +405,11 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
     for (s32 Y = minY;
             Y <= maxY;
             ++Y) {
+
+        __m128i Yi = _mm_set1_epi32(Y);
+        __m128 Yf = _mm_cvtepi32_ps(Yi);
+        __m128 Py = _mm_sub_ps(Yf, Oy);
+
         for (s32 X = minX;
                 X <= maxX;
                 X += 4) {
@@ -412,16 +420,8 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
             if (X < 0) { X = 0; }
 
             __m128i Xi = _mm_setr_epi32(X, X + 1, X + 2, X + 3);
-            __m128i Yi = _mm_set1_epi32(Y);
-
             __m128 Xf = _mm_cvtepi32_ps(Xi);
-            __m128 Yf = _mm_cvtepi32_ps(Yi);
-
             __m128 Px = _mm_sub_ps(Xf, Ox);
-            __m128 Py = _mm_sub_ps(Yf, Oy);
-
-            __m128 InvLenSquareX = _mm_set1_ps(InvLenSquare(axisX));
-            __m128 InvLenSquareY = _mm_set1_ps(InvLenSquare(axisY));
             
             // NOTE: We'll just clamp U and V to guarantee that
             // we fetch from valid memory. Then, whatever the value is,
