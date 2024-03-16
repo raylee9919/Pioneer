@@ -32,6 +32,7 @@ struct RenderEntityBmp {
     vec2 axisX;
     vec2 axisY;
     Bitmap *bmp;
+    r32 alpha;
 };
 
 struct RenderEntityRect {

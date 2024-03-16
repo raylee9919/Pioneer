@@ -453,9 +453,10 @@ GAME_MAIN(GameMain) {
     platformAddEntry = gameMemory->platformAddEntry;
     platformCompleteAllWork = gameMemory->platformCompleteAllWork;
 
+    if (!gameState->isInit) {
+        gameState->isInit = true;
 
-    if (!gameState->init) {
-        gameState->init = true;
+        gameState->particleRandomSeries = Seed(254);
 
         g_DebugCycleCounters = gameMemory->debugCycleCounters;
 
@@ -478,6 +479,8 @@ GAME_MAIN(GameMain) {
         gameState->familiarBmp[1] = LoadBmp(gameMemory, gameMemory->debug_platform_read_file, "hero_blue_left.bmp");
 
         gameState->treeBmp = LoadBmp(gameMemory, gameMemory->debug_platform_read_file, "tree00.bmp");
+
+        gameState->particleBmp = LoadBmp(gameMemory, gameMemory->debug_platform_read_file, "white_particle.bmp");
 
 #if 0
         PushEntity(worldArena, chunkHashmap, EntityType_Golem, {0, 0, 0, vec3{3.0f, 3.0f, 0.0f}});
@@ -508,6 +511,12 @@ GAME_MAIN(GameMain) {
         }
 #endif
 
+        for (s32 idx = 0;
+                idx < ArrayCount(gameState->particles);
+                ++idx) {
+            gameState->particles[idx] = {};
+        }
+        gameState->particleNextIdx = 0;
     }
 
     RDTSC_BEGIN(GameMain);
@@ -608,6 +617,7 @@ GAME_MAIN(GameMain) {
 #if 1
                         PushBmp(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, &gameState->playerBmp[face]);
 #else
+                        // Rotation Demo
                         PushBmp(renderGroup,
                                 cen - 0.5f * bmpDim,
                                 bmpDim.x * vec2{Cos(angle), Sin(angle)},
@@ -619,6 +629,57 @@ GAME_MAIN(GameMain) {
                         PushRect(renderGroup, origin + vec2{bmpDim.x * Cos(angle), bmpDim.x * Sin(angle)} - 0.5f * dotDim, origin + vec2{bmpDim.x * Cos(angle), bmpDim.x * Sin(angle)} + 0.5f * dotDim, vec4{1.0f, 0.2f, 0.2f, 1.0f});
                         PushRect(renderGroup, origin + vec2{bmpDim.y * -Sin(angle), bmpDim.y * Cos(angle)} - 0.5f * dotDim, origin + vec2{bmpDim.y * -Sin(angle), bmpDim.y * Cos(angle)} + 0.5f * dotDim, vec4{0.2f, 1.0f, 0.2f, 1.0f});
  #endif
+
+                        //
+                        // Particle System Demo
+                        //
+                        vec2 particleDim = ppm * vec2{0.5f, 0.5f}; 
+                        r32 restitutionC = 0.8f;
+
+                        // Create
+                        for (s32 cnt = 0;
+                                cnt < 2;
+                                ++cnt) {
+                            Particle *particle = gameState->particles + gameState->particleNextIdx++;
+                            if (gameState->particleNextIdx >= ArrayCount(gameState->particles)) {
+                                gameState->particleNextIdx = 0; 
+                            }
+
+                            particle->pos = vec3{RandRange(&gameState->particleRandomSeries, -0.2f, 0.2f), 0.0f, 0.0f};
+                            particle->velocity = vec3{RandRange(&gameState->particleRandomSeries, -1.5f, 1.5f), 9.0f, 0.0f};
+                            particle->alpha = 0.2f;
+                            particle->dAlpha = 1.0f;
+                        }
+
+                        // Simulate and Render
+                        for (s32 idx = 0;
+                                idx < ArrayCount(gameState->particles);
+                                ++idx) {
+                            Particle *particle = gameState->particles + idx; 
+
+                            // Simulate
+                            particle->accel = vec3{0.0f, -9.8f, 0.0f};
+                            particle->velocity += dt * particle->accel;
+                            particle->pos += dt * particle->velocity;
+                            if (particle->alpha > 0.9f) {
+                                particle->dAlpha *= -1.0f;
+                            }
+                            particle->alpha += dt * particle->dAlpha;
+
+                            if (particle->pos.y < -0.0f) {
+                                particle->pos.y = -0.0f;
+                                particle->velocity.y *= -restitutionC;
+                            }
+
+                            // Render
+                            vec2 particleCen = cen + ppm * vec2{particle->pos.x, -particle->pos.y};
+                            particleCen.y += bmpDim.y * 0.5f;
+                            PushBmp(renderGroup,
+                                    particleCen - 0.5f * particleDim,
+                                    vec2{particleDim.x, 0}, vec2{0, particleDim.y},
+                                    &gameState->particleBmp, particle->alpha);
+                        }
+                        
                     } break;
 
                     case EntityType_Tree: {

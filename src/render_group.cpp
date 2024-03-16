@@ -21,13 +21,14 @@ PushRenderEntity_(RenderGroup *renderGroup, u32 size, RenderType type) {
 
 internal void
 PushBmp(RenderGroup *renderGroup, vec2 origin, vec2 axisX, vec2 axisY,
-        Bitmap *bmp) {
+        Bitmap *bmp, r32 alpha = 1.0f) {
     RenderEntityBmp *piece = PushRenderEntity(renderGroup, RenderEntityBmp);
     if (piece) {
         piece->origin = origin;
         piece->axisX = axisX;
         piece->axisY = axisY;
         piece->bmp = bmp;
+        piece->alpha = alpha;
     }
 }
 
@@ -208,6 +209,7 @@ DrawRect(Bitmap *buffer, vec2 min, vec2 max, vec4 color) {
     }
 }
 
+#if 0
 internal void
 DrawRectSlowAsf(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp) {
 
@@ -337,9 +339,10 @@ DrawRectSlowAsf(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp
     }
 
 }
+#endif
 
 internal void
-DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp) {
+DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp, r32 alpha) {
     RDTSC_BEGIN(RenderRectSlow);
 
     s32 bufWidthMax = buffer->width - 1;
@@ -378,11 +381,16 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
 
     RDTSC_BEGIN(PerPixel);
 
+#define M(m, i)  ((r32 *)&m)[i]
+#define Mi(m, i) ((u32 *)&m)[i]
+#define _mm_clamp01_ps(A) _mm_max_ps(_mm_min_ps(A, Onef), Zerof)
+
     __m128 Zerof = _mm_set1_ps(0.0f);
     __m128 Onef = _mm_set1_ps(1.0f);
     __m128i MaskFF = _mm_set1_epi32(0xFF);
     __m128 m255f = _mm_set1_ps(255.0f);
     __m128 inv255f = _mm_set1_ps(1.0f / 255.0f);
+    __m128 alphaf = _mm_clamp01_ps(_mm_set1_ps(alpha));
 
     __m128 Ox = _mm_set1_ps(origin.x);
     __m128 Oy = _mm_set1_ps(origin.y);
@@ -398,9 +406,6 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
     __m128 InvLenSquareX = _mm_set1_ps(InvLenSquare(axisX));
     __m128 InvLenSquareY = _mm_set1_ps(InvLenSquare(axisY));
 
-#define M(m, i)  ((r32 *)&m)[i]
-#define Mi(m, i) ((u32 *)&m)[i]
-#define _mm_clamp01_ps(A) _mm_max_ps(_mm_min_ps(A, Onef), Zerof)
 
     for (s32 Y = minY;
             Y <= maxY;
@@ -492,7 +497,7 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
 
             // NOTE: Bilinear filtering and premultiply alpha.
 #define mmLerp(A, B, T)  _mm_add_ps(_mm_mul_ps(T, B), _mm_mul_ps(_mm_sub_ps(Onef, T), A))
-            __m128 SA = mmLerp(mmLerp(A0, A1, Rx), mmLerp(A2, A3, Rx), Ry); // 0-1
+            __m128 SA = _mm_mul_ps(mmLerp(mmLerp(A0, A1, Rx), mmLerp(A2, A3, Rx), Ry), alphaf); // 0-1
             __m128 SR = _mm_mul_ps(mmLerp(mmLerp(R0, R1, Rx), mmLerp(R2, R3, Rx), Ry), SA); // 0-255
             __m128 SG = _mm_mul_ps(mmLerp(mmLerp(G0, G1, Rx), mmLerp(G2, G3, Rx), Ry), SA); // 0-255
             __m128 SB = _mm_mul_ps(mmLerp(mmLerp(B0, B1, Rx), mmLerp(B2, B3, Rx), Ry), SA); // 0-255
@@ -508,14 +513,14 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
 
             // NOTE: Get FINAL pixel values.
             // SquareRoot to sRGB.
-            __m128 FR = _mm_sqrt_ps(_mm_mul_ps(_mm_add_ps(SR, _mm_mul_ps(DR, _mm_sub_ps(Onef, SA))), m255f)); // 0-255
-            __m128 FG = _mm_sqrt_ps(_mm_mul_ps(_mm_add_ps(SG, _mm_mul_ps(DG, _mm_sub_ps(Onef, SA))), m255f)); // 0-255
-            __m128 FB = _mm_sqrt_ps(_mm_mul_ps(_mm_add_ps(SB, _mm_mul_ps(DB, _mm_sub_ps(Onef, SA))), m255f)); // 0-255
-            __m128 FA = _mm_mul_ps(_mm_add_ps(SA, _mm_mul_ps(DA, _mm_sub_ps(Onef, SA))), m255f);              // 0-255
+            __m128i FR =_mm_cvttps_epi32(_mm_sqrt_ps(_mm_mul_ps(_mm_add_ps(SR, _mm_mul_ps(DR, _mm_sub_ps(Onef, SA))), m255f))); // 0-255
+            __m128i FG =_mm_cvttps_epi32(_mm_sqrt_ps(_mm_mul_ps(_mm_add_ps(SG, _mm_mul_ps(DG, _mm_sub_ps(Onef, SA))), m255f))); // 0-255
+            __m128i FB =_mm_cvttps_epi32(_mm_sqrt_ps(_mm_mul_ps(_mm_add_ps(SB, _mm_mul_ps(DB, _mm_sub_ps(Onef, SA))), m255f))); // 0-255
+            __m128i FA =_mm_cvttps_epi32(_mm_mul_ps(_mm_add_ps(SA, _mm_mul_ps(DA, _mm_sub_ps(Onef, SA))), m255f));              // 0-255
 
             __m128i F =  _mm_or_si128(
-                    _mm_or_si128(_mm_slli_epi32(_mm_cvttps_epi32(FA), 24), _mm_slli_epi32(_mm_cvttps_epi32(FR), 16)), 
-                    _mm_or_si128(_mm_slli_epi32(_mm_cvttps_epi32(FG),  8), _mm_slli_epi32(_mm_cvttps_epi32(FB),  0)) );
+                    _mm_or_si128(_mm_slli_epi32(FA, 24), _mm_slli_epi32(FR, 16)), 
+                    _mm_or_si128(_mm_slli_epi32(FG,  8), _mm_slli_epi32(FB,  0)) );
             
             // NOTE: Write to buffer.
             _mm_storeu_si128((__m128i *)dst, _mm_and_si128(F, WriteMask));
@@ -548,7 +553,8 @@ RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer, PlatformWork
                 vec2 origin = piece->origin;
                 vec2 axisX = piece->axisX;
                 vec2 axisY = piece->axisY;
-                DrawRectSoftwareSIMD(outputBuffer, origin, axisX, axisY, piece->bmp);
+                r32 alpha = piece->alpha;
+                DrawRectSoftwareSIMD(outputBuffer, origin, axisX, axisY, piece->bmp, alpha);
                 at += sizeof(*piece);
             } break;
 
@@ -559,6 +565,7 @@ RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer, PlatformWork
             } break;
 
             case RenderType_RenderEntityCoordinateSystem: {
+#if 0
                 RenderEntityCoordinateSystem *piece = (RenderEntityCoordinateSystem *)at;
                 vec2 dim = vec2{4.0f, 4.0f};
                 vec2 R = 0.5f * dim;
@@ -573,6 +580,7 @@ RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer, PlatformWork
                 DrawRect(outputBuffer, origin + axisY - R, origin + axisY + R, yellow);
                 DrawRect(outputBuffer, origin + axisX + axisY - R, origin + axisX + axisY + R, yellow);
                 at += sizeof(*piece);
+#endif
             } break;
 
             INVALID_DEFAULT_CASE

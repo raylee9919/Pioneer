@@ -11,7 +11,7 @@
 
 
 
-                            Theme 0. CPU SIMD
+                                Theme 0. CPU SIMD
 
   Unaligned Store can be pretty expensive. Most of the time, you wanna keep the 
 perspective to keep things aligned. Since, We are now using 128-bit wide vector,
@@ -36,13 +36,42 @@ fetching texel will stay. What can I say?
 
 
 
-
                             Theme 1. Asset System
 
 
 
 
-                                Theme 2. Font
+
+                            Theme 2. Particle System
+
+  Unlike the character, sometimes, phenomenon like liquids, gas, mist has no shape.
+Amorphous phenomenon has no actual pieces.
+  Emitter is some kind of shape who's job is to emit particles. Has parameter like
+what shape it is, where do particles start, etc.
+  Looks like randomness is necessary for good looking particle system. The more
+entrophy you pack in, may look more interesting. How can we implement "random"?
+  Jonawthan Blow once said that interpolating paticles in RGB leads to results 
+that are dull and muddy. According to Casey, transforming to HSV is pretty cheap 
+and worth it. For now, we'll just stick with RGB.
+
+2A. Random
+  First, generated random table from web and copy-pasta to my random table array.
+According to Casey's experience, you never want people to grab random numbers.
+You want people to have a "handle" to random series, so you can track according
+random stream. There might be a random stream which actually produces a random
+number. Particle systems might use it. Also, you might want a random stream
+to generate same number among multiple users' machine.
+
+
+2B. Lagrangian Method vs Eulerian Method
+  Lagrnagian Method is bad at handling density, meaning dealng with volumetric
+simulation, you have disadvantage. You can actually combine two schemes. How 
+would that work?
+
+
+
+
+                                Theme 3. Font
 
 Character Set Encoding
 ASCII / ANSI
@@ -54,7 +83,7 @@ Even in a basic situation, you need at least 3000 symbols in Chinese lettering.
 Recently, moved to UNICODE, encoding drastically more characters.
 UTF-16 -> UTF-8
 UTF-8 is a variable-length encoding. It is 8 bit character, but can double up the
-characters, chain them.
+character and chain them.
 
 0. Glyphs
 1. Unicode
@@ -123,12 +152,9 @@ coverage was.
 
 To sum it up, we need
     Captured Font + Code Points + Rect Positioning Info + Kerning Table
-    
 
 
-
-
-STB Library
+Gonna use STB Library to bake font bitmaps.
 Create by 'S'ean 'T'. 'B'arrett
 
 We'll use stb_truetype.h

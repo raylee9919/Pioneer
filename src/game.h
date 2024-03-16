@@ -13,6 +13,9 @@ $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
 
 #define Max(a, b) ( (a > b) ? a : b )
 #define Min(a, b) ( (a < b) ? a : b )
+#define ArrayCount(array) ( sizeof(array) / sizeof(array[0]) )
+
+#include "random.h"
 
 // BMP
 #pragma pack(push, 1)
@@ -130,8 +133,19 @@ struct World {
     u32 entityCount;
 };
 
+struct Particle {
+    vec3 pos;
+    vec3 velocity;
+    vec3 accel;
+    r32 alpha;
+    r32 dAlpha;
+};
+
 struct GameState {
-    b32 init;
+    b32 isInit;
+    r32 time;
+
+    RandomSeries particleRandomSeries;
 
     World *world;
     MemoryArena worldArena;
@@ -146,9 +160,11 @@ struct GameState {
     Bitmap playerBmp[2];
     Bitmap familiarBmp[2];
     Bitmap treeBmp;
+    Bitmap particleBmp;
     Bitmap golemBmp;
 
-    r32 time;
+    Particle particles[256];
+    s32 particleNextIdx;
 };
 
 struct TransientState {
@@ -171,7 +187,6 @@ PushSize_(MemoryArena *arena, size_t size) {
 #define PushArray(arena, type, count) \
     (type *)PushSize_(arena, count * sizeof(type))
 
-#define ArrayCount(array) ( sizeof(array) / sizeof(array[0]) )
 
 internal void
 InitArena(MemoryArena *arena, size_t size, u8 *base) {
