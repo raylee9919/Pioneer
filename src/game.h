@@ -14,6 +14,14 @@ $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
 #define Max(a, b) ( (a > b) ? a : b )
 #define Min(a, b) ( (a < b) ? a : b )
 #define ArrayCount(array) ( sizeof(array) / sizeof(array[0]) )
+#define ClearToZeroStruct(Struct) ClearToZero(sizeof(Struct), Struct)
+internal void
+ClearToZero(size_t size, void *data) {
+    u8 *at = (u8 *)data;
+    while (size--) {
+        *at++ = 0;
+    }
+}
 
 #include "random.h"
 
@@ -142,8 +150,9 @@ struct Particle {
 };
 
 struct ParticleCel {
-    r32 count;
-    vec2 force;
+    r32 density;
+    vec3 velocity;
+    vec3 pressure;
 };
 
 struct GameState {
@@ -168,10 +177,10 @@ struct GameState {
     Bitmap particleBmp;
     Bitmap golemBmp;
 
-    Particle particles[256];
+    Particle particles[1024];
     s32 particleNextIdx;
 #define GRID_X 10
-#define GRID_Y 5
+#define GRID_Y 10
     ParticleCel particleGrid[GRID_Y][GRID_X];
 };
 

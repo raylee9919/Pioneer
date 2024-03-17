@@ -531,6 +531,24 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
     RDTSC_END(RenderRectSlow);
 }
 
+struct DrawBmpWorkData {
+    Bitmap *buffer;
+    vec2 origin;
+    vec2 axisX;
+    vec2 axisY;
+    Bitmap *bmp;
+    r32 alpha;
+};
+PLATFORM_WORK_QUEUE_CALLBACK(DrawBmpCallback) {
+    DrawBmpWorkData *workData = (DrawBmpWorkData *)data;
+    DrawRectSoftwareSIMD(workData->buffer,
+            workData->origin,
+            workData->axisX,
+            workData->axisY,
+            workData->bmp,
+            workData->alpha);
+}
+
 internal void
 RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer, PlatformWorkQueue *renderQueue) {
     vec2 screenCenter = vec2{
@@ -550,11 +568,14 @@ RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer, PlatformWork
 
             case RenderType_RenderEntityBmp: {
                 RenderEntityBmp *piece = (RenderEntityBmp *)at;
-                vec2 origin = piece->origin;
-                vec2 axisX = piece->axisX;
-                vec2 axisY = piece->axisY;
-                r32 alpha = piece->alpha;
-                DrawRectSoftwareSIMD(outputBuffer, origin, axisX, axisY, piece->bmp, alpha);
+                DrawBmpWorkData workData = {};
+                workData.buffer = outputBuffer;
+                workData.origin = piece->origin;
+                workData.axisX = piece->axisX;
+                workData.axisY = piece->axisY;
+                workData.bmp = piece->bmp;
+                workData.alpha = piece->alpha;
+                DrawRectSoftwareSIMD(workData.buffer, workData.origin, workData.axisX, workData.axisY, workData.bmp, workData.alpha);
                 at += sizeof(*piece);
             } break;
 

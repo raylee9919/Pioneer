@@ -66,7 +66,7 @@ to generate same number among multiple users' machine.
 2B. Lagrangian Method vs Eulerian Method
   Lagrnagian Method is bad at handling density, meaning dealng with volumetric
 simulation, you have disadvantage. You can actually combine two schemes. How 
-would that work?
+would that work? Eulerian grid method is for incompressible fluid.
 
 
 

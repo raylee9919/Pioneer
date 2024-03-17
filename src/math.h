@@ -285,5 +285,16 @@ Clamp(r32 x, r32 low, r32 high) {
     return result;
 }
 
+inline s32
+Clamp(s32 x, s32 low, s32 high) {
+    s32 result = x;
+    if (x < low) {
+        result = low;
+    } else if (x > high) {
+        result = high;
+    }
+    return result;
+}
+
 #define MATH_H
 #endif

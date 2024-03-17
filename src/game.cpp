@@ -458,7 +458,6 @@ GAME_MAIN(GameMain) {
 
         gameState->particleRandomSeries = Seed(254);
 
-
         InitArena(&gameState->worldArena,
                 gameMemory->permanent_memory_capacity - sizeof(GameState),
                 (u8 *)gameMemory->permanent_memory + sizeof(GameState));
@@ -636,12 +635,35 @@ GAME_MAIN(GameMain) {
                         //
                         // Particle System Demo
                         //
+                        vec2 O = vec2{cen.x, cen.y + 0.5f * bmpDim.y};
                         vec2 particleDim = ppm * vec2{0.5f, 0.5f}; 
                         r32 restitutionC = 0.5f;
+                        r32 gridSide = 0.5f;
+                        r32 gridSideInPixel = gridSide * ppm;
+                        vec2 gridO = vec2{O.x - (GRID_X / 2.0f) * gridSideInPixel, O.y};
+                        r32 invMax = 1.0f / 40.0f;
+
+
+#if 1
+                        for (s32 gridY = 0;
+                                gridY < GRID_Y;
+                                ++gridY) {
+                            for (s32 gridX = 0;
+                                    gridX < GRID_X;
+                                    ++gridX) {
+                                PushRect(renderGroup,
+                                        vec2{gridO.x + (r32)gridX * gridSideInPixel, gridO.y - (r32)(gridY + 1) * gridSideInPixel},
+                                        vec2{gridO.x + (r32)(gridX + 1) * gridSideInPixel, gridO.y - (r32)gridY * gridSideInPixel},
+                                        vec4{gameState->particleGrid[gridY][gridX].density * invMax, 0.0f, 0.0f, 1.0f});
+                            }
+                        }
+#endif
+
+                        ClearToZeroStruct(gameState->particleGrid);
 
                         // Create
                         for (s32 cnt = 0;
-                                cnt < 2;
+                                cnt < 2; // TODO: This actually has to be particles per frame.
                                 ++cnt) {
                             Particle *particle = gameState->particles + gameState->particleNextIdx++;
                             if (gameState->particleNextIdx >= ArrayCount(gameState->particles)) {
@@ -650,7 +672,7 @@ GAME_MAIN(GameMain) {
 
                             particle->pos = vec3{RandRange(&gameState->particleRandomSeries, -0.2f, 0.2f), 0.0f, 0.0f};
                             particle->velocity = vec3{RandRange(&gameState->particleRandomSeries, -0.5f, 0.5f), RandRange(&gameState->particleRandomSeries, 7.0f, 8.0f), 0.0f};
-                            particle->alpha = 0.2f;
+                            particle->alpha = 0.1f;
                             particle->dAlpha = 1.0f;
                         }
 
@@ -661,20 +683,55 @@ GAME_MAIN(GameMain) {
                             Particle *particle = gameState->particles + idx; 
 
                             // Simulate
-                            particle->accel = vec3{0.0f, -9.8f, 0.0f};
+                            particle->accel = vec3{0.0f, -9.81f, 0.0f};
                             particle->velocity += dt * particle->accel;
+
+                            // Euler
+                            vec2 P = O + vec2{particle->pos.x * ppm, -particle->pos.y * ppm} - gridO;
+                            s32 gridX = Clamp(FloorR32ToS32(P.x) / (s32)gridSideInPixel, 0, GRID_X - 1);
+                            s32 gridY = Clamp(FloorR32ToS32(-P.y) / (s32)gridSideInPixel, 0, GRID_Y - 1);
+                            r32 density = particle->alpha;
+                            gameState->particleGrid[gridY][gridX].density += density;
+                            gameState->particleGrid[gridY][gridX].velocity += particle->velocity;
+                            gameState->particleGrid[gridY][gridX].pressure += density * particle->velocity;
+
+                            gridX = Clamp(gridX, 1, GRID_X - 2);
+                            gridY = Clamp(gridY, 1, GRID_Y - 2);
+                            ParticleCel *right   = &gameState->particleGrid[gridY][gridX + 1];
+                            ParticleCel *left    = &gameState->particleGrid[gridY][gridX - 1];
+                            ParticleCel *up      = &gameState->particleGrid[gridY + 1][gridX];
+                            ParticleCel *down    = &gameState->particleGrid[gridY - 1][gridX];
+                            r32 overRelaxation = 1.9f;
+                            r32 div = overRelaxation * (
+                                -particle->velocity.x
+                                -particle->velocity.y
+                                +right->pressure.x
+                                +up->pressure.y);
+                            r32 quarterD = div * 0.25f;
+                            particle->velocity.x += 0.25f * quarterD;
+                            particle->velocity.y += 0.25f * quarterD;
+                            right->velocity.x    -= 0.25f * quarterD;
+                            up->velocity.y       -= 0.25f * quarterD;
+
                             particle->pos += dt * particle->velocity;
                             if (particle->alpha > 0.9f) {
                                 particle->dAlpha *= -1.0f;
                             }
                             particle->alpha += dt * particle->dAlpha;
+                            if (particle->alpha <= 0.0f) {
+                                particle->alpha = 0.001f;
+                            }
+
+
+                            // Bounce
                             if (particle->pos.y < -0.0f) {
                                 particle->pos.y = 0.0f;
                                 particle->velocity.y *= -restitutionC;
                             }
-                            vec2 particleCen = cen + ppm * vec2{particle->pos.x, -particle->pos.y};
+
                             
                             // Render Particle
+                            vec2 particleCen = cen + ppm * vec2{particle->pos.x, -particle->pos.y};
                             particleCen.y += bmpDim.y * 0.5f;
                             r32 scale = 0.5f;
                             PushBmp(renderGroup,

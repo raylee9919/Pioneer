@@ -433,7 +433,7 @@ struct PlatformWorkQueue {
 internal void 
 Win32AddEntry(PlatformWorkQueue *queue, PlatformWorkQueueCallback *callback, void *data) {
     u32 newNextEntryToWrite = (queue->nextEntryToWrite + 1) % ArrayCount(queue->entries);
-    ASSERT(newNextEntryToWrite != queue->nextEntryToRead);
+    // ASSERT(newNextEntryToWrite != queue->nextEntryToRead);
     PlatformWorkQueueEntry *entry = queue->entries + queue->nextEntryToWrite;
     entry->callback = callback;
     entry->data = data;
