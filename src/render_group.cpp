@@ -179,10 +179,10 @@ DrawRect(Bitmap *buffer, vec2 min, vec2 max, vec4 color) {
         }
     }
 
+    r32 A = color.a;
     r32 R = color.r;
     r32 G = color.g;
     r32 B = color.b;
-    r32 A = color.a;
 
     u32 C = ( (RoundR32ToU32(A * 255.0f) << 24) | 
               (RoundR32ToU32(R * 255.0f) << 16) |

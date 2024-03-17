@@ -458,7 +458,6 @@ GAME_MAIN(GameMain) {
 
         gameState->particleRandomSeries = Seed(254);
 
-        g_DebugCycleCounters = gameMemory->debugCycleCounters;
 
         InitArena(&gameState->worldArena,
                 gameMemory->permanent_memory_capacity - sizeof(GameState),
@@ -518,6 +517,8 @@ GAME_MAIN(GameMain) {
         }
         gameState->particleNextIdx = 0;
     }
+
+    g_DebugCycleCounters = gameMemory->debugCycleCounters;
 
     RDTSC_BEGIN(GameMain);
 
@@ -617,7 +618,9 @@ GAME_MAIN(GameMain) {
 #if 1
                         PushBmp(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, &gameState->playerBmp[face]);
 #else
+                        //
                         // Rotation Demo
+                        //
                         PushBmp(renderGroup,
                                 cen - 0.5f * bmpDim,
                                 bmpDim.x * vec2{Cos(angle), Sin(angle)},
@@ -634,7 +637,7 @@ GAME_MAIN(GameMain) {
                         // Particle System Demo
                         //
                         vec2 particleDim = ppm * vec2{0.5f, 0.5f}; 
-                        r32 restitutionC = 0.8f;
+                        r32 restitutionC = 0.5f;
 
                         // Create
                         for (s32 cnt = 0;
@@ -646,7 +649,7 @@ GAME_MAIN(GameMain) {
                             }
 
                             particle->pos = vec3{RandRange(&gameState->particleRandomSeries, -0.2f, 0.2f), 0.0f, 0.0f};
-                            particle->velocity = vec3{RandRange(&gameState->particleRandomSeries, -1.5f, 1.5f), 9.0f, 0.0f};
+                            particle->velocity = vec3{RandRange(&gameState->particleRandomSeries, -0.5f, 0.5f), RandRange(&gameState->particleRandomSeries, 7.0f, 8.0f), 0.0f};
                             particle->alpha = 0.2f;
                             particle->dAlpha = 1.0f;
                         }
@@ -665,18 +668,18 @@ GAME_MAIN(GameMain) {
                                 particle->dAlpha *= -1.0f;
                             }
                             particle->alpha += dt * particle->dAlpha;
-
                             if (particle->pos.y < -0.0f) {
-                                particle->pos.y = -0.0f;
+                                particle->pos.y = 0.0f;
                                 particle->velocity.y *= -restitutionC;
                             }
-
-                            // Render
                             vec2 particleCen = cen + ppm * vec2{particle->pos.x, -particle->pos.y};
+                            
+                            // Render Particle
                             particleCen.y += bmpDim.y * 0.5f;
+                            r32 scale = 0.5f;
                             PushBmp(renderGroup,
                                     particleCen - 0.5f * particleDim,
-                                    vec2{particleDim.x, 0}, vec2{0, particleDim.y},
+                                    vec2{particleDim.x * scale, 0}, vec2{0, particleDim.y * scale},
                                     &gameState->particleBmp, particle->alpha);
                         }
                         

@@ -141,6 +141,11 @@ struct Particle {
     r32 dAlpha;
 };
 
+struct ParticleCel {
+    r32 count;
+    vec2 force;
+};
+
 struct GameState {
     b32 isInit;
     r32 time;
@@ -165,6 +170,9 @@ struct GameState {
 
     Particle particles[256];
     s32 particleNextIdx;
+#define GRID_X 10
+#define GRID_Y 5
+    ParticleCel particleGrid[GRID_Y][GRID_X];
 };
 
 struct TransientState {
