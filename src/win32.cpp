@@ -634,9 +634,11 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     FILETIME game_dll_time = {};
 
     GameMain_ *game_main = 0;
-
     GameInput game_input = {};
 
+    //
+    // Loop ------------------------------------------------------
+    //
     while(g_running) {
         LARGE_INTEGER counter_begin = Win32GetClock();
 
@@ -745,7 +747,10 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
          }
 
          Win32WindowDimension wd = Win32GetWindowDimension(hwnd);
-         Win32UpdateScreen(GetDC(hwnd), wd.width, wd.height);
+         HDC dc = GetDC(hwnd);
+         ASSERT(dc != 0);
+         Win32UpdateScreen(dc, wd.width, wd.height);
+         ReleaseDC(hwnd, dc);
 
          LARGE_INTEGER counter_end = Win32GetClock();
          real32 actual_mspf = Win32GetElapsedMs(counter_begin, counter_end);
