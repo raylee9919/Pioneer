@@ -142,17 +142,17 @@ struct World {
 };
 
 struct Particle {
-    vec3 pos;
-    vec3 velocity;
-    vec3 accel;
+    vec3 P;
+    vec3 V;
+    vec3 A;
     r32 alpha;
     r32 dAlpha;
 };
 
 struct ParticleCel {
     r32 density;
-    vec3 velocity;
-    vec3 pressure;
+    vec3 VSum;
+    vec3 V;
 };
 
 struct GameState {
@@ -177,10 +177,10 @@ struct GameState {
     Bitmap particleBmp;
     Bitmap golemBmp;
 
-    Particle particles[1024];
+    Particle particles[256];
     s32 particleNextIdx;
-#define GRID_X 10
-#define GRID_Y 10
+#define GRID_X 30
+#define GRID_Y 20
     ParticleCel particleGrid[GRID_Y][GRID_X];
 };
 

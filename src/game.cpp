@@ -637,14 +637,15 @@ GAME_MAIN(GameMain) {
                         //
                         vec2 O = vec2{cen.x, cen.y + 0.5f * bmpDim.y};
                         vec2 particleDim = ppm * vec2{0.5f, 0.5f}; 
-                        r32 restitutionC = 0.5f;
-                        r32 gridSide = 0.5f;
+                        r32 restitutionC = 0.8f;
+                        r32 gridSide = 0.2f;
                         r32 gridSideInPixel = gridSide * ppm;
                         vec2 gridO = vec2{O.x - (GRID_X / 2.0f) * gridSideInPixel, O.y};
-                        r32 invMax = 1.0f / 40.0f;
+                        r32 invMax = 1.0f / 15.0f;
 
 
-#if 1
+#if 0
+                        // Draw debug grids showing density.
                         for (s32 gridY = 0;
                                 gridY < GRID_Y;
                                 ++gridY) {
@@ -670,70 +671,85 @@ GAME_MAIN(GameMain) {
                                 gameState->particleNextIdx = 0; 
                             }
 
-                            particle->pos = vec3{RandRange(&gameState->particleRandomSeries, -0.2f, 0.2f), 0.0f, 0.0f};
-                            particle->velocity = vec3{RandRange(&gameState->particleRandomSeries, -0.5f, 0.5f), RandRange(&gameState->particleRandomSeries, 7.0f, 8.0f), 0.0f};
-                            particle->alpha = 0.1f;
+                            particle->P = vec3{RandRange(&gameState->particleRandomSeries, -0.2f, 0.2f), 0.0f, 0.0f};
+                            particle->V = vec3{RandRange(&gameState->particleRandomSeries, -0.5f, 0.5f), RandRange(&gameState->particleRandomSeries, 7.0f, 8.0f), 0.0f};
+                            particle->alpha = 0.01f;
                             particle->dAlpha = 1.0f;
                         }
 
                         // Simulate and Render
-                        for (s32 idx = 0;
-                                idx < ArrayCount(gameState->particles);
-                                ++idx) {
-                            Particle *particle = gameState->particles + idx; 
+                        for (s32 particleIdx = 0;
+                                particleIdx < ArrayCount(gameState->particles);
+                                ++particleIdx) {
+                            Particle *particle = gameState->particles + particleIdx; 
 
-                            // Simulate
-                            particle->accel = vec3{0.0f, -9.81f, 0.0f};
-                            particle->velocity += dt * particle->accel;
-
-                            // Euler
-                            vec2 P = O + vec2{particle->pos.x * ppm, -particle->pos.y * ppm} - gridO;
+                            // Integrate gravity.
+                            particle->A = vec3{0.0f, -9.81f, 0.0f};
+                            particle->V += dt * particle->A;
+                            
+                            // Iterate particles and add grid info.
+                            vec2 P = O + vec2{particle->P.x * ppm, -particle->P.y * ppm} - gridO;
                             s32 gridX = Clamp(FloorR32ToS32(P.x) / (s32)gridSideInPixel, 0, GRID_X - 1);
                             s32 gridY = Clamp(FloorR32ToS32(-P.y) / (s32)gridSideInPixel, 0, GRID_Y - 1);
                             r32 density = particle->alpha;
-                            gameState->particleGrid[gridY][gridX].density += density;
-                            gameState->particleGrid[gridY][gridX].velocity += particle->velocity;
-                            gameState->particleGrid[gridY][gridX].pressure += density * particle->velocity;
+                            ParticleCel *cel = &gameState->particleGrid[gridY][gridX];
+                            cel->density += density;
+                            cel->V = particle->V;
+                        }
 
-                            gridX = Clamp(gridX, 1, GRID_X - 2);
-                            gridY = Clamp(gridY, 1, GRID_Y - 2);
-                            ParticleCel *right   = &gameState->particleGrid[gridY][gridX + 1];
-                            ParticleCel *left    = &gameState->particleGrid[gridY][gridX - 1];
-                            ParticleCel *up      = &gameState->particleGrid[gridY + 1][gridX];
-                            ParticleCel *down    = &gameState->particleGrid[gridY - 1][gridX];
-                            r32 overRelaxation = 1.9f;
-                            r32 div = overRelaxation * (
-                                -particle->velocity.x
-                                -particle->velocity.y
-                                +right->pressure.x
-                                +up->pressure.y);
-                            r32 quarterD = div * 0.25f;
-                            particle->velocity.x += 0.25f * quarterD;
-                            particle->velocity.y += 0.25f * quarterD;
-                            right->velocity.x    -= 0.25f * quarterD;
-                            up->velocity.y       -= 0.25f * quarterD;
+                        for (u32 gridY = 0;
+                                gridY < GRID_Y - 1;
+                                ++gridY) {
+                            for (u32 gridX = 0;
+                                    gridX < GRID_X - 1;
+                                    ++gridX) {
+                                // Projection
+                                ParticleCel *cel = &gameState->particleGrid[gridY][gridX];
+                                ParticleCel *right   = &gameState->particleGrid[gridY][gridX + 1];
+                                ParticleCel *up      = &gameState->particleGrid[gridY + 1][gridX];
 
-                            particle->pos += dt * particle->velocity;
+                                r32 overRelaxation = 1.9f;
+                                r32 div = overRelaxation * (
+                                        -cel->V.x
+                                        -cel->V.y
+                                        +right->V.x
+                                        +up->V.y);
+                                r32 quarterD = div * 0.25f;
+                                cel->V.x   += 0.25f * quarterD;
+                                cel->V.y   += 0.25f * quarterD;
+                                right->V.x -= 0.25f * quarterD;
+                                up->V.y    -= 0.25f * quarterD;
+                            }
+                        }
+
+                        for (s32 particleIdx = 0;
+                                particleIdx < ArrayCount(gameState->particles);
+                                ++particleIdx) {
+                            Particle *particle = gameState->particles + particleIdx;
+                            vec2 P = O + vec2{particle->P.x * ppm, -particle->P.y * ppm} - gridO;
+                            s32 gridX = Clamp(FloorR32ToS32(P.x) / (s32)gridSideInPixel, 0, GRID_X - 1);
+                            s32 gridY = Clamp(FloorR32ToS32(-P.y) / (s32)gridSideInPixel, 0, GRID_Y - 1);
+                            particle->V = gameState->particleGrid[gridY][gridX].V;
+
+                            particle->P += dt * particle->V;
                             if (particle->alpha > 0.9f) {
                                 particle->dAlpha *= -1.0f;
                             }
                             particle->alpha += dt * particle->dAlpha;
                             if (particle->alpha <= 0.0f) {
-                                particle->alpha = 0.001f;
+                                particle->alpha = 0.01f;
                             }
-
 
                             // Bounce
-                            if (particle->pos.y < -0.0f) {
-                                particle->pos.y = 0.0f;
-                                particle->velocity.y *= -restitutionC;
+                            if (particle->P.y < -0.0f) {
+                                particle->P.y = 0.0f;
+                                particle->V.y *= -restitutionC;
                             }
 
-                            
                             // Render Particle
-                            vec2 particleCen = cen + ppm * vec2{particle->pos.x, -particle->pos.y};
+                            vec2 particleCen = cen + ppm * vec2{particle->P.x, -particle->P.y};
                             particleCen.y += bmpDim.y * 0.5f;
-                            r32 scale = 0.5f;
+                            r32 scale = 0.8f;
                             PushBmp(renderGroup,
                                     particleCen - 0.5f * particleDim,
                                     vec2{particleDim.x * scale, 0}, vec2{0, particleDim.y * scale},
