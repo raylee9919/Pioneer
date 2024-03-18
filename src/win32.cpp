@@ -386,8 +386,10 @@ Win32WindowCallback(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
         case WM_PAINT: {
             PAINTSTRUCT paint;
             HDC hdc = BeginPaint(hwnd, &paint);
+            ASSERT(hdc != 0);
             Win32WindowDimension wd = Win32GetWindowDimension(hwnd);
             Win32UpdateScreen(hdc, wd.width, wd.height);
+            ReleaseDC(hwnd, hdc);
             EndPaint(hwnd, &paint);
         } break;
         

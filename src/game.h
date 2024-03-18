@@ -177,7 +177,7 @@ struct GameState {
     Bitmap particleBmp;
     Bitmap golemBmp;
 
-    Particle particles[256];
+    Particle particles[512];
     s32 particleNextIdx;
 #define GRID_X 30
 #define GRID_Y 20

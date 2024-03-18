@@ -589,7 +589,7 @@ GAME_MAIN(GameMain) {
 
     PushRect(renderGroup, vec2{},
             vec2{(r32)gameScreenBuffer->width, (r32)gameScreenBuffer->height},
-            vec4{0.2f, 0.2f, 0.2f, 1.0f});
+            vec4{0.2f, 0.3f, 0.3f, 1.0f});
 
     for (s32 Y = minPos.chunkY;
             Y <= maxPos.chunkY;
@@ -630,8 +630,9 @@ GAME_MAIN(GameMain) {
                         PushRect(renderGroup, origin - 0.5f * dotDim, origin + 0.5f * dotDim, vec4{1.0f, 1.0f, 1.0f, 1.0f});
                         PushRect(renderGroup, origin + vec2{bmpDim.x * Cos(angle), bmpDim.x * Sin(angle)} - 0.5f * dotDim, origin + vec2{bmpDim.x * Cos(angle), bmpDim.x * Sin(angle)} + 0.5f * dotDim, vec4{1.0f, 0.2f, 0.2f, 1.0f});
                         PushRect(renderGroup, origin + vec2{bmpDim.y * -Sin(angle), bmpDim.y * Cos(angle)} - 0.5f * dotDim, origin + vec2{bmpDim.y * -Sin(angle), bmpDim.y * Cos(angle)} + 0.5f * dotDim, vec4{0.2f, 1.0f, 0.2f, 1.0f});
- #endif
+#endif
 
+#if 0
                         //
                         // Particle System Demo
                         //
@@ -664,7 +665,7 @@ GAME_MAIN(GameMain) {
 
                         // Create
                         for (s32 cnt = 0;
-                                cnt < 2; // TODO: This actually has to be particles per frame.
+                                cnt < 4; // TODO: This actually has to be particles per frame.
                                 ++cnt) {
                             Particle *particle = gameState->particles + gameState->particleNextIdx++;
                             if (gameState->particleNextIdx >= ArrayCount(gameState->particles)) {
@@ -755,6 +756,7 @@ GAME_MAIN(GameMain) {
                                     vec2{particleDim.x * scale, 0}, vec2{0, particleDim.y * scale},
                                     &gameState->particleBmp, particle->alpha);
                         }
+#endif
                         
                     } break;
 
