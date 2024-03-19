@@ -6,8 +6,13 @@
     $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
     ======================================================================== */
 
-#include "render_group.h"
+#include "render.h"
 
+
+
+//
+// Push to Render Group -------------------------------------------------------
+//
 #define PushRenderEntity(GROUP, STRUCT) \
     (STRUCT *)PushRenderEntity_(GROUP, sizeof(STRUCT), RenderType_##STRUCT)
 internal RenderEntityHeader *
@@ -530,7 +535,6 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
     RDTSC_END_ADDCOUNT(PerPixel, (maxX - minX + 1) * (maxY - minY + 1));
     RDTSC_END(RenderRectSlow);
 }
-
 struct DrawBmpWorkData {
     Bitmap *buffer;
     vec2 origin;
@@ -538,8 +542,9 @@ struct DrawBmpWorkData {
     vec2 axisY;
     Bitmap *bmp;
     r32 alpha;
+    WorkMemoryArena *workSlot;
 };
-PLATFORM_WORK_QUEUE_CALLBACK(DrawBmpCallback) {
+PLATFORM_WORK_QUEUE_CALLBACK(DrawBmpWork) {
     DrawBmpWorkData *workData = (DrawBmpWorkData *)data;
     DrawRectSoftwareSIMD(workData->buffer,
             workData->origin,
@@ -547,10 +552,12 @@ PLATFORM_WORK_QUEUE_CALLBACK(DrawBmpCallback) {
             workData->axisY,
             workData->bmp,
             workData->alpha);
+    EndWorkMemory(workData->workSlot);
 }
 
 internal void
-RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer, PlatformWorkQueue *renderQueue) {
+RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer,
+        TransientState *transState) {
     vec2 screenCenter = vec2{
         0.5f * (r32)outputBuffer->width,
         0.5f * (r32)outputBuffer->height
@@ -568,14 +575,26 @@ RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer, PlatformWork
 
             case RenderType_RenderEntityBmp: {
                 RenderEntityBmp *piece = (RenderEntityBmp *)at;
-                DrawBmpWorkData workData = {};
-                workData.buffer = outputBuffer;
-                workData.origin = piece->origin;
-                workData.axisX = piece->axisX;
-                workData.axisY = piece->axisY;
-                workData.bmp = piece->bmp;
-                workData.alpha = piece->alpha;
-                DrawRectSoftwareSIMD(workData.buffer, workData.origin, workData.axisX, workData.axisY, workData.bmp, workData.alpha);
+
+                WorkMemoryArena *workSlot = BeginWorkMemory(transState);
+                if (workSlot) {
+                    DrawBmpWorkData *workData = PushStruct(&workSlot->memoryArena, DrawBmpWorkData);
+                    workData->buffer = outputBuffer;
+                    workData->origin = piece->origin;
+                    workData->axisX = piece->axisX;
+                    workData->axisY = piece->axisY;
+                    workData->bmp = piece->bmp;
+                    workData->alpha = piece->alpha;
+                    workData->workSlot = workSlot;
+#if 0
+                    // TODO: Multi-thread ain't working... T^T
+                    platformAddEntry(transState->highPriorityQueue, DrawBmpWork, workData);
+#else
+                    // Single-thread
+                    DrawBmpWork(transState->highPriorityQueue, workData);
+#endif
+                }
+
                 at += sizeof(*piece);
             } break;
 

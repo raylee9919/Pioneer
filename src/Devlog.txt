@@ -11,7 +11,7 @@
 
 
 
-                                Theme 0. CPU SIMD
+                            Theme 0. CPU SIMD
 
   Unaligned Store can be pretty expensive. Most of the time, you wanna keep the 
 perspective to keep things aligned. Since, We are now using 128-bit wide vector,
@@ -37,6 +37,29 @@ fetching texel will stay. What can I say?
 
 
                             Theme 1. Asset System
+
+  "There's almost nothing to it in asset streaming." -Casey Muratori
+What are the considerations? First, the place where the game code and assets have to 
+agree on name of something. For example,
+            Bitmap *grassBitmap = LoadBitmap("grass_teal.bmp");
+is the line of code where the name "grassBitmap" and "grass_teal.bmp" binding
+occurs.
+  The engine must know also know what options does artist provide. Currently, 
+grass is array'd like
+                            Bitmap *grass[3];
+  Another problem we face here is that struct for the assets are statically
+reserved. We want to boil down to something smaller, or even nothing. We can 
+sneak in code that allocates memory for the struct inside bitmap loading routine 
+from the disk. Thus, a reserved piece shrinks down to sizeof(Bitmap) to 
+sizeof(Bitmap *);
+  I also want some kind of indirect approach to the asset. It is accessing the 
+data via pointer grass at this point. Maybe using enum, like ID_GRASS might work.
+  People tend to say writing background asset streaming system is hard. But, 
+casey says it isn't. Whether he is trippin' or not, there's only one way to
+find it out. Writing it myself.
+  What if at certain point, the bitmap we tryin to write ain't loaded yet? Should
+we stall the frame so our frame rate get hit? Or should we just not write it and 
+let the flicker appear to the users? Casey considers the first one always right.
 
 
 
@@ -66,7 +89,7 @@ to generate same number among multiple users' machine.
 2B. Lagrangian Method vs Eulerian Method
   Lagrnagian Method is bad at handling density, meaning dealng with volumetric
 simulation, you have disadvantage. You can actually combine two schemes. How 
-would that work? Eulerian grid method is for incompressible fluid.
+would that work? Eulerian grid method is mainly for incompressible fluid.
 
 
 

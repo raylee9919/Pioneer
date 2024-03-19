@@ -58,7 +58,9 @@ struct Bitmap {
     void *memory;
 };
 
-// Memory
+//
+// Memory ---------------------------------------------------------------------
+//
 struct MemoryArena {
     size_t size;
     size_t used;
@@ -67,9 +69,19 @@ struct MemoryArena {
     u32 tempCount;
 };
 
+// 
+// Temporary Memory ----------------------------------------------------------
+//
 struct TemporaryMemory {
     MemoryArena *memoryArena;
+    // Simply stores what was the used amount before.
+    // Restoring without any precedence issues problem in multi-threading.
     size_t used;
+};
+struct WorkMemoryArena {
+    b32 isUsed;
+    MemoryArena memoryArena;
+    TemporaryMemory flush;
 };
 
 
@@ -155,6 +167,21 @@ struct ParticleCel {
     vec3 V;
 };
 
+enum GameAssetID {
+    GAI_Tree,
+    GAI_Particle,
+    GAI_Golem,
+
+    GAI_Count
+};
+
+struct GameAssets {
+    Bitmap *bitmaps[GAI_Count];
+    
+    DEBUG_PLATFORM_READ_FILE_ *debug_platform_read_file;
+};
+
+
 struct GameState {
     b32 isInit;
     r32 time;
@@ -171,11 +198,9 @@ struct GameState {
     Camera camera;
 
     Entity *player;
-    Bitmap playerBmp[2];
-    Bitmap familiarBmp[2];
-    Bitmap treeBmp;
-    Bitmap particleBmp;
-    Bitmap golemBmp;
+
+    Bitmap *playerBmp[2];
+    Bitmap *familiarBmp[2];
 
     Particle particles[512];
     s32 particleNextIdx;
@@ -187,7 +212,13 @@ struct GameState {
 struct TransientState {
     b32 isInit;
     MemoryArena transientArena;
-    PlatformWorkQueue *renderQueue;
+    PlatformWorkQueue *highPriorityQueue;
+    PlatformWorkQueue *lowPriorityQueue;
+
+    WorkMemoryArena workArena[4];
+
+    MemoryArena assetArena;
+    GameAssets gameAssets;
 };
 
 internal void *
@@ -204,13 +235,62 @@ PushSize_(MemoryArena *arena, size_t size) {
 #define PushArray(arena, type, count) \
     (type *)PushSize_(arena, count * sizeof(type))
 
-
 internal void
 InitArena(MemoryArena *arena, size_t size, u8 *base) {
     arena->size = size;
     arena->base = base;
     arena->used = 0;
 }
+
+internal void
+InitSubArena(MemoryArena *subArena, MemoryArena *motherArena, size_t size) {
+    ASSERT(motherArena->size >= motherArena->used + size);
+    InitArena(subArena, size, motherArena->base + motherArena->used);
+    motherArena->used += size;
+}
+
+inline TemporaryMemory
+BeginTemporaryMemory(MemoryArena *memoryArena) {
+    memoryArena->tempCount++;
+
+    TemporaryMemory result = {};
+    result.memoryArena = memoryArena;
+    result.used = memoryArena->used;
+
+    return result;
+}
+inline void
+EndTemporaryMemory(TemporaryMemory *temporaryMemory) {
+    MemoryArena *arena = temporaryMemory->memoryArena;
+    ASSERT(arena->used >= temporaryMemory->used);
+    arena->used = temporaryMemory->used;
+    ASSERT(arena->tempCount > 0);
+    arena->tempCount--;
+}
+
+inline WorkMemoryArena *
+BeginWorkMemory(TransientState *transState) {
+    WorkMemoryArena *result = 0;
+    for (s32 idx = 0;
+            idx < ArrayCount(transState->workArena);
+            ++idx) {
+        WorkMemoryArena *workSlot = transState->workArena + idx;
+        if (!workSlot->isUsed) {
+            result = workSlot;
+            result->isUsed = true;
+            result->flush = BeginTemporaryMemory(&result->memoryArena);
+            break;
+        }
+    }
+    return result;
+}
+inline void
+EndWorkMemory(WorkMemoryArena *workMemoryArena) {
+    EndTemporaryMemory(&workMemoryArena->flush);
+    __WRITE_BARRIER__
+    workMemoryArena->isUsed = false;
+}
+
 
 #define GAME_MAIN(name) void name(GameMemory *gameMemory, GameState *gameState, \
         GameInput *gameInput, GameScreenBuffer *gameScreenBuffer)

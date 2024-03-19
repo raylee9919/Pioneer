@@ -12,7 +12,7 @@ function module.insert_header_template()
     local filename = vim.fn.expand('%:t:r')
     local current_year = os.date("%Y")
     local header_template = string.format([[
-    #ifndef %s_H
+#ifndef %s_H
  /* ========================================================================
     $File: $
     $Date: $
@@ -23,8 +23,8 @@ function module.insert_header_template()
 
 
 
-    #define %s_H
-    #endif
+#define %s_H
+#endif
     ]], filename:upper(), current_year, filename:upper())
 
     vim.api.nvim_buf_set_lines(0, 0, 0, false, vim.split(header_template, '\n'))

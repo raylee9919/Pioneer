@@ -22,6 +22,10 @@ $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
 #define MSVC_COMPILER   1
 #define MSVC_LLVM       0
 
+#ifdef MSVC_COMPILER
+    #define __WRITE_BARRIER__ _WriteBarrier();
+#endif
+
 
 struct DebugReadFileResult {
     u32 content_size;
@@ -106,6 +110,7 @@ typedef struct {
     u64 transient_memory_capacity;
 
     PlatformWorkQueue *highPriorityQueue;
+    PlatformWorkQueue *lowPriorityQueue;
 
     PlatformAddEntry *platformAddEntry;
     PlatformCompleteAllWork *platformCompleteAllWork;

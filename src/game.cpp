@@ -11,19 +11,20 @@ $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
 
 #include "types.h"
 #include "game.h"
-#include "render_group.cpp"
+#include "render.cpp"
 
-internal Bitmap
-LoadBmp(GameMemory *gameMemory, DEBUG_PLATFORM_READ_FILE_ *ReadFile, const char *filename) {
-    Bitmap result = {};
+internal Bitmap *
+LoadBitmap(MemoryArena *memoryArena, DEBUG_PLATFORM_READ_FILE_ *ReadFile, const char *filename) {
+    Bitmap *result = PushStruct(memoryArena, Bitmap);
+    *result = {};
     
     DebugReadFileResult readResult = ReadFile(filename);
     if(readResult.content_size != 0) {
         BitmapInfoHeader *header = (BitmapInfoHeader *)readResult.contents;
         uint32 *pixels = (uint32 *)((uint8 *)readResult.contents + header->bitmap_offset);
-        result.memory = pixels;
-        result.width = header->width;
-        result.height = header->height;
+        result->memory = pixels;
+        result->width = header->width;
+        result->height = header->height;
 
         ASSERT(header->compression == 3);
 
@@ -78,10 +79,67 @@ LoadBmp(GameMemory *gameMemory, DEBUG_PLATFORM_READ_FILE_ *ReadFile, const char 
         }
     }
 
-    result.pitch = -result.width * BYTES_PER_PIXEL;
-    result.memory = (u8 *)result.memory - result.pitch * (result.height - 1);
+    result->pitch = -result->width * BYTES_PER_PIXEL;
+    result->memory = (u8 *)result->memory - result->pitch * (result->height - 1);
     
     return result;
+}
+struct LoadGameAssetWorkData {
+    GameAssets *gameAssets;
+    MemoryArena *assetArena;
+    GameAssetID assetID;
+    char *fileName;
+    WorkMemoryArena *workSlot;
+};
+PLATFORM_WORK_QUEUE_CALLBACK(LoadGameAssetWork) {
+    LoadGameAssetWorkData *workData = (LoadGameAssetWorkData *)data;
+    workData->gameAssets->bitmaps[workData->assetID] = LoadBitmap(workData->assetArena, workData->gameAssets->debug_platform_read_file, workData->fileName);
+    EndWorkMemory(workData->workSlot);
+}
+internal Bitmap *
+GetBitmap(TransientState *transState,
+        GameAssetID assetID, PlatformWorkQueue *queue) {
+    Bitmap *result = transState->gameAssets.bitmaps[assetID];
+
+    if (!result) {
+        WorkMemoryArena *workSlot = BeginWorkMemory(transState);
+        if (workSlot) {
+            LoadGameAssetWorkData *workData = PushStruct(&workSlot->memoryArena, LoadGameAssetWorkData);
+            workData->gameAssets = &transState->gameAssets;
+            workData->assetArena = &transState->assetArena;
+            workData->assetID = assetID;
+            workData->workSlot = workSlot;
+
+            switch(assetID) {
+                case GAI_Tree: {
+                    workData->fileName = "tree00.bmp";
+                } break;
+
+                case GAI_Particle: {
+                    workData->fileName = "white_particle.bmp";
+                } break;
+
+                case GAI_Golem: {
+                    workData->fileName = "golem.bmp";
+                } break;
+
+                INVALID_DEFAULT_CASE
+            }
+#if 1
+            // Multi-thread
+            platformAddEntry(queue, LoadGameAssetWork, workData);
+            return 0; // TODO: NO bmp...?
+#else
+            // Single-thread
+            LoadGameAssetWork(queue, workData);
+            return 0; // TODO: NO bmp...?
+#endif
+        } else {
+            return result;
+        }
+    } else {
+        return result;
+    }
 }
 
 inline u32
@@ -428,31 +486,14 @@ UpdateEntities(GameState *gameState, r32 dt, Position simMin, Position simMax) {
     }
 }
 
-inline TemporaryMemory
-BeginTemporaryMemory(MemoryArena *memoryArena) {
-    memoryArena->tempCount++;
-
-    TemporaryMemory result = {};
-    result.memoryArena = memoryArena;
-    result.used = memoryArena->used;
-
-    return result;
-}
-
-inline void
-EndTemporaryMemory(TemporaryMemory *temporaryMemory) {
-    MemoryArena *arena = temporaryMemory->memoryArena;
-    ASSERT(arena->used >= temporaryMemory->used);
-    arena->used = temporaryMemory->used;
-    ASSERT(arena->tempCount > 0);
-    arena->tempCount--;
-}
-
 extern "C"
 GAME_MAIN(GameMain) {
     platformAddEntry = gameMemory->platformAddEntry;
     platformCompleteAllWork = gameMemory->platformCompleteAllWork;
 
+    //
+    // Init GameState ---------------------------------------------------------
+    //
     if (!gameState->isInit) {
         gameState->isInit = true;
 
@@ -468,21 +509,18 @@ GAME_MAIN(GameMain) {
         MemoryArena *worldArena = &gameState->worldArena;
         ChunkHashmap *chunkHashmap = &gameState->world->chunkHashmap;
 
+        gameState->playerBmp[0] = LoadBitmap(&gameState->worldArena, gameMemory->debug_platform_read_file, "hero_red_right.bmp");
+        gameState->playerBmp[1] = LoadBitmap(&gameState->worldArena, gameMemory->debug_platform_read_file, "hero_red_left.bmp");
+        gameState->familiarBmp[0] = LoadBitmap(&gameState->worldArena, gameMemory->debug_platform_read_file, "hero_blue_right.bmp");
+        gameState->familiarBmp[1] = LoadBitmap(&gameState->worldArena, gameMemory->debug_platform_read_file, "hero_blue_left.bmp");
+
         gameState->player = PushEntity(worldArena, chunkHashmap, EntityType_Player, {0, 0, 0});
-        gameState->playerBmp[0] = LoadBmp(gameMemory, gameMemory->debug_platform_read_file, "hero_red_right.bmp");
-        gameState->playerBmp[1] = LoadBmp(gameMemory, gameMemory->debug_platform_read_file, "hero_red_left.bmp");
 
         PushEntity(worldArena, chunkHashmap, EntityType_Familiar, {0, 0, 0, vec3{3.0f, 0.0f, 0.0f}});
-        gameState->familiarBmp[0] = LoadBmp(gameMemory, gameMemory->debug_platform_read_file, "hero_blue_right.bmp");
-        gameState->familiarBmp[1] = LoadBmp(gameMemory, gameMemory->debug_platform_read_file, "hero_blue_left.bmp");
 
-        gameState->treeBmp = LoadBmp(gameMemory, gameMemory->debug_platform_read_file, "tree00.bmp");
-
-        gameState->particleBmp = LoadBmp(gameMemory, gameMemory->debug_platform_read_file, "white_particle.bmp");
 
 #if 0
         PushEntity(worldArena, chunkHashmap, EntityType_Golem, {0, 0, 0, vec3{3.0f, 3.0f, 0.0f}});
-        gameState->golemBmp = LoadBmp(gameMemory, gameMemory->debug_platform_read_file, "golem.bmp");
 #endif
 
         gameState->camera = {};
@@ -522,7 +560,7 @@ GAME_MAIN(GameMain) {
     RDTSC_BEGIN(GameMain);
 
     //
-    // NOTE: Init Transient Memory
+    // Init Transient Memory ---------------------------------
     //
     void *transMem = gameMemory->transient_memory;
     u64 transMemCap = gameMemory->transient_memory_capacity;
@@ -533,11 +571,26 @@ GAME_MAIN(GameMain) {
         transState->isInit = true;
 
         InitArena(&transState->transientArena,
-                transMemCap - sizeof(TransientState),
+                MB(100),
                 (u8 *)transMem + sizeof(TransientState));
+        
+        // NOTE: Reserved memory for Multi-Thread Work Data
+        for (u32 idx = 0;
+                idx < ArrayCount(transState->workArena);
+                ++idx) {
+            WorkMemoryArena *workSlot = transState->workArena + idx;
+            InitSubArena(&workSlot->memoryArena, &transState->transientArena, MB(4));
+        }
+        
+        InitArena(&transState->assetArena,
+                MB(20),
+                (u8 *)transMem + sizeof(TransientState) + transState->transientArena.size);
 
-        transState->renderQueue = gameMemory->highPriorityQueue;
-    }
+        transState->highPriorityQueue = gameMemory->highPriorityQueue;
+        transState->lowPriorityQueue = gameMemory->lowPriorityQueue;
+        // TODO: Ain't thrilled about it.
+        transState->gameAssets.debug_platform_read_file = gameMemory->debug_platform_read_file;
+   }
 
     TemporaryMemory renderMemory = BeginTemporaryMemory(&transState->transientArena);
     RenderGroup *renderGroup = AllocRenderGroup(&transState->transientArena);
@@ -571,12 +624,12 @@ GAME_MAIN(GameMain) {
     RecalcPos(&maxPos, chunkDim);
 
     //
-    // Update entities
+    // Update entities -------------------------------------
     //
     UpdateEntities(gameState, dt, minPos, maxPos);
 
     // 
-    // Render entities
+    // Render entities -------------------------------------
     //
     Bitmap drawBuffer = {};
     drawBuffer.width = gameScreenBuffer->width;
@@ -613,9 +666,9 @@ GAME_MAIN(GameMain) {
                 switch (entity->type) {
                     case EntityType_Player: {
                         s32 face = entity->face;
-                        vec2 bmpDim = vec2{(r32)gameState->playerBmp[face].width, (r32)gameState->playerBmp[face].height};
+                        vec2 bmpDim = vec2{(r32)gameState->playerBmp[face]->width, (r32)gameState->playerBmp[face]->height};
 #if 1
-                        PushBmp(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, &gameState->playerBmp[face]);
+                        PushBmp(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, gameState->playerBmp[face]);
 #else
                         //
                         // Rotation Demo
@@ -750,28 +803,37 @@ GAME_MAIN(GameMain) {
                             // Render Particle
                             vec2 particleCen = cen + ppm * vec2{particle->P.x, -particle->P.y};
                             particleCen.y += bmpDim.y * 0.5f;
-                            r32 scale = 0.8f;
-                            PushBmp(renderGroup,
-                                    particleCen - 0.5f * particleDim,
-                                    vec2{particleDim.x * scale, 0}, vec2{0, particleDim.y * scale},
-                                    &gameState->particleBmp, particle->alpha);
+                            r32 scale = 0.3f;
+                            Bitmap *bitmap = GetBitmap(&transState->gameAssets, &transState->transientArena, GAI_Particle, transState->lowPriorityQueue);
+                            if (bitmap) {
+                                PushBmp(renderGroup,
+                                        particleCen - 0.5f * particleDim,
+                                        vec2{particleDim.x * scale, 0}, vec2{0, particleDim.y * scale},
+                                        bitmap, particle->alpha);
+                            }
                         }
 #endif
                         
                     } break;
 
                     case EntityType_Tree: {
-                        vec2 bmpDim = vec2{(r32)gameState->treeBmp.width, (r32)gameState->treeBmp.height};
-                        PushBmp(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, &gameState->treeBmp);
+                        Bitmap *bitmap = GetBitmap(transState, GAI_Tree, transState->lowPriorityQueue);
+                        if (bitmap) {
+                            vec2 bmpDim = vec2{(r32)bitmap->width, (r32)bitmap->height};
+                            PushBmp(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, bitmap);
+                        }
                     } break;
 
                     case EntityType_Familiar: {
                         s32 face = entity->face;
-                        vec2 bmpDim = vec2{(r32)gameState->familiarBmp[face].width, (r32)gameState->familiarBmp[face].height};
-                        PushBmp(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, &gameState->familiarBmp[face]);
+                        vec2 bmpDim = vec2{(r32)gameState->familiarBmp[face]->width, (r32)gameState->familiarBmp[face]->height};
+                        PushBmp(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, gameState->familiarBmp[face]);
                     } break;
 
                     case EntityType_Golem: {
+                        Bitmap *bitmap = GetBitmap(transState, GAI_Golem, transState->lowPriorityQueue);
+                        if (bitmap) {
+                        }
                     } break;
 
                     INVALID_DEFAULT_CASE
@@ -782,7 +844,7 @@ GAME_MAIN(GameMain) {
     }
     
 
-    RenderGroupToOutput(renderGroup, &drawBuffer, transState->renderQueue);
+    RenderGroupToOutput(renderGroup, &drawBuffer, transState);
 
 
     EndTemporaryMemory(&renderMemory);
