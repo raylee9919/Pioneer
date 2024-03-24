@@ -7,6 +7,8 @@
     $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
     ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
+#include "intrin.h"
+
 #define KB(value) (   value  * 1024ll)
 #define MB(value) (KB(value) * 1024ll)
 #define GB(value) (MB(value) * 1024ll)
@@ -42,48 +44,6 @@ typedef DEBUG_PLATFORM_FREE_MEMORY(DEBUG_PLATFORM_FREE_MEMORY_);
 
 #define DEBUG_PLATFORM_READ_FILE(name) DebugReadFileResult name(const char *filename)
 typedef DEBUG_PLATFORM_READ_FILE(DEBUG_PLATFORM_READ_FILE_);
-
-#ifdef COMPILER_MSVC
-    #include "intrin.h"
-    
-    typedef struct {
-        s64 cyclesElapsed;
-        s32 hitCount;
-    } debug_cycle_counter;
-    
-    enum DebugCycleCounter {
-        DebugCycleCounter_GameMain,
-        DebugCycleCounter_DrawBitmap,
-        DebugCycleCounter_PerPixel,
-    };
-
-    global_var debug_cycle_counter *g_debug_cycle_counters;
-
-    #define RDTSC_BEGIN(name) \
-        rdtsc_begin(g_debug_cycle_counters, DebugCycleCounter_##name);
-    #define RDTSC_END(name) \
-        rdtsc_end(g_debug_cycle_counters, DebugCycleCounter_##name);
-    #define RDTSC_END_ADDCOUNT(name, count) \
-        rdtsc_end(g_debug_cycle_counters, DebugCycleCounter_##name); \
-        g_debug_cycle_counters[DebugCycleCounter_##name].hitCount += (count - 1);
-    
-    internal void
-    rdtsc_begin(debug_cycle_counter *debugCycleCounters, s32 idx) {
-        s64 val = __rdtsc();
-        debugCycleCounters[idx].hitCount++;
-        debugCycleCounters[idx].cyclesElapsed -= val;
-    }
-    
-    internal void
-    rdtsc_end(debug_cycle_counter *debugCycleCounters, s32 idx) {
-        s64 val = __rdtsc();
-        debugCycleCounters[idx].cyclesElapsed += val;
-    }
-
-#else
-    #define RDTSC_BEGIN(name)
-    #define RDTSC_END(name)
-#endif
 
 
 typedef struct {
@@ -125,7 +85,6 @@ typedef struct {
 
     __AtomicCompareExchange__ *AtomicCompareExchange;
 
-    debug_cycle_counter debugCycleCounters[256];
 } GameMemory;
 
 typedef struct {

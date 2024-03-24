@@ -1,11 +1,11 @@
 #ifndef ASSET_BUILDER_H
- /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
-    $File: $
-    $Date: $
-    $Revision: $
-    $Creator: Sung Woo Lee $
-    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
+/* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
+   $File: $
+   $Date: $
+   $Revision: $
+   $Creator: Sung Woo Lee $
+   $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
+   ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 #pragma pack(push, 1)
 struct Bitmap_Info_Header {

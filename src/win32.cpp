@@ -35,7 +35,7 @@ XInputSetState_ *xinput_set_state = XInputSetStateStub;
 internal void
 Win32HandleDebugCycleCounters(GameMemory *memory) {
 #ifdef INTERNAL_BUILD
-#if 1
+#if 0
     OutputDebugStringA("DEBUG CYCLE COUNTS:\n");
     for(s32 idx = 0;
         idx < ArrayCount(memory->debugCycleCounters);

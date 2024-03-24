@@ -432,7 +432,6 @@ DrawRectSlowAsf(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp
 
 internal void
 DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp, r32 alpha) {
-    TIMED_BLOCK(DrawBitmap);
 
     s32 bufWidthMax = buffer->width - 1;
     s32 bufHeightMax = buffer->height - 1;
@@ -468,7 +467,6 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
     if (maxX > bufWidthMax) { maxX = bufWidthMax; }
     if (maxY > bufHeightMax) { maxY = bufHeightMax; }
 
-    RDTSC_BEGIN(PerPixel);
 
 #define M(m, i)  ((r32 *)&m)[i]
 #define Mi(m, i) ((u32 *)&m)[i]
@@ -653,8 +651,6 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
         }
     }
 
-    RDTSC_END_ADDCOUNT(PerPixel, (maxX - minX + 1) * (maxY - minY + 1));
-    RDTSC_END(DrawBitmap);
 }
 struct DrawBmpWorkData {
     Bitmap *buffer;

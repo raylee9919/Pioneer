@@ -1,10 +1,10 @@
- /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
-    $File: $
-    $Date: $
-    $Revision: $
-    $Creator: Sung Woo Lee $
-    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
+/* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
+   $File: $
+   $Date: $
+   $Revision: $
+   $Creator: Sung Woo Lee $
+   $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
+   ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 //
 // I feel like it is premature at this time. 03/24/2024

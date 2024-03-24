@@ -602,11 +602,6 @@ GAME_MAIN(GameMain) {
 
     }
 
-#if INTERNAL_BUILD
-    g_debug_cycle_counters = gameMemory->debugCycleCounters;
-#endif
-
-    RDTSC_BEGIN(GameMain);
 
     ///////////////////////////////////////////////////////////////////////////
     //
@@ -942,15 +937,12 @@ GAME_MAIN(GameMain) {
 
     EndTemporaryMemory(&renderMemory);
 
-    RDTSC_END(GameMain);
-
     TemporaryMemory debugRenderMemory = BeginTemporaryMemory(&transState->transientArena);
     RenderGroup *debugRenderGroup = AllocRenderGroup(&transState->transientArena);
 
     push_text(debugRenderGroup, "Simon Simple", gameAssets);
     push_text(debugRenderGroup, "Simple Simon", gameAssets);
     push_text(debugRenderGroup, "Hello Sailor!", gameAssets);
-    push_text(debugRenderGroup, "Ain't nobody got time for that shit.", gameAssets);
     
     
     baseline_y = 100.0f;

@@ -1,4 +1,4 @@
-#ifndef RENDER_GROUP_H
+#ifndef RENDER_H
  /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
     $File: $
     $Date: $
@@ -56,5 +56,5 @@ struct RenderGroup {
     u8 *base;
 };
 
-#define RENDER_GROUP_H
+#define RENDER_H
 #endif
