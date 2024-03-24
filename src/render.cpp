@@ -1,23 +1,22 @@
- /* ========================================================================
+ /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
     $File: $
     $Date: $
     $Revision: $
     $Creator: Sung Woo Lee $
     $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-    ======================================================================== */
+    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 #include "render.h"
 
-
-
+///////////////////////////////////////////////////////////////////////////////
 //
-// Push to Render Group -------------------------------------------------------
+// Push to Render Group
 //
 #define PushRenderEntity(GROUP, STRUCT) \
     (STRUCT *)PushRenderEntity_(GROUP, sizeof(STRUCT), RenderType_##STRUCT)
 internal RenderEntityHeader *
 PushRenderEntity_(RenderGroup *renderGroup, u32 size, RenderType type) {
-    ASSERT(size + renderGroup->used <= renderGroup->capacity);
+    Assert(size + renderGroup->used <= renderGroup->capacity);
     RenderEntityHeader *header = (RenderEntityHeader *)(renderGroup->base + renderGroup->used);
     header->type = type;
     renderGroup->used += size;
@@ -25,7 +24,7 @@ PushRenderEntity_(RenderGroup *renderGroup, u32 size, RenderType type) {
 }
 
 internal void
-PushBmp(RenderGroup *renderGroup, vec2 origin, vec2 axisX, vec2 axisY,
+PushBitmap(RenderGroup *renderGroup, vec2 origin, vec2 axisX, vec2 axisY,
         Bitmap *bmp, r32 alpha = 1.0f) {
     RenderEntityBmp *piece = PushRenderEntity(renderGroup, RenderEntityBmp);
     if (piece) {
@@ -35,6 +34,53 @@ PushBmp(RenderGroup *renderGroup, vec2 origin, vec2 axisX, vec2 axisY,
         piece->bmp = bmp;
         piece->alpha = alpha;
     }
+}
+
+inline Glyph *
+GetGlyphFromCodepoint(GameAssets *gameAssets, u32 codepoint) {
+    Glyph *result = gameAssets->glyphs[codepoint];
+    return result;
+}
+
+global_var r32 baseline_y = 60.0f;
+
+internal void
+push_text(RenderGroup *renderGroup,
+        const char *str, GameAssets *gameAssets) {
+    r32 left_x = 40.0f;
+    r32 width = 0;
+    r32 height = 0;
+    int advance, lsb, ascent, descent;
+    for (const char *ch = str;
+            *ch;
+            ++ch) {
+        Glyph *glyph = GetGlyphFromCodepoint(gameAssets, *ch);
+        if (glyph) {
+            Bitmap *bmp = glyph->bitmap;
+            r32 scale = glyph->scale;
+            if (bmp) {
+                width = (r32)bmp->width;
+                height = (r32)bmp->height;
+
+                stbtt_GetCodepointHMetrics(&g_font, *ch, &advance, &lsb);
+                stbtt_GetFontVMetrics(&g_font, &ascent, &descent, 0);
+
+                PushBitmap(renderGroup, vec2{left_x, baseline_y + glyph->y_offset},
+                        vec2{width, 0}, vec2{0, height}, bmp);
+
+                left_x += scale * advance;
+                if (*(ch + 1)) {
+                    r32 kerning = (r32)stbtt_GetCodepointKernAdvance(&g_font, *ch, *(ch + 1));
+                    kerning *= scale;
+                    left_x += kerning;
+                }
+            }
+        } else {
+            left_x += FONT_HEIGHT * 0.5f;
+        }
+    }
+
+    baseline_y += FONT_HEIGHT * 1.2f;
 }
 
 internal void
@@ -72,8 +118,9 @@ AllocRenderGroup(MemoryArena *memoryArena) {
 }
 
 internal void
-DrawBmp(Bitmap *buf,
-        vec2 min, Bitmap *bmp, r32 CAlpha = 1.0f) {
+draw_bitmap_slow(Bitmap *buf, vec2 min, Bitmap *bmp, r32 alpha = 1.0f) {
+    Assert(0.0f <= alpha && 1.0f >= alpha);
+
     s32 minX = RoundR32ToS32(min.x);
     s32 minY = RoundR32ToS32(min.y);
     s32 maxX = minX + bmp->width;
@@ -116,28 +163,65 @@ DrawBmp(Bitmap *buf,
             X < maxX;
             ++X)
         {
-            real32 SA = (real32)((*src >> 24) & 0xFF);
-            real32 RSA = (SA / 255.0f) * CAlpha;            
-            real32 SR = CAlpha*(real32)((*src >> 16) & 0xFF);
-            real32 SG = CAlpha*(real32)((*src >> 8) & 0xFF);
-            real32 SB = CAlpha*(real32)((*src >> 0) & 0xFF);
+            // normalized.
+            r32 sa = (r32)((*src >> 24) & 0xff) / 255.0f * alpha;
+            r32 sr = (r32)((*src >> 16) & 0xff) / 255.0f;        
+            r32 sg = (r32)((*src >>  8) & 0xff) / 255.0f;        
+            r32 sb = (r32)((*src >>  0) & 0xff) / 255.0f;        
 
-            real32 DA = (real32)((*dst >> 24) & 0xFF);
-            real32 DR = (real32)((*dst >> 16) & 0xFF);
-            real32 DG = (real32)((*dst >> 8) & 0xFF);
-            real32 DB = (real32)((*dst >> 0) & 0xFF);
-            real32 RDA = (DA / 255.0f);
-            
-            real32 InvRSA = (1.0f-RSA);
-            real32 A = 255.0f*(RSA + RDA - RSA*RDA);
-            real32 R = InvRSA*DR + SR;
-            real32 G = InvRSA*DG + SG;
-            real32 B = InvRSA*DB + SB;
+            // square out from sRGB.
+            sr *= sr;
+            sg *= sg;
+            sb *= sb;
 
-            *dst = (((uint32)(A + 0.5f) << 24) |
-                     ((uint32)(R + 0.5f) << 16) |
-                     ((uint32)(G + 0.5f) << 8) |
-                     ((uint32)(B + 0.5f) << 0));
+            // premultiply alpha.
+            sr *= sa;
+            sg *= sa;
+            sb *= sa;
+
+            // 0~255
+            sr *= 255.0f;
+            sg *= 255.0f;
+            sb *= 255.0f;
+
+            // normalized.
+            r32 da = (r32)((*dst >> 24) & 0xff) / 255.0f;
+            r32 dr = (r32)((*dst >> 16) & 0xff) / 255.0f;
+            r32 dg = (r32)((*dst >>  8) & 0xff) / 255.0f;
+            r32 db = (r32)((*dst >>  0) & 0xff) / 255.0f;
+
+            // square out from sRGB.
+            dr *= dr;
+            dg *= dg;
+            db *= db;
+
+            // premultiply alpha.
+            dr *= da;
+            dg *= da;
+            db *= da;
+
+            // 0~255
+            dr *= 255.0f;
+            dg *= 255.0f;
+            db *= 255.0f;
+
+            // blend.
+            r32 inv_sa = (1.0f - sa);
+            r32 a = sa + da * inv_sa;
+            r32 r = sr + dr * inv_sa;
+            r32 g = sg + dg * inv_sa;
+            r32 b = sb + db * inv_sa;
+
+            // square-root to sRGB.
+            r = sqrt(r / 255.0f) * 255.0f;
+            g = sqrt(g / 255.0f) * 255.0f;
+            b = sqrt(b / 255.0f) * 255.0f;
+            a *= 255.0f;
+
+            *dst = (((u32)(a + 0.5f) << 24) |
+                    ((u32)(r + 0.5f) << 16) |
+                    ((u32)(g + 0.5f) <<  8) |
+                    ((u32)(b + 0.5f) <<  0));
             
             ++dst;
             ++src;
@@ -348,7 +432,7 @@ DrawRectSlowAsf(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp
 
 internal void
 DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp, r32 alpha) {
-    RDTSC_BEGIN(RenderRectSlow);
+    TIMED_BLOCK(DrawBitmap);
 
     s32 bufWidthMax = buffer->width - 1;
     s32 bufHeightMax = buffer->height - 1;
@@ -389,9 +473,12 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
 #define M(m, i)  ((r32 *)&m)[i]
 #define Mi(m, i) ((u32 *)&m)[i]
 #define _mm_clamp01_ps(A) _mm_max_ps(_mm_min_ps(A, Onef), Zerof)
+#define _mm_square_ps(A) _mm_mul_ps(A, A)
+#define mmLerp(A, B, T)  _mm_add_ps(_mm_mul_ps(T, B), _mm_mul_ps(_mm_sub_ps(Onef, T), A))
 
     __m128 Zerof = _mm_set1_ps(0.0f);
     __m128 Onef = _mm_set1_ps(1.0f);
+    __m128 point_5 = _mm_set1_ps(0.5f);
     __m128i MaskFF = _mm_set1_epi32(0xFF);
     __m128 m255f = _mm_set1_ps(255.0f);
     __m128 inv255f = _mm_set1_ps(1.0f / 255.0f);
@@ -447,20 +534,28 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
             Uf = _mm_mul_ps(Uf, bmpWidthMinusTwo);
             Vf = _mm_mul_ps(Vf, bmpHeightMinusTwo);
 
+
+            
+///////////////////////////////////////////////////////////////////////////////
+//
+// Bilinear Filtering
+//
+#if 1
             // NOTE: Floor and get weight.
             __m128i Ui = _mm_cvttps_epi32(Uf);
             __m128i Vi = _mm_cvttps_epi32(Vf);
             __m128 Rx = _mm_sub_ps(Uf, _mm_cvtepi32_ps(Ui));
             __m128 Ry = _mm_sub_ps(Vf, _mm_cvtepi32_ps(Vi));
 
+            // NOTE: Fetch 4 texels for each pixel.
+            // Sadly, there's no such things as SIMD fetch.
+            // So the loop will stay.
+
             __m128i texel0 = _mm_set1_epi32(0);
             __m128i texel1 = _mm_set1_epi32(0);
             __m128i texel2 = _mm_set1_epi32(0);
             __m128i texel3 = _mm_set1_epi32(0);
 
-            // NOTE: Fetch 4 texels for each pixel.
-            // Sadly, there's no such things as SIMD fetch.
-            // So the loop will stay.
             for (int I = 0;
                     I < 4;
                     ++I) {
@@ -479,7 +574,6 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
             }
 
             // NOTE: Square to move out from sRGB.
-#define _mm_square_ps(A) _mm_mul_ps(A, A)
             __m128 A0 =  _mm_mul_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel0, 24), MaskFF)), inv255f); // 0-1
             __m128 R0 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel0, 16), MaskFF))), inv255f); // 0-255
             __m128 G0 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel0,  8), MaskFF))), inv255f); // 0-255
@@ -501,11 +595,38 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
             __m128 B3 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel3,  0), MaskFF))), inv255f); // 0-255
 
             // NOTE: Bilinear filtering and premultiply alpha.
-#define mmLerp(A, B, T)  _mm_add_ps(_mm_mul_ps(T, B), _mm_mul_ps(_mm_sub_ps(Onef, T), A))
             __m128 SA = _mm_mul_ps(mmLerp(mmLerp(A0, A1, Rx), mmLerp(A2, A3, Rx), Ry), alphaf); // 0-1
             __m128 SR = _mm_mul_ps(mmLerp(mmLerp(R0, R1, Rx), mmLerp(R2, R3, Rx), Ry), SA); // 0-255
             __m128 SG = _mm_mul_ps(mmLerp(mmLerp(G0, G1, Rx), mmLerp(G2, G3, Rx), Ry), SA); // 0-255
             __m128 SB = _mm_mul_ps(mmLerp(mmLerp(B0, B1, Rx), mmLerp(B2, B3, Rx), Ry), SA); // 0-255
+#else
+            // Round to nearest pixel
+            __m128i Ui = _mm_cvtps_epi32(Uf);
+            __m128i Vi = _mm_cvtps_epi32(Vf);
+
+            __m128i texel = _mm_set1_epi32(0);
+
+            for (int I = 0;
+                    I < 4;
+                    ++I) {
+                s32 movY = (Mi(Vi, I) * bmp->pitch);
+                s32 movX = (Mi(Ui, I) * sizeof(u32));
+
+                u8 *txl = (u8 *)bmp->memory + movY + movX;
+                Mi(texel, I) = *(u32 *)txl;
+            }
+
+            // Square out from sRGB area
+            __m128 SA =  _mm_mul_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel, 24), MaskFF)), inv255f); // 0-1
+            __m128 SR =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel, 16), MaskFF))), inv255f); // 0-255
+            __m128 SG =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel,  8), MaskFF))), inv255f); // 0-255
+            __m128 SB =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel,  0), MaskFF))), inv255f); // 0-255
+
+            // Premultiply Alpha
+            SR = _mm_mul_ps(SR, SA); // 0-255
+            SG = _mm_mul_ps(SG, SA); // 0-255
+            SB = _mm_mul_ps(SB, SA); // 0-255
+#endif
 
             // NOTE: Fetch what was before in the background buffer.
             // Square out from sRGB and premultiply alpha.
@@ -533,7 +654,7 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
     }
 
     RDTSC_END_ADDCOUNT(PerPixel, (maxX - minX + 1) * (maxY - minY + 1));
-    RDTSC_END(RenderRectSlow);
+    RDTSC_END(DrawBitmap);
 }
 struct DrawBmpWorkData {
     Bitmap *buffer;
@@ -546,12 +667,16 @@ struct DrawBmpWorkData {
 };
 PLATFORM_WORK_QUEUE_CALLBACK(DrawBmpWork) {
     DrawBmpWorkData *workData = (DrawBmpWorkData *)data;
+#if 1
     DrawRectSoftwareSIMD(workData->buffer,
             workData->origin,
             workData->axisX,
             workData->axisY,
             workData->bmp,
             workData->alpha);
+#else
+    draw_bitmap_slow(workData->buffer, workData->origin, workData->bmp);
+#endif
     EndWorkMemory(workData->workSlot);
 }
 
@@ -588,6 +713,7 @@ RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer,
                     workData->workSlot = workSlot;
 #if 0
                     // TODO: Multi-thread ain't working... T^T
+                    // Actually, it shouldn't work...?
                     platformAddEntry(transState->highPriorityQueue, DrawBmpWork, workData);
 #else
                     // Single-thread

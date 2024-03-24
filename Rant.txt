@@ -1,0 +1,26 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                    Rant
+
+0. fwrite
+    This API is a mistake. No writing location leads to a problem in
+    multi-threading. Behind a scene, if you did had a streaming concept, it's
+    gonna have to record where the stream has thought to record in. Using with
+    seek() won't help.
+
+1. Exceptions
+    Casey doesn't know a single good programmer who thinks exception is a good
+    idea, especially, of course, C++.
+

@@ -13,13 +13,13 @@ function module.insert_header_template()
     local current_year = os.date("%Y")
     local header_template = string.format([[
 #ifndef %s_H
- /* ========================================================================
+ /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
     $File: $
     $Date: $
     $Revision: $
     $Creator: Sung Woo Lee $
-    $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
-    ======================================================================== */
+    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
+    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 
 
@@ -35,13 +35,13 @@ function module.insert_sourcefile_template()
     local filename = vim.fn.expand('%:t')
     local current_year = os.date("%Y")
     local sourcefile_template = string.format([[
- /* ========================================================================
+ /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
     $File: $
     $Date: $
     $Revision: $
     $Creator: Sung Woo Lee $
-    $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
-    ======================================================================== */
+    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
+    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 
 

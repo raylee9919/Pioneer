@@ -1,13 +1,11 @@
 #ifndef SW_INTRINSICS_H
-/* ========================================================================
-$File: $
-$Date: $
-$Revision: $
-$Creator: Sung Woo Lee $
-$Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-======================================================================== */
-
-#define COMPILER_MSVC 0
+ /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
+    $File: $
+    $Date: $
+    $Revision: $
+    $Creator: Sung Woo Lee $
+    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
+    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 #include <math.h>
 
@@ -36,7 +34,7 @@ Sin(r32 x) {
 }
 
 internal r32
-Sqrt(r32 x) {
+sqrt(r32 x) {
     r32 result = sqrtf(x);
     return result;
 }
@@ -53,14 +51,14 @@ CeilR32ToS32(r32 A) {
     return result;
 }
 
-struct BitScanResult {
+struct Bit_Scan_Result {
     b32 found;
     u32 index;
 };
 
-inline BitScanResult
-FindLeastSignificantSetBit(u32 value) {
-    BitScanResult result = {};
+inline Bit_Scan_Result
+find_least_significant_set_bit(u32 value) {
+    Bit_Scan_Result result = {};
 
 #if COMPILER_MSVC
     result.found = _BitScanForward((unsigned long *)&result.index, value);

@@ -61,6 +61,22 @@ find it out. Writing it myself.
 we stall the frame so our frame rate get hit? Or should we just not write it and 
 let the flicker appear to the users? Casey considers the first one always right.
 
+  - J. Blow
+  When OS has all the separate files, you are being more general, which often
+leads to be inefficient. Why do u want to pack asset files? In short,  OS tries
+to solve much general problem. They are not actually located near. Secondly, OS
+is very concerned with the fact that u might delete any of these files at any
+time. In the middle of deletion process, ur power might shut down and when ur
+power back up, it has to be able to salvage the data. More redundancy.
+Eliminate OS overhead of 1000~10000 files. Overhead is unpredictable across 
+platforms. You want to be in control as much as possible.
+
+  "This is actually a very true thing across all software development: When u r
+solving a specific problem u can often be very efficient, and when u r solving 
+a general problem u often can't be very efficient." -John Blow 2022
+
+  Create is allowed to be messy. Load will be clean.
+
 
 
 
@@ -182,6 +198,26 @@ Create by 'S'ean 'T'. 'B'arrett
 
 We'll use stb_truetype.h
 They are sensibly made, integrates very cleanly.
+
+
+
+
+                        Theme 4. Debug Infrastructure
+
+Why?
+    Coax bugs to the surface. Locate bugs that are clearly present but difficult 
+    to pinpoint.
+
+Log
+    It isn't all about useless UNIX cluster-texts.
+    - Performance Counter Log
+    - Frame Recording & Jump
+    - Memory Consumption
+    - Diagrams: You can immediately see stuff trivially, instead of janky MS
+      watch window.
+
+
+                    
 
 
 

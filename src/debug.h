@@ -1,4 +1,4 @@
-#ifndef WIN32_GAME_H
+#ifndef DEBUG_H
  /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
     $File: $
     $Date: $
@@ -7,26 +7,20 @@
     $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
     ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
-struct Win32ScreenBuffer {
-    BITMAPINFO bitmap_info;
-    void *memory;
-    int width;
-    int height;
-    int bpp;
+#define TIMED_BLOCK(ID) Timed_Block timed_block_##ID(DebugCycleCounter_##ID);
+struct Timed_Block {
+    u32 id;
+
+    Timed_Block(u32 id) {
+        this->id = id;
+        rdtsc_begin(g_debug_cycle_counters, id);
+    }
+
+    ~Timed_Block() {
+        rdtsc_end(g_debug_cycle_counters, this->id);
+    }
 };
 
-struct Win32WindowDimension {
-    int width;
-    int height;
-};
 
-struct Win32State {
-    HANDLE record_file;
-    bool32 is_recording;
-    bool32 is_playing;
-    void *game_memory;
-    uint64 game_mem_total_cap;
-};
-
-#define WIN32_GAME_H
+#define DEBUG_H
 #endif

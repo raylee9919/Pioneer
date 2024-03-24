@@ -1,10 +1,10 @@
-/* ========================================================================
-$File: $
-$Date: $
-$Revision: $
-$Creator: Sung Woo Lee $
-$Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-======================================================================== */
+ /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
+    $File: $
+    $Date: $
+    $Revision: $
+    $Creator: Sung Woo Lee $
+    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
+    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 #include <windows.h>
 #include <Xinput.h>
 #include <gl/GL.h>
@@ -35,7 +35,7 @@ XInputSetState_ *xinput_set_state = XInputSetStateStub;
 internal void
 Win32HandleDebugCycleCounters(GameMemory *memory) {
 #ifdef INTERNAL_BUILD
-#if 0
+#if 1
     OutputDebugStringA("DEBUG CYCLE COUNTS:\n");
     for(s32 idx = 0;
         idx < ArrayCount(memory->debugCycleCounters);
@@ -311,7 +311,7 @@ Win32BeginRecordingInput(Win32State *win32_state) {
             0, 0, CREATE_ALWAYS, 0, 0);
     DWORD bytes_written;
     DWORD bytes_to_write = (DWORD)win32_state->game_mem_total_cap;
-    ASSERT(bytes_to_write == win32_state->game_mem_total_cap);
+    Assert(bytes_to_write == win32_state->game_mem_total_cap);
     WriteFile(win32_state->record_file, win32_state->game_memory, 
             (DWORD)win32_state->game_mem_total_cap, &bytes_written, 0);
 }
@@ -386,7 +386,7 @@ Win32WindowCallback(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
         case WM_PAINT: {
             PAINTSTRUCT paint;
             HDC hdc = BeginPaint(hwnd, &paint);
-            ASSERT(hdc != 0);
+            Assert(hdc != 0);
             Win32WindowDimension wd = Win32GetWindowDimension(hwnd);
             Win32UpdateScreen(hdc, wd.width, wd.height);
             ReleaseDC(hwnd, hdc);
@@ -413,7 +413,7 @@ Win32WindowCallback(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 }
 
 //
-// Multi-Threading
+// Multi-Threading------------------------------------------------------------
 // 
 
 struct PlatformWorkQueueEntry {
@@ -437,7 +437,7 @@ Win32AddEntry(PlatformWorkQueue *Queue, PlatformWorkQueueCallback *Callback, voi
     // TODO: Switch to InterlockedCompareExchange eventually
     // so that any thread can add?
     u32 NewNextEntryToWrite = (Queue->NextEntryToWrite + 1) % ArrayCount(Queue->Entries);
-    ASSERT(NewNextEntryToWrite != Queue->NextEntryToRead);
+    Assert(NewNextEntryToWrite != Queue->NextEntryToRead);
     PlatformWorkQueueEntry *Entry = Queue->Entries + Queue->NextEntryToWrite;
     Entry->Callback = Callback;
     Entry->Data = Data;
@@ -521,6 +521,13 @@ Win32MakeQueue(PlatformWorkQueue *Queue, uint32 ThreadCount) {
     }
 }
 
+inline
+ATOMIC_COMPARE_EXCHANGE(Win32AtomicCompareExchange) {
+    LONG result = _InterlockedCompareExchange((volatile LONG *)dst,
+            (LONG)exchange, (LONG)comperhand);
+    return result;
+}
+
 int WINAPI
 WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     //
@@ -570,13 +577,13 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     wnd_class.lpfnWndProc       = Win32WindowCallback;
     wnd_class.hInstance         = hinst;
     wnd_class.hCursor           = LoadCursorA(0, IDC_ARROW);
-    wnd_class.lpszClassName     = "RandomGameWindowClass";
+    wnd_class.lpszClassName     = "GameWindowClass";
     RegisterClassA(&wnd_class);
 
     Win32ResizeDIBSection(&g_screen_buffer, 1280, 720);
 
     HWND hwnd = CreateWindowExA(
-            0, wnd_class.lpszClassName, "RandomGame",
+            0, wnd_class.lpszClassName, "Winter Serenity",
             WS_OVERLAPPEDWINDOW | WS_VISIBLE,
             CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
             0, 0, hinst, 0);
@@ -608,6 +615,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     game_memory.debug_platform_read_file = DebugPlatformReadEntireFile;
     game_memory.debug_platform_write_file = DebugPlatformWriteEntireFile;
     game_memory.debug_platform_free_memory = DebugPlatformFreeMemory;
+    game_memory.AtomicCompareExchange = Win32AtomicCompareExchange;
     uint64 total_capacity = game_memory.permanent_memory_capacity + game_memory.transient_memory_capacity;
     win32_state.game_memory = VirtualAlloc(base_address, (size_t)total_capacity,
                     MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
@@ -617,12 +625,12 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
 
     GameState *game_state = (GameState *)game_memory.permanent_memory;
 
-    GameScreenBuffer game_screen_buffer = {};
-    game_screen_buffer.memory = g_screen_buffer.memory;
-    game_screen_buffer.width = g_screen_buffer.width;
-    game_screen_buffer.height = g_screen_buffer.height;
-    game_screen_buffer.bpp = g_screen_buffer.bpp;
-    game_screen_buffer.pitch = g_screen_buffer.bpp * g_screen_buffer.width;
+    GameScreenBuffer gameScreenBuffer = {};
+    gameScreenBuffer.memory = g_screen_buffer.memory;
+    gameScreenBuffer.width = g_screen_buffer.width;
+    gameScreenBuffer.height = g_screen_buffer.height;
+    gameScreenBuffer.bpp = g_screen_buffer.bpp;
+    gameScreenBuffer.pitch = g_screen_buffer.bpp * g_screen_buffer.width;
 
     HMODULE xinput_dll = LoadLibraryA(TEXT("xinput.dll"));
     if (!xinput_dll) { 
@@ -758,12 +766,12 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
          game_input.dt_per_frame = desired_mspf / 1000.0f;
 
          if (game_main) {
-             game_main(&game_memory, game_state, &game_input, &game_screen_buffer);
+             game_main(&game_memory, game_state, &game_input, &gameScreenBuffer);
          }
 
          Win32WindowDimension wd = Win32GetWindowDimension(hwnd);
          HDC dc = GetDC(hwnd);
-         ASSERT(dc != 0);
+         Assert(dc != 0);
          Win32UpdateScreen(dc, wd.width, wd.height);
          ReleaseDC(hwnd, dc);
 

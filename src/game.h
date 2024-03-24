@@ -1,20 +1,21 @@
 #ifndef GAME_H
 #define GAME_H
-/* ========================================================================
-$File: $
-$Date: $
-$Revision: $
-$Creator: Sung Woo Lee $
-$Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-======================================================================== */
+ /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
+    $File: $
+    $Date: $
+    $Revision: $
+    $Creator: Sung Woo Lee $
+    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
+    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 #include "math.h"
 #include "platform.h"
+#include "debug.h"
 
 #define Max(a, b) ( (a > b) ? a : b )
 #define Min(a, b) ( (a < b) ? a : b )
 #define ArrayCount(array) ( sizeof(array) / sizeof(array[0]) )
-#define ClearToZeroStruct(Struct) ClearToZero(sizeof(Struct), Struct)
+#define ZeroStruct(Struct) ClearToZero(sizeof(Struct), Struct)
 internal void
 ClearToZero(size_t size, void *data) {
     u8 *at = (u8 *)data;
@@ -27,7 +28,7 @@ ClearToZero(size_t size, void *data) {
 
 // BMP
 #pragma pack(push, 1)
-struct BitmapInfoHeader {
+struct Bitmap_Info_Header {
     u16 filetype;
     u32 filesize;
     u16 reserved1;
@@ -45,9 +46,9 @@ struct BitmapInfoHeader {
     u32 plt_entry_cnt;
     u32 important;
 
-    u32 rMask;
-    u32 gMask;
-    u32 bMask;
+    u32 r_mask;
+    u32 g_mask;
+    u32 b_mask;
 };
 #pragma pack(pop)
 
@@ -70,7 +71,7 @@ struct MemoryArena {
 };
 
 // 
-// Temporary Memory ----------------------------------------------------------
+// Temporary Memory -----------------------------------------------------------
 //
 struct TemporaryMemory {
     MemoryArena *memoryArena;
@@ -175,12 +176,31 @@ enum GameAssetID {
     GAI_Count
 };
 
+enum AssetState {
+    AssetState_Unloaded,
+    AssetState_Queued,
+    AssetState_Loaded
+};
+
+struct Glyph {
+    Bitmap *bitmap;
+    r32 scale;
+    s32 x_offset;
+    s32 y_offset;
+};
+
 struct GameAssets {
+    AssetState bitmapStates[GAI_Count];
     Bitmap *bitmaps[GAI_Count];
+
+    Bitmap *playerBmp[2];
+    Bitmap *familiarBmp[2];
+
+    Glyph *glyphs[256];
+
     
     DEBUG_PLATFORM_READ_FILE_ *debug_platform_read_file;
 };
-
 
 struct GameState {
     b32 isInit;
@@ -199,8 +219,6 @@ struct GameState {
 
     Entity *player;
 
-    Bitmap *playerBmp[2];
-    Bitmap *familiarBmp[2];
 
     Particle particles[512];
     s32 particleNextIdx;
@@ -223,7 +241,7 @@ struct TransientState {
 
 internal void *
 PushSize_(MemoryArena *arena, size_t size) {
-    ASSERT((arena->used + size) <= arena->size);
+    Assert((arena->used + size) <= arena->size);
     void *result = arena->base + arena->used;
     arena->used += size;
 
@@ -244,7 +262,7 @@ InitArena(MemoryArena *arena, size_t size, u8 *base) {
 
 internal void
 InitSubArena(MemoryArena *subArena, MemoryArena *motherArena, size_t size) {
-    ASSERT(motherArena->size >= motherArena->used + size);
+    Assert(motherArena->size >= motherArena->used + size);
     InitArena(subArena, size, motherArena->base + motherArena->used);
     motherArena->used += size;
 }
@@ -262,9 +280,9 @@ BeginTemporaryMemory(MemoryArena *memoryArena) {
 inline void
 EndTemporaryMemory(TemporaryMemory *temporaryMemory) {
     MemoryArena *arena = temporaryMemory->memoryArena;
-    ASSERT(arena->used >= temporaryMemory->used);
+    Assert(arena->used >= temporaryMemory->used);
     arena->used = temporaryMemory->used;
-    ASSERT(arena->tempCount > 0);
+    Assert(arena->tempCount > 0);
     arena->tempCount--;
 }
 
@@ -296,8 +314,5 @@ EndWorkMemory(WorkMemoryArena *workMemoryArena) {
         GameInput *gameInput, GameScreenBuffer *gameScreenBuffer)
 typedef GAME_MAIN(GameMain_);
 
-global_var debug_cycle_counter *g_DebugCycleCounters;
-global_var PlatformAddEntry *platformAddEntry;
-global_var PlatformCompleteAllWork *platformCompleteAllWork;
 
 #endif

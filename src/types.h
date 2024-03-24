@@ -1,18 +1,18 @@
 #ifndef TYPES_H
 #define TYPES_H
-/* ========================================================================
-$File: $
-$Date: $
-$Revision: $
-$Creator: Sung Woo Lee $
-$Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-======================================================================== */
+ /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
+    $File: $
+    $Date: $
+    $Revision: $
+    $Creator: Sung Woo Lee $
+    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
+    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 #include <stdint.h>
 
-#define internal      static
-#define global_var    static
-#define local_persist static
+#define internal        static
+#define global_var      static
+#define local_persist   static
 
 typedef int8_t int8;  
 typedef int16_t int16; 

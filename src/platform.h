@@ -1,31 +1,33 @@
 #ifndef SW_PLATFORM_H
-/* ========================================================================
-$File: $
-$Date: $
-$Revision: $
-$Creator: Sung Woo Lee $
-$Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-======================================================================== */
+ /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
+    $File: $
+    $Date: $
+    $Revision: $
+    $Creator: Sung Woo Lee $
+    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
+    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 #define KB(value) (   value  * 1024ll)
 #define MB(value) (KB(value) * 1024ll)
 #define GB(value) (MB(value) * 1024ll)
 #define TB(value) (GB(value) * 1024ll)
 
-#define ASSERT(expression)  if(!(expression)) { *(int *)0 = 0; }
-#define INVALID_CODE_PATH ASSERT(!"Invalid Code Path")
+#define Assert(expression)  if(!(expression)) { *(volatile int *)0 = 0; }
+#define INVALID_CODE_PATH Assert(!"Invalid Code Path")
 #define INVALID_DEFAULT_CASE default: { INVALID_CODE_PATH } break;
 
+///////////////////////////////////////////////////////////////////////////////
 //
 // Compilers
 //
-#define MSVC_COMPILER   1
-#define MSVC_LLVM       0
+#define COMPILER_MSVC 1
 
-#ifdef MSVC_COMPILER
+
+#ifdef COMPILER_MSVC
     #define __WRITE_BARRIER__ _WriteBarrier();
+    #define ATOMIC_COMPARE_EXCHANGE(Name) int Name(volatile int *dst, int exchange, int comperhand)
+    typedef ATOMIC_COMPARE_EXCHANGE(__AtomicCompareExchange__);
 #endif
-
 
 struct DebugReadFileResult {
     u32 content_size;
@@ -41,7 +43,7 @@ typedef DEBUG_PLATFORM_FREE_MEMORY(DEBUG_PLATFORM_FREE_MEMORY_);
 #define DEBUG_PLATFORM_READ_FILE(name) DebugReadFileResult name(const char *filename)
 typedef DEBUG_PLATFORM_READ_FILE(DEBUG_PLATFORM_READ_FILE_);
 
-#ifdef MSVC_COMPILER
+#ifdef COMPILER_MSVC
     #include "intrin.h"
     
     typedef struct {
@@ -51,27 +53,29 @@ typedef DEBUG_PLATFORM_READ_FILE(DEBUG_PLATFORM_READ_FILE_);
     
     enum DebugCycleCounter {
         DebugCycleCounter_GameMain,
-        DebugCycleCounter_RenderRectSlow,
+        DebugCycleCounter_DrawBitmap,
         DebugCycleCounter_PerPixel,
     };
-    
+
+    global_var debug_cycle_counter *g_debug_cycle_counters;
+
     #define RDTSC_BEGIN(name) \
-        RdtscBegin_(g_DebugCycleCounters, DebugCycleCounter_##name);
+        rdtsc_begin(g_debug_cycle_counters, DebugCycleCounter_##name);
     #define RDTSC_END(name) \
-        RdtscEnd_(g_DebugCycleCounters, DebugCycleCounter_##name);
+        rdtsc_end(g_debug_cycle_counters, DebugCycleCounter_##name);
     #define RDTSC_END_ADDCOUNT(name, count) \
-        RdtscEnd_(g_DebugCycleCounters, DebugCycleCounter_##name); \
-        g_DebugCycleCounters[DebugCycleCounter_##name].hitCount += (count - 1);
+        rdtsc_end(g_debug_cycle_counters, DebugCycleCounter_##name); \
+        g_debug_cycle_counters[DebugCycleCounter_##name].hitCount += (count - 1);
     
     internal void
-    RdtscBegin_(debug_cycle_counter *debugCycleCounters, s32 idx) {
+    rdtsc_begin(debug_cycle_counter *debugCycleCounters, s32 idx) {
         s64 val = __rdtsc();
         debugCycleCounters[idx].hitCount++;
         debugCycleCounters[idx].cyclesElapsed -= val;
     }
     
     internal void
-    RdtscEnd_(debug_cycle_counter *debugCycleCounters, s32 idx) {
+    rdtsc_end(debug_cycle_counter *debugCycleCounters, s32 idx) {
         s64 val = __rdtsc();
         debugCycleCounters[idx].cyclesElapsed += val;
     }
@@ -119,6 +123,8 @@ typedef struct {
     DEBUG_PLATFORM_WRITE_FILE_ *debug_platform_write_file;
     DEBUG_PLATFORM_FREE_MEMORY_ *debug_platform_free_memory;
 
+    __AtomicCompareExchange__ *AtomicCompareExchange;
+
     debug_cycle_counter debugCycleCounters[256];
 } GameMemory;
 
@@ -129,6 +135,9 @@ typedef struct {
     u32 bpp;
     u32 pitch;
 } GameScreenBuffer;
+
+global_var PlatformAddEntry *platformAddEntry;
+global_var PlatformCompleteAllWork *platformCompleteAllWork;
 
 
 #define SW_PLATFORM_H

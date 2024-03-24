@@ -1,11 +1,11 @@
 #ifndef MATH_H
- /* ========================================================================
+ /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
     $File: $
     $Date: $
     $Revision: $
     $Creator: Sung Woo Lee $
     $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-    ======================================================================== */
+    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 #include "intrinsics.h"
 
@@ -102,7 +102,7 @@ InvLenSquare(vec2 A) {
 
 inline r32
 Len(vec2 A) {
-    r32 result = Sqrt(LenSquare(A));
+    r32 result = sqrt(LenSquare(A));
     return result;
 }
 
@@ -204,7 +204,7 @@ LenSquare(vec3 A) {
 
 inline r32
 Len(vec3 A) {
-    r32 result = Sqrt(LenSquare(A));
+    r32 result = sqrt(LenSquare(A));
     return result;
 }
 
