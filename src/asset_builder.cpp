@@ -6,10 +6,14 @@
    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
-//
-// I feel like it is premature at this time. 03/24/2024
-//
+#define USE_WINDOWS 1
+
+#ifdef USE_WINDOWS
 #include <windows.h>
+#else
+#include "stb_truetype.h"
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -21,7 +25,6 @@
 #define PACK_MAGIC(a,b,c,d)     (a | (b << 8) | (c << 16) | (d << 24))          
 #define MAGIC                   PACK_MAGIC('a','k','4','7')
 #define FILE_VERSION            1
-
 
 static void
 write_bitmap(const char *filename, FILE *out_file) {
@@ -96,6 +99,42 @@ write_bitmap(const char *filename, FILE *out_file) {
     fclose(file);
 }
 
+static void
+bake_glyph(const char *filename, const char *fontname, u32 codepoint) {
+#ifdef USE_WINDOWS
+    static HDC hdc = 0;
+    if (!hdc) {
+        AddFontResourceExA(filename, FR_PRIVATE, 0);
+        HFONT font = CreateFontA(128, 0, 0, 0,
+                FW_NORMAL, FALSE, FALSE, FALSE,
+                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
+                DEFAULT_PITCH|FF_DONTCARE, fontname);
+        hdc = CreateCompatibleDC(hdc);
+        HBITMAP bitmap = CreateCompatibleBitmap(hdc, 1024, 1024);
+        SelectObject(hdc, bitmap);
+        SetBkColor(hdc, RGB(0, 0, 0));
+
+        TEXTMETRIC text_metric;
+        GetTextMetrics(hdc, &text_metric);
+    }
+
+    wchar_t utf_codepoint = (wchar_t)codepoint;
+
+    SIZE size;
+    GetTextExtentPoint32W(hdc, &utf_codepoint, 1, &size);
+
+    s32 width = size.cx;
+    s32 height = size.cy;
+
+    PatBlt(hdc, 0, 0, width, height, BLACKNESS);
+    SetTextColor(hdc, RGB(0xff, 0xff, 0xff));
+
+    TextOutW(hdc, 0, 0, &utf_codepoint, 1);
+#else // stb_truetype.h
+#endif
+}
+
 int
 main(int argc, char **argv) {
     Package package = {};
@@ -117,7 +156,7 @@ main(int argc, char **argv) {
 
 
         fclose(out);
-        printf("\n*** SUCCESSFUL! ***\n");
+        printf("*** SUCCESSFUL! ***\n");
     } else {
         printf("ERROR: Couldn't open file.\n");
     }

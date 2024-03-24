@@ -1,10 +1,10 @@
- /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
-    $File: $
-    $Date: $
-    $Revision: $
-    $Creator: Sung Woo Lee $
-    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
+/* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
+   $File: $
+   $Date: $
+   $Revision: $
+   $Creator: Sung Woo Lee $
+   $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
+   ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 #include <windows.h>
 #include <Xinput.h>
 #include <gl/GL.h>
@@ -22,15 +22,15 @@ global_var LARGE_INTEGER g_counter_hz;
 global_var b32 g_show_cursor;
 global_var WINDOWPLACEMENT g_wpPrev = { sizeof(g_wpPrev) };
 
-#define XINPUT_GET_STATE(name) DWORD name(DWORD, XINPUT_STATE *)
-typedef XINPUT_GET_STATE(XInputGetState_);
-XINPUT_GET_STATE(XInputGetStateStub) { return 1; }
-XInputGetState_ *xinput_get_state = XInputGetStateStub;
+#define XINPUT_GET_STATE(NAME) DWORD NAME(DWORD, XINPUT_STATE *)
+typedef XINPUT_GET_STATE(__XInputGetState);
+XINPUT_GET_STATE(xinput_get_state_stub) { return 1; }
+__XInputGetState *xinput_get_state = xinput_get_state_stub;
 
 #define XINPUT_SET_STATE(name) DWORD name(DWORD, XINPUT_VIBRATION *)
-typedef XINPUT_SET_STATE(XInputSetState_);
-XINPUT_SET_STATE(XInputSetStateStub) { return 1; }
-XInputSetState_ *xinput_set_state = XInputSetStateStub;
+typedef XINPUT_SET_STATE(__XInputSetState);
+XINPUT_SET_STATE(xinput_set_state_stub) { return 1; }
+__XInputSetState *xinput_set_state = xinput_set_state_stub;
 
 internal void
 Win32HandleDebugCycleCounters(GameMemory *memory) {
@@ -66,11 +66,11 @@ Win32LoadXInput() {
     if(!xinput_module) { LoadLibraryA("xinput1_3.dll"); }
 
     if(xinput_module) {
-        xinput_get_state = (XInputGetState_ *)GetProcAddress(xinput_module, "XInputGetState");
-        xinput_set_state = (XInputSetState_ *)GetProcAddress(xinput_module, "XInputSetState");
+        xinput_get_state = (__XInputGetState *)GetProcAddress(xinput_module, "XInputGetState");
+        xinput_set_state = (__XInputSetState *)GetProcAddress(xinput_module, "XInputSetState");
     } else {
-        xinput_get_state = XInputGetStateStub;
-        xinput_set_state = XInputSetStateStub;
+        xinput_get_state = xinput_get_state_stub;
+        xinput_set_state = xinput_set_state_stub;
     }
 }
 
