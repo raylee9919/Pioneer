@@ -8,24 +8,78 @@
 
 
 #define BYTES_PER_PIXEL 4
-
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "stb_truetype.h"
-static stbtt_fontinfo g_font;
-#define FONT_HEIGHT 64.0f
+#define ASSET_FILE_NAME "asset.pack"
 
 #include "types.h"
 #include "game.h"
 #include "render.cpp"
 
+#include "sim.h"
+
+#if 0
+internal Asset_Glyph *
+load_glyph(MemoryArena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file) {
+    Asset_Glyph *result = PushStruct(arena, Asset_Glyph);
+    *result = {};
+
+    DebugReadFileResult read = read_file(ASSET_FILE_NAME);
+    if(read.content_size != 0) {
+        Asset_Glyph *at = (Asset_Glyph *)read.contents;
+        *result = *at++;
+        result->bitmap.memory = (u8 *)at + (result->bitmap.height - 1) * -result->bitmap.pitch;
+    }
+
+    return result;
+}
+#endif
+
+
+internal void
+load_font(MemoryArena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, Game_Assets *game_assets) {
+    DebugReadFileResult read = read_file(ASSET_FILE_NAME);
+    u8 *at = (u8 *)read.contents;
+    u8 *end = at + read.content_size;
+
+    // parse kerning header.
+    u32 kern_count = ((Asset_Kerning_Header *)at)->pair_count;
+    at += sizeof(Asset_Kerning_Header);
+
+    // parse kerning pairs.
+    for (u32 count = 0; count < kern_count; ++count) {
+        Asset_Kerning *asset_kern = (Asset_Kerning *)at;
+
+        Kerning *kern = PushStruct(arena, Kerning);
+        *kern = {};
+        kern->first = asset_kern->first;
+        kern->second = asset_kern->second;
+        kern->value = asset_kern->value;
+
+        u32 entry_idx = kerning_hash(&game_assets->kern_hashmap, kern->first, kern->second);
+        push_kerning(&game_assets->kern_hashmap, kern, entry_idx);
+        at += sizeof(Asset_Kerning);
+    }
+
+    // parse glyphs.
+    if(read.content_size != 0) {
+        while (at < end) {
+            Asset_Glyph *glyph = (Asset_Glyph *)at;
+            Bitmap *bitmap = &glyph->bitmap;
+            game_assets->glyphs[glyph->codepoint] = glyph;
+            at += sizeof(Asset_Glyph);
+            glyph->bitmap.memory = at + (bitmap->height - 1) * -bitmap->pitch;
+            at += glyph->bitmap.size;
+        }
+    }
+}
+
 internal Bitmap *
-load_bitmap(MemoryArena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char *filename) {
+load_bmp(MemoryArena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char *filename) {
     Bitmap *result = PushStruct(arena, Bitmap);
     *result = {};
     
     DebugReadFileResult read = read_file(filename);
     if(read.content_size != 0) {
-        Bitmap_Info_Header *header = (Bitmap_Info_Header *)read.contents;
+        BMP_Info_Header *header = (BMP_Info_Header *)read.contents;
         u32 *pixels = (u32 *)((u8 *)read.contents + header->bitmap_offset);
         result->memory = pixels;
         result->width = header->width;
@@ -69,13 +123,6 @@ load_bitmap(MemoryArena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char
                 r32 b = (r32)((c & b_mask) >> b_shift);
                 r32 a = (r32)((c & a_mask) >> a_shift);
 
-#if 0
-                r32 AN = (A / 255.0f);
-                R = R * AN;
-                G = G * AN;
-                B = B * AN;
-#endif
-                
                 *at++ = (((u32)(a + 0.5f) << 24) |
                          ((u32)(r + 0.5f) << 16) |
                          ((u32)(g + 0.5f) <<  8) |
@@ -85,34 +132,35 @@ load_bitmap(MemoryArena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char
     }
 
     result->pitch = -result->width * BYTES_PER_PIXEL;
+    result->size = result->width * result->height * BYTES_PER_PIXEL;
     result->memory = (u8 *)result->memory - result->pitch * (result->height - 1);
     
     return result;
 }
-struct LoadGameAssetWorkData {
-    GameAssets *gameAssets;
+struct Load_Asset_Work_Data {
+    Game_Assets *gameAssets;
     MemoryArena *assetArena;
-    GameAssetID assetID;
+    Asset_ID assetID;
     const char *fileName;
     WorkMemoryArena *workSlot;
 };
-PLATFORM_WORK_QUEUE_CALLBACK(LoadGameAssetWork) {
-    LoadGameAssetWorkData *workData = (LoadGameAssetWorkData *)data;
-    workData->gameAssets->bitmaps[workData->assetID] = load_bitmap(workData->assetArena, workData->gameAssets->debug_platform_read_file, workData->fileName);
-    workData->gameAssets->bitmapStates[workData->assetID] = AssetState_Loaded;
+PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work) {
+    Load_Asset_Work_Data *workData = (Load_Asset_Work_Data *)data;
+    workData->gameAssets->bitmaps[workData->assetID] = load_bmp(workData->assetArena, workData->gameAssets->debug_platform_read_file, workData->fileName);
+    workData->gameAssets->bitmapStates[workData->assetID] = Asset_State_Loaded;
     EndWorkMemory(workData->workSlot);
 }
 internal Bitmap *
-GetBitmap(TransientState *transState, GameAssetID assetID,
+GetBitmap(TransientState *transState, Asset_ID assetID,
         PlatformWorkQueue *queue, __AtomicCompareExchange__ AtomicCompareExchange) {
     Bitmap *result = transState->gameAssets.bitmaps[assetID];
 
     if (!result) {
         if (AtomicCompareExchange((s32 *)&transState->gameAssets.bitmapStates[assetID],
-                    AssetState_Queued, AssetState_Unloaded)) {
+                    Asset_State_Queued, Asset_State_Unloaded)) {
             WorkMemoryArena *workSlot = BeginWorkMemory(transState);
             if (workSlot) {
-                LoadGameAssetWorkData *workData = PushStruct(&workSlot->memoryArena, LoadGameAssetWorkData);
+                Load_Asset_Work_Data *workData = PushStruct(&workSlot->memoryArena, Load_Asset_Work_Data);
                 workData->gameAssets = &transState->gameAssets;
                 workData->assetArena = &transState->assetArena;
                 workData->assetID = assetID;
@@ -133,12 +181,10 @@ GetBitmap(TransientState *transState, GameAssetID assetID,
 
                     INVALID_DEFAULT_CASE
                 }
-#if 1
-                // Multi-thread
-                platformAddEntry(queue, LoadGameAssetWork, workData);
+#if 1 // Multi-Thread
+                platformAddEntry(queue, load_asset_work, workData);
                 return 0; // TODO: NO bmp...?
-#else
-                // Single-thread
+#else // Single-Thread
                 LoadGameAssetWork(queue, workData);
                 return 0; // TODO: NO bmp...?
 #endif
@@ -153,393 +199,6 @@ GetBitmap(TransientState *transState, GameAssetID assetID,
     }
 }
 
-inline u32
-ChunkHash(ChunkHashmap *chunkHashmap, Position pos) {
-    // TODO: Better hash function... maybe...
-    u32 bucket = (pos.chunkX * 16 + pos.chunkY * 9 + pos.chunkZ * 4) &
-        (ArrayCount(chunkHashmap->chunks) - 1);
-    Assert(bucket < sizeof(chunkHashmap->chunks));
-
-    return bucket;
-}
-
-inline b32
-IsSameChunk(Position A, Position B) {
-    b32 result = 
-        A.chunkX == B.chunkX &&
-        A.chunkY == B.chunkY &&
-        A.chunkZ == B.chunkZ;
-    return result;
-}
-
-inline b32
-IsSameChunk(Chunk *chunk, Position pos) {
-    b32 result = 
-        chunk->chunkX == pos.chunkX &&
-        chunk->chunkY == pos.chunkY &&
-        chunk->chunkZ == pos.chunkZ;
-    return result;
-}
-
-internal Chunk *
-GetChunk(MemoryArena *arena, ChunkHashmap *hashmap, Position pos) {
-    Chunk *result = 0;
-
-    u32 bucket = ChunkHash(hashmap, pos);
-    ChunkList *list = hashmap->chunks + bucket;
-    for (Chunk *chunk = list->head;
-            chunk != 0;
-            chunk = chunk->next) {
-        if (IsSameChunk(chunk, pos)) {
-            result = chunk;
-            break;
-        }
-    }
-
-    if (!result) {
-        result = PushStruct(arena, Chunk);
-        result->next = list->head;
-        result->chunkX = pos.chunkX;
-        result->chunkY = pos.chunkY;
-        result->chunkZ = pos.chunkZ;
-        list->head = result;
-        list->count++;
-    }
-
-    return result;
-}
-
-inline void
-SetFlag(Entity *entity, EntityFlag flag) {
-    entity->flags |= flag;
-}
-
-inline b32
-IsSet(Entity *entity, EntityFlag flag) {
-    b32 result = (entity->flags & flag);
-    return result;
-}
-
-internal Entity *
-PushEntity(MemoryArena *arena, ChunkHashmap *hashmap, EntityType type, Position pos) {
-    Entity *entity = PushStruct(arena, Entity);
-    *entity = {};
-    entity->pos = pos;
-    entity->type = type;
-
-    switch (type) {
-        case EntityType_Player: {
-            SetFlag(entity, EntityFlag_Collides);
-            entity->dim = {0.7f, 0.5f, 1.0f};
-            entity->u = 10.0f;
-        } break;
-
-        case EntityType_Familiar: {
-            entity->dim = {0.7f, 0.5f, 1.0f};
-            entity->u = 5.0f;
-        } break;
-
-        case EntityType_Tree: {
-            SetFlag(entity, EntityFlag_Collides);
-        } break;
-
-        case EntityType_Golem: {
-            entity->dim = {2.0f, 1.8f, 1.0f};
-            SetFlag(entity, EntityFlag_Collides);
-        } break;
-
-        INVALID_DEFAULT_CASE
-    }
-
-    Chunk *chunk = GetChunk(arena, hashmap, pos);
-    EntityList *entities = &chunk->entities;
-    if (!entities->head) {
-        entities->head = entity;
-    } else {
-        entity->next = entities->head;
-        entities->head = entity;
-    }
-
-    return entity;
-}
-
-internal void
-RecalcPos(Position *pos, vec3 chunkDim) {
-    r32 boundX = chunkDim.x * 0.5f;
-    r32 boundY = chunkDim.y * 0.5f;
-    r32 boundZ = chunkDim.z * 0.5f;
-
-    while (pos->offset.x < -boundX || pos->offset.x >= boundX) {
-        if (pos->offset.x < -boundX) {
-            pos->offset.x += chunkDim.x;
-            --pos->chunkX;
-        } else if (pos->offset.x >= boundX) {
-            pos->offset.x -= chunkDim.x;
-            ++pos->chunkX;
-        }
-    }
-
-    while (pos->offset.y < -boundY || pos->offset.y >= boundY) {
-        if (pos->offset.y < -boundY) {
-            pos->offset.y += chunkDim.y;
-            --pos->chunkY;
-        } else if (pos->offset.y >= boundY) {
-            pos->offset.y -= chunkDim.y;
-            ++pos->chunkY;
-        }
-    }
-
-    while (pos->offset.z < -boundZ || pos->offset.z >= boundZ) {
-        if (pos->offset.z < -boundZ) {
-            pos->offset.z += chunkDim.z;
-            --pos->chunkZ;
-        } else if (pos->offset.z >= boundZ) {
-            pos->offset.z -= chunkDim.z;
-            ++pos->chunkZ;
-        }
-    }
-}
-
-internal void
-MapEntityToChunk(MemoryArena *arena, ChunkHashmap *hashmap, Entity *entity,
-        Position oldPos, Position newPos) {
-    Chunk *oldChunk = GetChunk(arena, hashmap, oldPos);
-    Chunk *newChunk = GetChunk(arena, hashmap, newPos);
-    EntityList *oldEntities = &oldChunk->entities;
-    EntityList *newEntities = &newChunk->entities;
-
-    for (Entity *E = oldEntities->head;
-            E != 0;
-            E = E->next) { 
-        if (E == entity) { 
-            oldEntities->head = E->next;
-            break;
-        } else if (E->next == entity) { 
-            E->next = entity->next;
-            break; 
-        }
-    }
-
-    if (!newEntities->head) {
-        newEntities->head = entity;
-        entity->next = 0;
-    } else {
-        entity->next = newEntities->head;
-        newEntities->head = entity;
-    }
-}
-
-internal vec3
-Subtract(Position A, Position B, vec3 chunkDim) {
-    vec3 diff = {};
-    diff.x = (r32)(A.chunkX - B.chunkX) * chunkDim.x;
-    diff.y = (r32)(A.chunkY - B.chunkY) * chunkDim.y;
-    diff.z = (r32)(A.chunkZ - B.chunkZ) * chunkDim.z;
-    diff += (A.offset - B.offset);
-
-    return diff;
-}
-
-internal void
-UpdateEntityPos(GameState *gameState, Entity *self, r32 dt, Position simMin, Position simMax) {
-    Position oldPos = self->pos;
-    Position newPos = self->pos;
-    self->accel *= self->u;
-    self->accel -= 1.5f * self->velocity;
-    self->velocity += dt * self->accel;
-    newPos.offset += dt * self->velocity;
-    RecalcPos(&newPos, gameState->world->chunkDim);
-
-    // NOTE: Minkowski Collision
-    r32 tRemain = dt;
-    r32 epsilon = 0.001f;
-    vec3 vTotal = self->velocity;
-    for (s32 count = 0;
-            count < 4 && tRemain > 0.0f;
-            ++count) {
-        for (s32 Z = simMin.chunkZ;
-                Z <= simMax.chunkZ;
-                ++Z) {
-            for (s32 Y = simMin.chunkY;
-                    Y <= simMax.chunkY;
-                    ++Y) {
-                for (s32 X = simMin.chunkX;
-                        X <= simMax.chunkX;
-                        ++X) {
-                    Chunk *chunk = GetChunk(&gameState->worldArena,
-                            &gameState->world->chunkHashmap, {X, Y, Z});
-                    for (Entity *other = chunk->entities.head;
-                            other != 0;
-                            other = other->next) {
-                        if (self != other && 
-                                IsSet(self, EntityFlag_Collides) && 
-                                IsSet(other, EntityFlag_Collides) ) {
-                            // NOTE: For now, we will test entities on same level.
-                            if (self->pos.chunkZ == other->pos.chunkZ) {
-                                vec3 boxDim = self->dim + other->dim;
-                                Rect3 box = {vec3{0, 0, 0}, boxDim};
-                                vec3 min = -0.5f * boxDim;
-                                vec3 max = 0.5f * boxDim;
-                                vec3 oldRelP = Subtract(oldPos, other->pos, gameState->world->chunkDim);
-                                vec3 newRelP = Subtract(newPos, other->pos, gameState->world->chunkDim);
-                                r32 tUsed = 0.0f;
-                                u32 axis = 0;
-                                if (IsPointInRect(newRelP, box)) {
-                                    if (vTotal.x != 0) {
-                                        r32 t = (min.x - oldRelP.x) / vTotal.x;
-                                        if (t >= 0 && t <= tRemain) {
-                                            tUsed = t;
-                                            axis = 0;
-                                        }
-                                        t = (max.x - oldRelP.x) / vTotal.x;
-                                        if (t >= 0 && t <= tRemain) {
-                                            tUsed = t;
-                                            axis = 0;
-                                        }
-                                    }
-                                    if (vTotal.y != 0) {
-                                        r32 t = (min.y - oldRelP.y) / vTotal.y;
-                                        if (t >= 0 && t <= tRemain) {
-                                            tUsed = t;
-                                            axis = 1;
-                                        }
-                                        t = (max.y - oldRelP.y) / vTotal.y;
-                                        if (t >= 0 && t <= tRemain) {
-                                            tUsed = t;
-                                            axis = 1;
-                                        }
-                                    }
-
-                                    tUsed -= epsilon;
-                                    vec3 vUsed = tUsed * vTotal;
-                                    tRemain -= tUsed;
-                                    vec3 vRemain = tRemain * vTotal;
-                                    if (axis == 0) {
-                                        vRemain.x *= -1;
-                                    } else {
-                                        vRemain.y *= -1;
-                                    }
-                                    newPos = oldPos;
-                                    newPos.offset += (vUsed + vRemain);
-                                    RecalcPos(&newPos, gameState->world->chunkDim);
-                                    self->velocity = vRemain;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-   
-    self->pos = newPos;
-    if (!IsSameChunk(oldPos, newPos)) {
-        MapEntityToChunk(&gameState->worldArena,
-                &gameState->world->chunkHashmap,
-                self, oldPos, newPos);
-    }
-}
-
-internal void
-UpdateEntities(GameState *gameState, r32 dt, Position simMin, Position simMax) {
-    for (s32 Z = simMin.chunkZ;
-            Z <= simMax.chunkZ;
-            ++Z) {
-        for (s32 Y = simMin.chunkY;
-                Y <= simMax.chunkY;
-                ++Y) {
-            for (s32 X = simMin.chunkX;
-                    X <= simMax.chunkX;
-                    ++X) {
-                Chunk *chunk = GetChunk(&gameState->worldArena,
-                        &gameState->world->chunkHashmap, {X, Y, Z});
-                for (Entity *entity = chunk->entities.head;
-                        entity != 0;
-                        entity = entity->next) {
-                    switch (entity->type) {
-                        case EntityType_Player: {
-                            r32 epsilon = 0.01f;
-                            if (entity->velocity.x > epsilon) {
-                                entity->face = 0;
-                            }
-                            if (entity->velocity.x < -epsilon) {
-                                entity->face = 1;
-                            }
-                            UpdateEntityPos(gameState, entity, dt, simMin, simMax);
-                        } break;
-
-                        case EntityType_Familiar: {
-                            r32 epsilon = 0.01f;
-                            if (entity->velocity.x > epsilon) {
-                                entity->face = 0;
-                            }
-                            if (entity->velocity.x < -epsilon) {
-                                entity->face = 1;
-                            }
-                            vec3 V = Subtract(gameState->player->pos, entity->pos, gameState->world->chunkDim);
-                            r32 dist = Len(V);
-                            V *= (1.0f / Len(V));
-                            entity->accel = (dist > 2.5f) ? V : vec3{};
-                            UpdateEntityPos(gameState, entity, dt, simMin, simMax);
-                        } break;
-
-                        case EntityType_Tree: {
-                        } break;
-
-                        case EntityType_Golem: {
-                        } break;
-
-                        INVALID_DEFAULT_CASE
-                    }
-                }
-            }
-        }
-    }
-}
-
-internal Glyph *
-ExtractGlpyh(u32 codepoint, DEBUG_PLATFORM_READ_FILE_ *DebugPlatformReadFile, MemoryArena *memoryArena) {
-    Glyph *result = 0;
-
-    DebugReadFileResult ttfResult = DebugPlatformReadFile("C:/Windows/Fonts/Arial.ttf");
-    s32 initSuccess = stbtt_InitFont(&g_font, (u8 *)ttfResult.contents, 0);
-    if (initSuccess) {
-        result = PushStruct(memoryArena, Glyph);
-        int width, height;
-        r32 scale = stbtt_ScaleForPixelHeight(&g_font, FONT_HEIGHT);
-        u8 *monoBitmap = stbtt_GetCodepointBitmap(&g_font, 0, scale,
-                codepoint, &width, &height, &result->x_offset, &result->y_offset);
-        u8 *srcAt = monoBitmap;
-
-        result->bitmap = PushStruct(memoryArena, Bitmap);
-        result->bitmap->width = width;
-        result->bitmap->height = height;
-        result->bitmap->pitch = -width * 4;
-        result->bitmap->memory = (u32 *)PushSize(memoryArena, width * height * sizeof(u32)) + (height - 1) * width;
-        result->scale = scale;
-
-        u8 *dstRow = (u8 *)result->bitmap->memory;
-        for (s32 Y = 0;
-                Y < height;
-                ++Y) {
-            u32 *dstAt = (u32 *)dstRow;
-            for (s32 X = 0;
-                    X < width;
-                    ++X) {
-                u8 gray = *srcAt++;
-                *dstAt++ = gray << 24 |
-                           0xFF << 16 |
-                           0xFF <<  8 |
-                           0xFF;
-            }
-            dstRow += result->bitmap->pitch;
-        }
-
-        stbtt_FreeBitmap(monoBitmap, 0);
-    }
-
-    return result;
-}
 
 extern "C"
 GAME_MAIN(GameMain) {
@@ -636,30 +295,13 @@ GAME_MAIN(GameMain) {
         // TODO: Ain't thrilled about it.
         transState->gameAssets.debug_platform_read_file = gameMemory->debug_platform_read_file;
 
-        transState->gameAssets.playerBmp[0] = load_bitmap(&gameState->worldArena, gameMemory->debug_platform_read_file, "hero_red_right.bmp");
-        transState->gameAssets.playerBmp[1] = load_bitmap(&gameState->worldArena, gameMemory->debug_platform_read_file, "hero_red_left.bmp");
-        transState->gameAssets.familiarBmp[0] = load_bitmap(&gameState->worldArena, gameMemory->debug_platform_read_file, "hero_blue_right.bmp");
-        transState->gameAssets.familiarBmp[1] = load_bitmap(&gameState->worldArena, gameMemory->debug_platform_read_file, "hero_blue_left.bmp");
+        transState->gameAssets.playerBmp[0] = load_bmp(&gameState->worldArena, gameMemory->debug_platform_read_file, "hero_red_right.bmp");
+        transState->gameAssets.playerBmp[1] = load_bmp(&gameState->worldArena, gameMemory->debug_platform_read_file, "hero_red_left.bmp");
+        transState->gameAssets.familiarBmp[0] = load_bmp(&gameState->worldArena, gameMemory->debug_platform_read_file, "hero_blue_right.bmp");
+        transState->gameAssets.familiarBmp[1] = load_bmp(&gameState->worldArena, gameMemory->debug_platform_read_file, "hero_blue_left.bmp");
 
-#if 0
-        for (char codepoint = 'a';
-                codepoint != 'z';
-                ++codepoint) {
-            transState->gameAssets.glyphs[codepoint] = ExtractGlpyh(codepoint, gameMemory->debug_platform_read_file, &transState->assetArena);
-        }
 
-        for (char codepoint = 'A';
-                codepoint != 'Z';
-                ++codepoint) {
-            transState->gameAssets.glyphs[codepoint] = ExtractGlpyh(codepoint, gameMemory->debug_platform_read_file, &transState->assetArena);
-        }
-#endif
-
-        for (u32 codepoint = 0;
-                codepoint < 256;
-                ++codepoint) {
-            transState->gameAssets.glyphs[codepoint] = ExtractGlpyh(codepoint, gameMemory->debug_platform_read_file, &transState->assetArena);
-        }
+        load_font(&gameState->worldArena, gameMemory->debug_platform_read_file, &transState->gameAssets);
 
    }
 
@@ -685,7 +327,7 @@ GAME_MAIN(GameMain) {
     gameState->camera.pos = player->pos;
 #endif
     Position camPos = gameState->camera.pos;
-    vec2 camScreenPos = {600.0f, 300.0f};
+    vec2 camScreenPos = {gameScreenBuffer->width * 0.5f, gameScreenBuffer->height * 0.5f};
     vec3 camDim = {100.0f, 50.0f, 0.0f};
     Position minPos = camPos;
     Position maxPos = camPos;
@@ -702,6 +344,7 @@ GAME_MAIN(GameMain) {
 
 
     ///////////////////////////////////////////////////////////////////////////
+    //
     // Render entities
     //
     Bitmap drawBuffer = {};
@@ -713,7 +356,7 @@ GAME_MAIN(GameMain) {
     gameState->time += 0.01f;
     r32 angle = gameState->time;
 
-    GameAssets *gameAssets = &transState->gameAssets;
+    Game_Assets *gameAssets = &transState->gameAssets;
 
     PushRect(renderGroup, vec2{},
             vec2{(r32)gameScreenBuffer->width, (r32)gameScreenBuffer->height},
@@ -742,7 +385,7 @@ GAME_MAIN(GameMain) {
                     case EntityType_Player: {
                         s32 face = entity->face;
                         vec2 bmpDim = vec2{(r32)gameAssets->playerBmp[face]->width, (r32)gameAssets->playerBmp[face]->height};
-                        PushBitmap(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, gameAssets->playerBmp[face]);
+                        push_bitmap(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, gameAssets->playerBmp[face]);
 #if 1
 #else
                         ///////////////////////////////////////////////////////
@@ -763,7 +406,7 @@ GAME_MAIN(GameMain) {
 
 #if 0
                         ///////////////////////////////////////////////////////
-                        ///
+                        //
                         // Particle System Demo
                         //
                         vec2 O = vec2{cen.x, cen.y + 0.5f * bmpDim.y};
@@ -909,14 +552,14 @@ GAME_MAIN(GameMain) {
                         Bitmap *bitmap = GetBitmap(transState, GAI_Tree, transState->lowPriorityQueue, gameMemory->AtomicCompareExchange);
                         if (bitmap) {
                             vec2 bmpDim = vec2{(r32)bitmap->width, (r32)bitmap->height};
-                            PushBitmap(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, bitmap);
+                            push_bitmap(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, bitmap);
                         }
                     } break;
 
                     case EntityType_Familiar: {
                         s32 face = entity->face;
                         vec2 bmpDim = vec2{(r32)gameAssets->familiarBmp[face]->width, (r32)gameAssets->familiarBmp[face]->height};
-                        PushBitmap(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, gameAssets->familiarBmp[face]);
+                        push_bitmap(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, gameAssets->familiarBmp[face]);
                     } break;
 
                     case EntityType_Golem: {
@@ -940,12 +583,17 @@ GAME_MAIN(GameMain) {
     TemporaryMemory debugRenderMemory = BeginTemporaryMemory(&transState->transientArena);
     RenderGroup *debugRenderGroup = AllocRenderGroup(&transState->transientArena);
 
-    push_text(debugRenderGroup, "Simon Simple", gameAssets);
-    push_text(debugRenderGroup, "Simple Simon", gameAssets);
-    push_text(debugRenderGroup, "Hello Sailor!", gameAssets);
+    // TODO: set char-pointer to "" maybe...? g_debug_counters
+    r32 scale = 1.0f;
+    push_text(debugRenderGroup, "Simple Simon", gameAssets, scale, vec4{1.0f, 1.0f, 0.0f, 1.0f});
+    push_text(debugRenderGroup, "Simon Simple", gameAssets, scale);
+    push_text(debugRenderGroup, "AVAAWAVWV", gameAssets, scale);
+    push_text(debugRenderGroup, "hellow, great is thatlll", gameAssets, scale);
     
     
-    baseline_y = 100.0f;
+    cen_y = 100.0f;
     RenderGroupToOutput(debugRenderGroup, &drawBuffer, transState);
     EndTemporaryMemory(&debugRenderMemory);
 }
+
+Debug_Counter g_debug_counters[__COUNTER__];

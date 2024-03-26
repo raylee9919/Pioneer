@@ -6,35 +6,73 @@
    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
-#define USE_WINDOWS 1
+#define KB(N) (    N  * 1024ll )
+#define MB(N) ( KB(N) * 1024ll )
+#define GB(N) ( MB(N) * 1024ll )
+#define TB(N) ( GB(N) * 1024ll )
 
-#ifdef USE_WINDOWS
-#include <windows.h>
+#define Assert(exp) if (!(exp)) { *(volatile int *)0 = 0; }
+
+#define __USE_WINDOWS       1
+#define ALLOC_SIZE          GB(2)
+
+#if __USE_WINDOWS
+  #include <windows.h>
 #else
-#include "stb_truetype.h"
+  #define STB_TRUETYPE_IMPLEMENTATION
+  #include "stb_truetype.h"
 #endif
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <assert.h>
 
 #include "types.h"
 #include "intrinsics.h"
+#include "asset.h"
 #include "asset_builder.h"
 
 #define PACK_MAGIC(a,b,c,d)     (a | (b << 8) | (c << 16) | (d << 24))          
 #define MAGIC                   PACK_MAGIC('a','k','4','7')
 #define FILE_VERSION            1
 
+///////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////
+//
+// Memory
+//
+inline void
+init_memory() {
+    size_t mem_size = ALLOC_SIZE;
+    void *mem_block = malloc(mem_size);
+    Assert(mem_block != 0);
+    memset(mem_block, 0, ALLOC_SIZE);
+    g_main_arena.base = mem_block;
+    g_main_arena.size = mem_size;
+}
+
+inline void
+deinit_memory() {
+    free(g_main_arena.base);
+}
+
+inline void
+flush(Memory_Arena *arena) {
+    arena->used = 0;
+}
+///////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////
+//
+// Bitmap
+//
 static void
-write_bitmap(const char *filename, FILE *out_file) {
+write_bmp(const char *filename, FILE *out_file) {
     FILE *file = fopen(filename, "rb");
 
     if(file) {
-        Bitmap_Info_Header header = {};
-        fread(&header, sizeof(Bitmap_Info_Header), 1, file);
-        assert(header.compression == 3);
-        assert(header.bpp == 32);
+        BMP_Info_Header header = {};
+        fread(&header, sizeof(BMP_Info_Header), 1, file);
+        Assert(header.compression == 3);
+        Assert(header.bpp == 32);
 
         fseek(file, header.bitmap_offset, SEEK_SET);
 
@@ -42,7 +80,7 @@ write_bitmap(const char *filename, FILE *out_file) {
         bitmap.width = header.width;
         bitmap.height = header.height;
         u64 bitmap_size = bitmap.width * bitmap.height * 4;
-        bitmap.memory = malloc(bitmap_size);
+        bitmap.memory = push_size(bitmap_size);
         fread(bitmap.memory, bitmap_size, 1, file);
 
         u32 r_mask = header.r_mask;
@@ -55,10 +93,10 @@ write_bitmap(const char *filename, FILE *out_file) {
         Bit_Scan_Result b_scan = find_least_significant_set_bit(b_mask);
         Bit_Scan_Result a_scan = find_least_significant_set_bit(a_mask);
         
-        assert(r_scan.found);
-        assert(g_scan.found);
-        assert(b_scan.found);
-        assert(a_scan.found);
+        Assert(r_scan.found);
+        Assert(g_scan.found);
+        Assert(b_scan.found);
+        Assert(a_scan.found);
 
         s32 r_shift_down = (s32)r_scan.index;
         s32 g_shift_down = (s32)g_scan.index;
@@ -91,7 +129,6 @@ write_bitmap(const char *filename, FILE *out_file) {
         }
 
         fwrite(bitmap.memory, bitmap_size, 1, out_file);
-        free(bitmap.memory);
     } else {
         printf("Couldn't open filename %s\n.", filename);
     }
@@ -99,44 +136,247 @@ write_bitmap(const char *filename, FILE *out_file) {
     fclose(file);
 }
 
-static void
-bake_glyph(const char *filename, const char *fontname, u32 codepoint) {
-#ifdef USE_WINDOWS
-    static HDC hdc = 0;
-    if (!hdc) {
-        AddFontResourceExA(filename, FR_PRIVATE, 0);
-        HFONT font = CreateFontA(128, 0, 0, 0,
-                FW_NORMAL, FALSE, FALSE, FALSE,
-                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
-                DEFAULT_PITCH|FF_DONTCARE, fontname);
-        hdc = CreateCompatibleDC(hdc);
-        HBITMAP bitmap = CreateCompatibleBitmap(hdc, 1024, 1024);
-        SelectObject(hdc, bitmap);
-        SetBkColor(hdc, RGB(0, 0, 0));
-
-        TEXTMETRIC text_metric;
-        GetTextMetrics(hdc, &text_metric);
+static void *
+read_entire_file(const char *filename) {
+    void *result = 0;
+    FILE *file = fopen(filename, "rb");
+    if (file) {
+        fseek(file, 0, SEEK_END);
+        size_t filesize = ftell(file);
+        fseek(file, 0, SEEK_SET);
+        result = push_size(filesize);
+        Assert(fread(result, filesize, 1, file) == 1);
+        fclose(file);
+    } else {
+        printf("ERROR: Couldn't open file %s.\n", filename);
     }
+    return result;
+}
 
+///////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////
+//
+// Font Asset
+//
+static Asset_Glyph *
+bake_glyph(HDC hdc, u32 codepoint, void *bits, s32 bi_width, s32 bi_height, TEXTMETRIC metric) {
+    Asset_Glyph *result = push_struct(Asset_Glyph);
     wchar_t utf_codepoint = (wchar_t)codepoint;
-
     SIZE size;
     GetTextExtentPoint32W(hdc, &utf_codepoint, 1, &size);
 
     s32 width = size.cx;
     s32 height = size.cy;
 
-    PatBlt(hdc, 0, 0, width, height, BLACKNESS);
     SetTextColor(hdc, RGB(0xff, 0xff, 0xff));
-
     TextOutW(hdc, 0, 0, &utf_codepoint, 1);
-#else // stb_truetype.h
+
+    s32 min_x = width - 1;
+    s32 min_y = height - 1;
+    s32 max_x = 0;
+    s32 max_y = 0;
+
+    u32 *pixel_row = (u32 *)bits + (bi_height - 1) * bi_width;
+    for (s32 y = 0;
+            y < height;
+            ++y) {
+        u32 *pixel = pixel_row;
+        for (s32 x = 0;
+                x < width;
+                ++x) {
+            // COLORREF pixel = GetPixel(hdc, x, y); // OS-call, but suck it.
+            u8 gray = (u8)(*pixel++ & 0xff);
+            if (gray != 0) {
+                if (x < min_x) { min_x = x; }
+                if (y < min_y) { min_y = y; }
+                if (x > max_x) { max_x = x; }
+                if (y > max_y) { max_y = y; }
+            }
+        }
+        pixel_row -= bi_width;
+    }
+
+    s32 baseline = metric.tmAscent;
+    s32 ascent;
+#if 0
+    if (min_y <= baseline) {
+        ascent = baseline - min_y + 1;
+    } else {
+        ascent = 0;
+    }
+    if (max_y <= baseline) {
+        descent = 0;
+    } else {
+        descent = max_y - baseline;
+    }
+    Assert(ascent >=0 && descent >= 0);
+#else
+    ascent = baseline - min_y + 1;
 #endif
+
+    s32 off_x = min_x;
+    s32 off_y = min_y;
+
+    s32 glyph_width = max_x - min_x + 1;
+    s32 glyph_height = max_y - min_y + 1;
+    s32 glyph_pitch = -glyph_width * 4;
+
+    s32 margin = 1;
+
+    result->codepoint = codepoint;
+    result->ascent = ascent + margin;
+    result->bitmap.width = glyph_width + margin * 2;
+    result->bitmap.height = glyph_height + margin * 2;
+    result->bitmap.pitch = -result->bitmap.width * 4;
+    result->bitmap.size = result->bitmap.height * result->bitmap.width * 4;
+    result->bitmap.memory = push_size(result->bitmap.size);
+    // memset(result->bitmap.memory, 0x7f, result->bitmap.size);
+
+    u8 *dst_row = (u8 *)result->bitmap.memory + (result->bitmap.height - 1 - margin) * -result->bitmap.pitch + 4 * margin;
+    pixel_row = (u32 *)bits + (bi_height - 1 - off_y) * bi_width;
+    for (s32 y = 0;
+            y < glyph_height;
+            ++y) {
+        u32 *dst_at = (u32 *)dst_row;
+        u32 *pixel = pixel_row + off_x;
+        for (s32 x = 0;
+                x < glyph_width;
+                ++x) {
+            // COLORREF pixel = GetPixel(hdc, off_x + x, off_y + y);
+            u8 gray = (u8)(*pixel++ & 0xff);
+            u8 alpha = 0xff;
+#if 0 // debug
+            u32 c = (alpha << 24) |
+                (gray << 16) |
+                (gray <<  8) |
+                gray;
+#else
+            u32 c = (gray << 24) |
+                    (0xff << 16) |
+                    (0xff <<  8) |
+                     0xff;
+#endif
+            *dst_at++ = c; 
+        }
+        dst_row += result->bitmap.pitch;
+        pixel_row -= bi_width;
+    }
+    
+
+#if 0
+    u8 *read_buf = (u8 *)read_entire_file(filename);
+
+    stbtt_fontinfo font;
+    s32 init_ok = stbtt_InitFont(&font, read_buf, 0);
+    if (init_ok) {
+        int width, height;
+        r32 scale = stbtt_ScaleForPixelHeight(&font, (r32)font_height);
+        u8 *mono_bitmap = stbtt_GetCodepointBitmap(&font, 0, scale,
+                codepoint, &width, &height, 0, 0);
+        u8 *src_at = mono_bitmap;
+
+        size_t size = width * height * 4;
+        result->memory = push_size(size);
+        result->width = width;
+        result->height = height;
+        result->pitch = -width * 4;
+        result->size = width * height * 4;
+
+        u8 *dst_row = (u8 *)result->memory + (height - 1) * -result->pitch;
+        for (s32 y = 0;
+                y < height;
+                ++y) {
+            u32 *dst_at = (u32 *)dst_row;
+            for (s32 x = 0;
+                    x < width;
+                    ++x) {
+                u8 gray = *src_at++;
+                *dst_at++ = 0xff << 24 |
+                            gray << 16 |
+                            gray <<  8 |
+                            gray;
+            }
+            dst_row += result->pitch;
+        }
+        stbtt_FreeBitmap(mono_bitmap, 0);
+    }
+#endif
+    
+    return result;
+}
+
+static void
+bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_height) {
+    s32 bi_width = 1024;
+    s32 bi_height = 1024;
+    static HDC hdc = 0;
+    TEXTMETRIC metric = {};
+    void *bits = 0;
+    u8 lo = '!';
+    u8 hi = '~';
+    if (!hdc) {
+        AddFontResourceExA(filename, FR_PRIVATE, 0);
+        HFONT font = CreateFontA(cheese_height, 0, 0, 0,
+                FW_NORMAL, FALSE, FALSE, FALSE,
+                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                DEFAULT_PITCH|FF_DONTCARE, fontname);
+        hdc = CreateCompatibleDC(0);
+        BITMAPINFO info = {};
+        info.bmiHeader.biSize = sizeof(info.bmiHeader);
+        info.bmiHeader.biWidth = bi_width;
+        info.bmiHeader.biHeight = bi_height;
+        info.bmiHeader.biPlanes = 1;
+        info.bmiHeader.biBitCount = 32;
+        info.bmiHeader.biCompression = BI_RGB;
+        info.bmiHeader.biSizeImage = 0;
+        info.bmiHeader.biXPelsPerMeter = 0;
+        info.bmiHeader.biYPelsPerMeter = 0;
+        info.bmiHeader.biClrUsed = 0;
+        info.bmiHeader.biClrImportant = 0;
+        HBITMAP bitmap = CreateDIBSection(hdc, &info, DIB_RGB_COLORS, &bits, 0, 0);
+        SelectObject(hdc, bitmap);
+        SelectObject(hdc, font);
+        SetBkColor(hdc, RGB(0, 0, 0));
+
+        GetTextMetrics(hdc, &metric);
+
+        s32 kern_count = GetKerningPairsA(hdc, 0, 0);
+        KERNINGPAIR *kern_pairs = push_array(KERNINGPAIR, kern_count);
+        Assert(GetKerningPairsA(hdc, kern_count, kern_pairs));
+
+        Asset_Kerning_Header kern_header = {};
+        kern_header.pair_count = kern_count;
+
+        Asset_Kerning *asset_kern_pairs = push_array(Asset_Kerning, kern_count);
+        for (s32 idx = 0;
+                idx < kern_count;
+                ++idx) {
+            KERNINGPAIR *kern_pair = kern_pairs + idx;
+            Asset_Kerning *asset_kern_pair = asset_kern_pairs + idx;
+            asset_kern_pair->first = kern_pair->wFirst;
+            asset_kern_pair->second = kern_pair->wSecond;
+            asset_kern_pair->value = kern_pair->iKernAmount;
+        }
+
+        // write kerning table.
+        fwrite(&kern_header, sizeof(kern_header), 1, out);
+        fwrite(asset_kern_pairs, sizeof(*asset_kern_pairs) * kern_count, 1, out);
+    }
+    // write glyphs.
+    for (char ch = lo; ch <= hi; ++ch) {
+        Asset_Glyph *glyph = bake_glyph(hdc, ch, bits, bi_width, bi_height, metric);
+        fwrite(glyph, sizeof(*glyph), 1, out);
+        fwrite(glyph->bitmap.memory, glyph->bitmap.size, 1, out);
+    }
+    
+    flush(&g_main_arena); // important: danger if you will use multi-threading.
 }
 
 int
 main(int argc, char **argv) {
+    init_memory();
+
     Package package = {};
     package.header.magic = MAGIC;
     package.header.file_version = FILE_VERSION;
@@ -146,13 +386,7 @@ main(int argc, char **argv) {
 
     FILE *out = fopen("../data/asset.pack", "wb");
     if (out) {
-        fwrite(&package, sizeof(package), 1, out);
-
-        write_bitmap("../data/white_particle.bmp", out);
-
-
-
-
+        bake_font("C:/Windows/Fonts/arial.ttf", "Arial", out, 96);
 
 
         fclose(out);
@@ -161,4 +395,5 @@ main(int argc, char **argv) {
         printf("ERROR: Couldn't open file.\n");
     }
 
+    deinit_memory();
 }

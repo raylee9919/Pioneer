@@ -38,7 +38,7 @@ Win32HandleDebugCycleCounters(GameMemory *memory) {
 #if 0
     OutputDebugStringA("DEBUG CYCLE COUNTS:\n");
     for(s32 idx = 0;
-        idx < ArrayCount(memory->debugCycleCounters);
+        idx < ArrayCount(g_debugCycleCounters);
         ++idx) {
         debug_cycle_counter *counter = memory->debugCycleCounters + idx; 
 
@@ -580,7 +580,8 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     wnd_class.lpszClassName     = "GameWindowClass";
     RegisterClassA(&wnd_class);
 
-    Win32ResizeDIBSection(&g_screen_buffer, 1280, 720);
+    // Win32ResizeDIBSection(&g_screen_buffer, 960, 540);
+    Win32ResizeDIBSection(&g_screen_buffer, 1920, 1080);
 
     HWND hwnd = CreateWindowExA(
             0, wnd_class.lpszClassName, "Winter Serenity",

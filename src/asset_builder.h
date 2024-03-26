@@ -6,37 +6,28 @@
    $Creator: Sung Woo Lee $
    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
-
-#pragma pack(push, 1)
-struct Bitmap_Info_Header {
-    u16 filetype;
-    u32 filesize;
-    u16 reserved1;
-    u16 reserved2;
-    u32 bitmap_offset;
-    u32 bitmap_info_header_size;
-    s32 width;
-    s32 height;
-    s16 plane;
-    u16 bpp; // bits
-    u32 compression;
-    u32 image_size;
-    u32 h_resolution;
-    u32 v_resolution;
-    u32 plt_entry_cnt;
-    u32 important;
-
-    u32 r_mask;
-    u32 g_mask;
-    u32 b_mask;
+struct Memory_Arena {
+    size_t size;
+    void *base;
+    size_t used;
 };
 
-struct Bitmap {
-    s32 width;
-    s32 height;
-    s32 pitch;
-    void *memory;
-};
+Memory_Arena g_main_arena;
+
+#define push_array(STRUCT, COUNT) (STRUCT *)push_size(sizeof(STRUCT) * COUNT)
+#define push_struct(STRUCT) (STRUCT *)push_size(sizeof(STRUCT))
+static void *
+push_size(size_t size) {
+    void *result = 0;
+    if (size + g_main_arena.used > g_main_arena.size) {
+        printf("ERROR: Not enough memory!\n");
+        exit(1);
+    }
+    result = (u8 *)g_main_arena.base + g_main_arena.used;
+    g_main_arena.used += size;
+
+    return result;
+}
 
 struct Package_Header {
     u32 magic;
@@ -49,8 +40,6 @@ struct Package_Header {
 struct Package {
     Package_Header header;
 };
-
-#pragma pack(pop)
 
 #define ASSET_BUILDER_H
 #endif

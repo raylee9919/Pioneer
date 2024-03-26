@@ -20,107 +20,36 @@ PushRenderEntity_(RenderGroup *renderGroup, u32 size, RenderType type) {
     RenderEntityHeader *header = (RenderEntityHeader *)(renderGroup->base + renderGroup->used);
     header->type = type;
     renderGroup->used += size;
+
     return header;
 }
 
 internal void
-PushBitmap(RenderGroup *renderGroup, vec2 origin, vec2 axisX, vec2 axisY,
-        Bitmap *bmp, r32 alpha = 1.0f) {
+push_bitmap(RenderGroup *renderGroup, vec2 origin, vec2 axisX, vec2 axisY,
+        Bitmap *bmp, vec4 color = vec4{1.0f, 1.0f, 1.0f, 1.0f}) {
     RenderEntityBmp *piece = PushRenderEntity(renderGroup, RenderEntityBmp);
     if (piece) {
         piece->origin = origin;
         piece->axisX = axisX;
         piece->axisY = axisY;
         piece->bmp = bmp;
-        piece->alpha = alpha;
-    }
-}
-
-inline Glyph *
-GetGlyphFromCodepoint(GameAssets *gameAssets, u32 codepoint) {
-    Glyph *result = gameAssets->glyphs[codepoint];
-    return result;
-}
-
-global_var r32 baseline_y = 60.0f;
-
-internal void
-push_text(RenderGroup *renderGroup,
-        const char *str, GameAssets *gameAssets) {
-    r32 left_x = 40.0f;
-    r32 width = 0;
-    r32 height = 0;
-    int advance, lsb, ascent, descent;
-    for (const char *ch = str;
-            *ch;
-            ++ch) {
-        Glyph *glyph = GetGlyphFromCodepoint(gameAssets, *ch);
-        if (glyph) {
-            Bitmap *bmp = glyph->bitmap;
-            r32 scale = glyph->scale;
-            if (bmp) {
-                width = (r32)bmp->width;
-                height = (r32)bmp->height;
-
-                stbtt_GetCodepointHMetrics(&g_font, *ch, &advance, &lsb);
-                stbtt_GetFontVMetrics(&g_font, &ascent, &descent, 0);
-
-                PushBitmap(renderGroup, vec2{left_x, baseline_y + glyph->y_offset},
-                        vec2{width, 0}, vec2{0, height}, bmp);
-
-                left_x += scale * advance;
-                if (*(ch + 1)) {
-                    r32 kerning = (r32)stbtt_GetCodepointKernAdvance(&g_font, *ch, *(ch + 1));
-                    kerning *= scale;
-                    left_x += kerning;
-                }
-            }
-        } else {
-            left_x += FONT_HEIGHT * 0.5f;
-        }
-    }
-
-    baseline_y += FONT_HEIGHT * 1.2f;
-}
-
-internal void
-PushRect(RenderGroup *renderGroup,
-        vec2 min, vec2 max, vec4 color) {
-    RenderEntityRect *piece = PushRenderEntity(renderGroup, RenderEntityRect);
-    if (piece) {
-        piece->min = min;
-        piece->max = max;
         piece->color = color;
     }
 }
 
 internal void
-PushCoordinateSystem(RenderGroup *renderGroup,
-        vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp) {
-    RenderEntityCoordinateSystem *piece = PushRenderEntity(renderGroup, RenderEntityCoordinateSystem);
+push_text(RenderGroup *renderGroup, const char *str, Game_Assets *gameAssets, r32 scale, vec4 color = vec4{1.0f, 1.0f, 1.0f, 1.0f}) {
+    Render_Text *piece = PushRenderEntity(renderGroup, Render_Text);
     if (piece) {
-        piece->origin = origin;
-        piece->axisX = axisX;
-        piece->axisY = axisY;
-        piece->bmp = bmp;
+        piece->str = str;
+        piece->game_assets = gameAssets;
+        piece->scale = scale;
+        piece->color = color;
     }
 }
 
-internal RenderGroup *
-AllocRenderGroup(MemoryArena *memoryArena) {
-    RenderGroup *result = PushStruct(memoryArena, RenderGroup);
-    *result = {};
-    result->capacity = MB(4);
-    result->base = (u8 *)PushSize(memoryArena, result->capacity);
-    result->used = 0;
-
-    return result;
-}
-
 internal void
-draw_bitmap_slow(Bitmap *buf, vec2 min, Bitmap *bmp, r32 alpha = 1.0f) {
-    Assert(0.0f <= alpha && 1.0f >= alpha);
-
+draw_bitmap_slow(Bitmap *buf, vec2 min, Bitmap *bmp, vec4 color = vec4{1.0f, 1.0f, 1.0f, 1.0f}) {
     s32 minX = RoundR32ToS32(min.x);
     s32 minY = RoundR32ToS32(min.y);
     s32 maxX = minX + bmp->width;
@@ -164,7 +93,7 @@ draw_bitmap_slow(Bitmap *buf, vec2 min, Bitmap *bmp, r32 alpha = 1.0f) {
             ++X)
         {
             // normalized.
-            r32 sa = (r32)((*src >> 24) & 0xff) / 255.0f * alpha;
+            r32 sa = (r32)((*src >> 24) & 0xff) / 255.0f * color.a;
             r32 sr = (r32)((*src >> 16) & 0xff) / 255.0f;        
             r32 sg = (r32)((*src >>  8) & 0xff) / 255.0f;        
             r32 sb = (r32)((*src >>  0) & 0xff) / 255.0f;        
@@ -180,9 +109,9 @@ draw_bitmap_slow(Bitmap *buf, vec2 min, Bitmap *bmp, r32 alpha = 1.0f) {
             sb *= sa;
 
             // 0~255
-            sr *= 255.0f;
-            sg *= 255.0f;
-            sb *= 255.0f;
+            sr *= 255.0f * color.r;
+            sg *= 255.0f * color.g;
+            sb *= 255.0f * color.b;
 
             // normalized.
             r32 da = (r32)((*dst >> 24) & 0xff) / 255.0f;
@@ -231,6 +160,69 @@ draw_bitmap_slow(Bitmap *buf, vec2 min, Bitmap *bmp, r32 alpha = 1.0f) {
         srcRow += bmp->pitch;
     }
 }
+
+global_var r32 cen_y = 100.0f;
+internal void
+// draw_text(RenderGroup *renderGroup, const char *str, Game_Assets *gameAssets, r32 scale, vec4 color = vec4{1.0f, 1.0f, 1.0f, 1.0f}) {
+draw_text(Bitmap *buffer, Render_Text *info) {
+    r32 left_x = 40.0f;
+    for (const char *ch = info->str;
+            *ch;
+            ++ch) {
+        Asset_Glyph *glyph = info->game_assets->glyphs[*ch];
+        Bitmap *bitmap = &glyph->bitmap;
+        if (glyph) {
+            r32 w = (r32)bitmap->width;
+            r32 h = (r32)bitmap->height;
+            r32 advance_x = w;
+            if (*(ch + 1)) {
+                r32 kern = (r32)get_kerning(&info->game_assets->kern_hashmap, *ch, *(ch + 1));
+                advance_x += kern;
+            }
+            // PushBitmap(renderGroup, vec2{left_x, cen_y - glyph->ascent * scale}, vec2{w, 0}, vec2{0, h}, bitmap, color);
+            draw_bitmap_slow(buffer, vec2{left_x, cen_y - glyph->ascent}, bitmap, info->color);
+            left_x += advance_x;
+        } else {
+            left_x += 32.0f;
+        }
+    }
+    cen_y += 64 * 1.2f;
+}
+
+internal void
+PushRect(RenderGroup *renderGroup,
+        vec2 min, vec2 max, vec4 color) {
+    RenderEntityRect *piece = PushRenderEntity(renderGroup, RenderEntityRect);
+    if (piece) {
+        piece->min = min;
+        piece->max = max;
+        piece->color = color;
+    }
+}
+
+internal void
+PushCoordinateSystem(RenderGroup *renderGroup,
+        vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp) {
+    RenderEntityCoordinateSystem *piece = PushRenderEntity(renderGroup, RenderEntityCoordinateSystem);
+    if (piece) {
+        piece->origin = origin;
+        piece->axisX = axisX;
+        piece->axisY = axisY;
+        piece->bmp = bmp;
+    }
+}
+
+internal RenderGroup *
+AllocRenderGroup(MemoryArena *memoryArena) {
+    RenderGroup *result = PushStruct(memoryArena, RenderGroup);
+    *result = {};
+    result->capacity = MB(4);
+    result->base = (u8 *)PushSize(memoryArena, result->capacity);
+    result->used = 0;
+
+    return result;
+}
+
 
 internal void
 DrawRect(Bitmap *buffer, vec2 min, vec2 max, vec4 color) {
@@ -431,7 +423,8 @@ DrawRectSlowAsf(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp
 #endif
 
 internal void
-DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp, r32 alpha) {
+DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp, vec4 color) {
+    TIMED_BLOCK();
 
     s32 bufWidthMax = buffer->width - 1;
     s32 bufHeightMax = buffer->height - 1;
@@ -480,7 +473,10 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
     __m128i MaskFF = _mm_set1_epi32(0xFF);
     __m128 m255f = _mm_set1_ps(255.0f);
     __m128 inv255f = _mm_set1_ps(1.0f / 255.0f);
-    __m128 alphaf = _mm_clamp01_ps(_mm_set1_ps(alpha));
+    __m128 tint_r = _mm_clamp01_ps(_mm_set1_ps(color.r));
+    __m128 tint_g = _mm_clamp01_ps(_mm_set1_ps(color.g));
+    __m128 tint_b = _mm_clamp01_ps(_mm_set1_ps(color.b));
+    __m128 alphaf = _mm_clamp01_ps(_mm_set1_ps(color.a));
 
     __m128 Ox = _mm_set1_ps(origin.x);
     __m128 Oy = _mm_set1_ps(origin.y);
@@ -538,6 +534,7 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
 //
 // Bilinear Filtering
 //
+            __m128 SA, SR, SG, SB;
 #if 1
             // NOTE: Floor and get weight.
             __m128i Ui = _mm_cvttps_epi32(Uf);
@@ -593,10 +590,10 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
             __m128 B3 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel3,  0), MaskFF))), inv255f); // 0-255
 
             // NOTE: Bilinear filtering and premultiply alpha.
-            __m128 SA = _mm_mul_ps(mmLerp(mmLerp(A0, A1, Rx), mmLerp(A2, A3, Rx), Ry), alphaf); // 0-1
-            __m128 SR = _mm_mul_ps(mmLerp(mmLerp(R0, R1, Rx), mmLerp(R2, R3, Rx), Ry), SA); // 0-255
-            __m128 SG = _mm_mul_ps(mmLerp(mmLerp(G0, G1, Rx), mmLerp(G2, G3, Rx), Ry), SA); // 0-255
-            __m128 SB = _mm_mul_ps(mmLerp(mmLerp(B0, B1, Rx), mmLerp(B2, B3, Rx), Ry), SA); // 0-255
+            SA = _mm_mul_ps(mmLerp(mmLerp(A0, A1, Rx), mmLerp(A2, A3, Rx), Ry), alphaf); // 0-1
+            SR = _mm_mul_ps(mmLerp(mmLerp(R0, R1, Rx), mmLerp(R2, R3, Rx), Ry), SA); // 0-255
+            SG = _mm_mul_ps(mmLerp(mmLerp(G0, G1, Rx), mmLerp(G2, G3, Rx), Ry), SA); // 0-255
+            SB = _mm_mul_ps(mmLerp(mmLerp(B0, B1, Rx), mmLerp(B2, B3, Rx), Ry), SA); // 0-255
 #else
             // Round to nearest pixel
             __m128i Ui = _mm_cvtps_epi32(Uf);
@@ -615,16 +612,21 @@ DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap
             }
 
             // Square out from sRGB area
-            __m128 SA =  _mm_mul_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel, 24), MaskFF)), inv255f); // 0-1
-            __m128 SR =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel, 16), MaskFF))), inv255f); // 0-255
-            __m128 SG =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel,  8), MaskFF))), inv255f); // 0-255
-            __m128 SB =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel,  0), MaskFF))), inv255f); // 0-255
+            SA =  _mm_mul_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel, 24), MaskFF)), inv255f); // 0-1
+            SR =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel, 16), MaskFF))), inv255f); // 0-255
+            SG =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel,  8), MaskFF))), inv255f); // 0-255
+            SB =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel,  0), MaskFF))), inv255f); // 0-255
 
             // Premultiply Alpha
             SR = _mm_mul_ps(SR, SA); // 0-255
             SG = _mm_mul_ps(SG, SA); // 0-255
             SB = _mm_mul_ps(SB, SA); // 0-255
 #endif
+
+            // tint.
+            SR = _mm_mul_ps(SR, tint_r); // 0-255
+            SG = _mm_mul_ps(SG, tint_g); // 0-255
+            SB = _mm_mul_ps(SB, tint_b); // 0-255
 
             // NOTE: Fetch what was before in the background buffer.
             // Square out from sRGB and premultiply alpha.
@@ -658,18 +660,19 @@ struct DrawBmpWorkData {
     vec2 axisX;
     vec2 axisY;
     Bitmap *bmp;
-    r32 alpha;
+    b32 bilinear;
+    vec4 color;
     WorkMemoryArena *workSlot;
 };
 PLATFORM_WORK_QUEUE_CALLBACK(DrawBmpWork) {
     DrawBmpWorkData *workData = (DrawBmpWorkData *)data;
 #if 1
     DrawRectSoftwareSIMD(workData->buffer,
-            workData->origin,
-            workData->axisX,
-            workData->axisY,
-            workData->bmp,
-            workData->alpha);
+                         workData->origin,
+                         workData->axisX,
+                         workData->axisY,
+                         workData->bmp,
+                         workData->color);
 #else
     draw_bitmap_slow(workData->buffer, workData->origin, workData->bmp);
 #endif
@@ -705,7 +708,7 @@ RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer,
                     workData->axisX = piece->axisX;
                     workData->axisY = piece->axisY;
                     workData->bmp = piece->bmp;
-                    workData->alpha = piece->alpha;
+                    workData->color = piece->color;
                     workData->workSlot = workSlot;
 #if 0
                     // TODO: Multi-thread ain't working... T^T
@@ -717,6 +720,12 @@ RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer,
 #endif
                 }
 
+                at += sizeof(*piece);
+            } break;
+
+            case RenderType_Render_Text: {
+                Render_Text *piece = (Render_Text *)at;
+                draw_text(outputBuffer, piece);
                 at += sizeof(*piece);
             } break;
 

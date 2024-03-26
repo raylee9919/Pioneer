@@ -8,9 +8,6 @@
     $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
     ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
-#include "math.h"
-#include "platform.h"
-#include "debug.h"
 
 #define Max(a, b) ( (a > b) ? a : b )
 #define Min(a, b) ( (a < b) ? a : b )
@@ -24,40 +21,11 @@ ClearToZero(size_t size, void *data) {
     }
 }
 
+#include "math.h"
+#include "platform.h"
+#include "debug.h"
+#include "asset.h"
 #include "random.h"
-
-// BMP
-#pragma pack(push, 1)
-struct Bitmap_Info_Header {
-    u16 filetype;
-    u32 filesize;
-    u16 reserved1;
-    u16 reserved2;
-    u32 bitmap_offset;
-    u32 bitmap_info_header_size;
-    s32 width;
-    s32 height;
-    s16 plane;
-    u16 bpp; // bits
-    u32 compression;
-    u32 image_size;
-    u32 horizontal_resolution;
-    u32 vertical_resolution;
-    u32 plt_entry_cnt;
-    u32 important;
-
-    u32 r_mask;
-    u32 g_mask;
-    u32 b_mask;
-};
-#pragma pack(pop)
-
-struct Bitmap {
-    s32 width;
-    s32 height;
-    s32 pitch;
-    void *memory;
-};
 
 //
 // Memory ---------------------------------------------------------------------
@@ -168,39 +136,73 @@ struct ParticleCel {
     vec3 V;
 };
 
-enum GameAssetID {
-    GAI_Tree,
-    GAI_Particle,
-    GAI_Golem,
-
-    GAI_Count
+struct Kerning {
+    u32 first;
+    u32 second;
+    s32 value;
+    Kerning *prev;
+    Kerning *next;
 };
-
-enum AssetState {
-    AssetState_Unloaded,
-    AssetState_Queued,
-    AssetState_Loaded
+struct Kerning_List {
+    Kerning *first;
+    Kerning *last;
+    u32 count;
 };
-
-struct Glyph {
-    Bitmap *bitmap;
-    r32 scale;
-    s32 x_offset;
-    s32 y_offset;
+struct Kerning_Hashmap {
+    Kerning_List entries[64];
 };
+inline u32
+kerning_hash(Kerning_Hashmap *hashmap, u32 first, u32 second) {
+    // todo: better hash function.
+    u32 result = (first * 12 + second * 33) % ArrayCount(hashmap->entries);
+    return result;
+}
+internal void
+push_kerning(Kerning_Hashmap *hashmap, Kerning *kern, u32 entry_idx) {
+    Assert(entry_idx < ArrayCount(hashmap->entries));
+    Kerning_List *list = hashmap->entries + entry_idx;
+    if (list->first) {
+        list->last->next = kern;
+        kern->prev = list->last;
+        kern->next = 0;
+        list->last = kern;
+        ++list->count;
+    } else {
+        list->first = kern;
+        list->last = kern;
+        kern->prev = 0;
+        kern->next = 0;
+        ++list->count;
+    }
+}
+internal s32
+get_kerning(Kerning_Hashmap *hashmap, u32 first, u32 second) {
+    s32 result = 0;
+    u32 entry_idx = kerning_hash(hashmap, first, second);
+    Assert(entry_idx < ArrayCount(hashmap->entries));
+    for (Kerning *at = hashmap->entries[entry_idx].first;
+            at;
+            at = at->next) {
+        if (at->first == first && at->second == second) {
+            result = at->value;
+        }
+    }
+    return result;
+}
 
-struct GameAssets {
-    AssetState bitmapStates[GAI_Count];
+struct Game_Assets {
+    Asset_State bitmapStates[GAI_Count];
     Bitmap *bitmaps[GAI_Count];
 
     Bitmap *playerBmp[2];
     Bitmap *familiarBmp[2];
 
-    Glyph *glyphs[256];
+    Kerning_Hashmap kern_hashmap;
+    Asset_Glyph *glyphs[256];
 
-    
     DEBUG_PLATFORM_READ_FILE_ *debug_platform_read_file;
 };
+
 
 struct GameState {
     b32 isInit;
@@ -219,7 +221,6 @@ struct GameState {
 
     Entity *player;
 
-
     Particle particles[512];
     s32 particleNextIdx;
 #define GRID_X 30
@@ -236,7 +237,7 @@ struct TransientState {
     WorkMemoryArena workArena[4];
 
     MemoryArena assetArena;
-    GameAssets gameAssets;
+    Game_Assets gameAssets;
 };
 
 internal void *

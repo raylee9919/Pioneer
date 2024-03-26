@@ -113,91 +113,87 @@ would that work? Eulerian grid method is mainly for incompressible fluid.
                                 Theme 3. Font
 
 Character Set Encoding
-ASCII / ANSI
+    ASCII / ANSI
+    
+    For example, the symbol for meat(肉) in Chinese has no encoding in ASCII.
+    256(8 bits) glyphs are all you will get out of ASCII.
+    Even in a basic situation, you need at least 3000 symbols in Chinese lettering.
+    
+    Recently, moved to UNICODE, encoding drastically more characters.
+    UTF-16 -> UTF-8
+    UTF-8 is a variable-length encoding. It is 8 bit character, but can double up the
+    character and chain them.
 
-For example, the symbol for meat(肉) in Chinese has no encoding in ASCII.
-256(8 bits) glyphs are all you will get out of ASCII.
-Even in a basic situation, you need at least 3000 symbols in Chinese lettering.
-
-Recently, moved to UNICODE, encoding drastically more characters.
-UTF-16 -> UTF-8
-UTF-8 is a variable-length encoding. It is 8 bit character, but can double up the
-character and chain them.
-
-0. Glyphs
-1. Unicode
-
-Pros :)
-All glyphs have found their home. A single font can describe all of the symbols
-human has ever used.
-
-Cons :(
-You are stuck with that giant encoding. 16 million is way too big. Most of them
-will be 0. Universally describing any language is pretty darn nasty.
-
-"Code Point" refers to the numerical slot that has been reserved for
-particular glyph.
+Unicode
+    Pros :)
+    All glyphs have found their home. A single font can describe all of the symbols
+    human has ever used.
+    
+    Cons :(
+    You are stuck with that giant encoding. 16 million is way too big. Most of them
+    will be 0. Universally describing any language is pretty darn nasty.
+    
+    "Code Point" refers to the numerical slot that has been reserved for
+    particular glyph.
 
 
-2. Basic Typography
-
-"gh" -> 'g' has a descender, while 'h' has an ascender. How does character glyph
-relate to the basline? What is the maximum descender height? What is the 
-maximum ascender height? Those are considerations in typography.
-
-<Mono or Mono-Spaced> -> old school terminal, typewriter.
-Spaces are consistent. Looks dumb.
-                            vs
-<Proportional>
-Naive: Constant spacing for each letter.
-Problem: "ij" can be closer than "gj".
-The point being, the distance between letters heavily depend on the "pair" of
-letters.
-
-"Kerning" typically refers to the delta between the normal spacing and
-pair spacing.
-
-e.g.
-A|B|Kerning
-------------
-g|j|  -5
-
-If u are trying to make fonts that appear very tiny, there may be things
-you might want not to do. "Hints" offer those info.
-
-
-3. Font Rendering
-
-option1) Load TTF -> Turn in to triangles (Tessellation) and get outlined-
-  version of it. There's a caveat in it.
-  'S' -> have to pick some degree of fidelity of curves.
-
-option2) Load TTF -> Implicit Rasterization = Is pixel in a shape or not? 
-  Works in any resolution. Always, perfectly smooth curve. 99.9999%... it is an
-  overkill. Most games know their target resolution and font size.
-
-option3) Prerasterized Fonts ★★★
-  Build bitmaps that capture the font at certain resolution, like 1920x1080.
-  We will simply blt from the bitmap. No matter how complicated the glyph is,
-  no big change in performance. If you are in US, no worry about LICENSE for
-  this method. Other methods are technically software. There was a ruling that
-  says font files are instructions to computer on how to generate font in any
-  resolution, that is copywritable as "SOFTWARE". Font is still not copywritable.
-  If you were to trace your own outline, that is legal. Resulting font shape is
-  not copywritable. It's just an image.
-
-Font may be colored in fly. It can be monochrome which is 8-bit value, how much
-coverage was.
-
-To sum it up, we need
-    Captured Font + Code Points + Rect Positioning Info + Kerning Table
+Basic Typography
+    "gh" -> 'g' has a descender, while 'h' has an ascender. How does character glyph
+    relate to the basline? What is the maximum descender height? What is the 
+    maximum ascender height? Those are considerations in typography.
+    
+    <Mono or Mono-Spaced> -> old school terminal, typewriter.
+    Spaces are consistent. Looks dumb.
+                                vs
+    <Proportional>
+    Naive: Constant spacing for each letter.
+    Problem: "ij" can be closer than "gj".
+    The point being, the distance between letters heavily depend on the "pair" of
+    letters.
+    
+    "Kerning" typically refers to the delta between the normal spacing and
+    pair spacing.
+    
+    e.g.
+    A|B|Kerning
+    ------------
+    g|j|  -5
+    
+    If u are trying to make fonts that appear very tiny, there may be things
+    you might want not to do. "Hints" offer those info.
 
 
-Gonna use STB Library to bake font bitmaps.
-Create by 'S'ean 'T'. 'B'arrett
-
-We'll use stb_truetype.h
-They are sensibly made, integrates very cleanly.
+Font Rendering
+    option1) Load TTF -> Turn in to triangles (Tessellation) and get outlined-
+      version of it. There's a caveat in it.
+      'S' -> have to pick some degree of fidelity of curves.
+    
+    option2) Load TTF -> Implicit Rasterization = Is pixel in a shape or not? 
+      Works in any resolution. Always, perfectly smooth curve. 99.9999%... it is an
+      overkill. Most games know their target resolution and font size.
+    
+    option3) Prerasterized Fonts ★★★
+      Build bitmaps that capture the font at certain resolution, like 1920x1080.
+      We will simply blt from the bitmap. No matter how complicated the glyph is,
+      no big change in performance. If you are in US, no worry about LICENSE for
+      this method. Other methods are technically software. There was a ruling that
+      says font files are instructions to computer on how to generate font in any
+      resolution, that is copywritable as "SOFTWARE". Font is still not copywritable.
+      If you were to trace your own outline, that is legal. Resulting font shape is
+      not copywritable. It's just an image.
+    
+    Font may be colored in fly. It can be monochrome which is 8-bit value, how much
+    coverage was.
+    
+    To sum it up, we need
+        Captured Font + Code Points + Rect Positioning Info + Kerning Table
+    
+    
+    Gonna use STB Library to bake font bitmaps.
+    Create by 'S'ean 'T'. 'B'arrett
+    
+    We'll use stb_truetype.h
+    They are sensibly made, integrates very cleanly.
 
 
 

@@ -22,5 +22,9 @@
 
 1. Exceptions
     Casey doesn't know a single good programmer who thinks exception is a good
-    idea, especially, of course, C++.
+    idea, especially in, of course, C++.
 
+2. WIN32 API
+    What a bullshit cluster-fuck. Is it my skill issue or microsoft devs who 
+    made this are actual douches? This sucks fr. Jesus, I'm afraid of the time 
+    when Windows 13 comes.

@@ -18,7 +18,7 @@ struct Debug_Counter {
     s32 hit_count;
 };
 
-Debug_Counter g_debug_counters[__COUNTER__ + 1];
+Debug_Counter g_debug_counters[];
 
 struct Timed_Block {
     s32 counter;
