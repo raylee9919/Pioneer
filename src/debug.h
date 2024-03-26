@@ -16,16 +16,18 @@ struct Debug_Counter {
     const char *function;
     s32 line;
     s32 hit_count;
+
+    char *debug_str;
 };
 
 Debug_Counter g_debug_counters[];
 
 struct Timed_Block {
-    s32 counter;
+    s32 idx;
     Debug_Counter *debug_counter;
 
     Timed_Block(s32 counter, const char *filename, const char *function, s32 line) {
-        this->counter = counter;
+        this->idx = counter;
         this->debug_counter = g_debug_counters + counter;
         this->debug_counter->cycles = 0;
         this->debug_counter->cycles -= __rdtsc();

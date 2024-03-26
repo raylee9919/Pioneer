@@ -186,8 +186,8 @@ Win32GetClock() {
 
 internal inline r32
 Win32GetElapsedSec(LARGE_INTEGER begin, LARGE_INTEGER end) {
-    r32 result = (real32)(end.QuadPart - begin.QuadPart)
-    / (real32)g_counter_hz.QuadPart;
+    r32 result = (r32)(end.QuadPart - begin.QuadPart)
+    / (r32)g_counter_hz.QuadPart;
 
     return result;
 }
@@ -777,7 +777,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
          ReleaseDC(hwnd, dc);
 
          LARGE_INTEGER counter_end = Win32GetClock();
-         real32 actual_mspf = Win32GetElapsedMs(counter_begin, counter_end);
+         r32 actual_mspf = Win32GetElapsedMs(counter_begin, counter_end);
 
          if(actual_mspf < desired_mspf) {
              DWORD ms_to_sleep = (DWORD)(desired_mspf - actual_mspf);
@@ -787,7 +787,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
              // TODO: Missed framerate handling
          }
 #if 0
-         real32 fps = 1000.0f / actual_mspf;
+         r32 fps = 1000.0f / actual_mspf;
          char profile[256];
          sprintf_s(profile, "elapsed_ms: %02f, fps: %02f\n", actual_mspf, fps);
          OutputDebugStringA(profile);

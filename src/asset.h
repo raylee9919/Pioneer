@@ -54,6 +54,9 @@ enum Asset_State {
     Asset_State_Loaded
 };
 
+//
+// Font
+//
 struct Asset_Kerning_Header {
     u32 pair_count;
 };

@@ -16,6 +16,9 @@
 
 #include "sim.h"
 
+static void
+show_debug_info(RenderGroup *render_group, Game_Assets *game_assets, MemoryArena *arena);
+
 #if 0
 internal Asset_Glyph *
 load_glyph(MemoryArena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file) {
@@ -202,6 +205,8 @@ GetBitmap(TransientState *transState, Asset_ID assetID,
 
 extern "C"
 GAME_MAIN(GameMain) {
+    TIMED_BLOCK();
+
     platformAddEntry = gameMemory->platformAddEntry;
     platformCompleteAllWork = gameMemory->platformCompleteAllWork;
 
@@ -580,20 +585,40 @@ GAME_MAIN(GameMain) {
 
     EndTemporaryMemory(&renderMemory);
 
-    TemporaryMemory debugRenderMemory = BeginTemporaryMemory(&transState->transientArena);
-    RenderGroup *debugRenderGroup = AllocRenderGroup(&transState->transientArena);
 
-    // TODO: set char-pointer to "" maybe...? g_debug_counters
-    r32 scale = 1.0f;
-    push_text(debugRenderGroup, "Simple Simon", gameAssets, scale, vec4{1.0f, 1.0f, 0.0f, 1.0f});
-    push_text(debugRenderGroup, "Simon Simple", gameAssets, scale);
-    push_text(debugRenderGroup, "AVAAWAVWV", gameAssets, scale);
-    push_text(debugRenderGroup, "hellow, great is thatlll", gameAssets, scale);
-    
-    
+
+    TemporaryMemory debugRenderMemory = BeginTemporaryMemory(&transState->transientArena);
+    RenderGroup *debug_render_group = AllocRenderGroup(&transState->transientArena);
+
+    show_debug_info(debug_render_group, gameAssets, &transState->transientArena);
+
     cen_y = 100.0f;
-    RenderGroupToOutput(debugRenderGroup, &drawBuffer, transState);
+    RenderGroupToOutput(debug_render_group, &drawBuffer, transState);
     EndTemporaryMemory(&debugRenderMemory);
 }
 
 Debug_Counter g_debug_counters[__COUNTER__];
+
+#include <stdio.h>
+
+internal void
+show_debug_info(RenderGroup *render_group, Game_Assets *game_assets, MemoryArena *arena) {
+    r32 scale = 1.0f;
+
+    for (s32 idx = 0;
+            idx < ArrayCount(g_debug_counters);
+            ++idx) {
+        Debug_Counter *counter = g_debug_counters + idx;
+        size_t size = 1024;
+        char *buf = PushArray(arena, char, size);
+        _snprintf(buf, size,
+                    "  %s: %I64ucyc %uhit %I64ucyc/hit",
+                    counter->function,
+                    counter->cycles,
+                    counter->hit_count,
+                    counter->cycles / g_debug_counters[idx].hit_count);
+        push_text(render_group, buf, game_assets, scale);
+        counter->cycles = 0;
+        counter->hit_count = 0;
+    }
+}

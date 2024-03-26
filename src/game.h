@@ -149,7 +149,7 @@ struct Kerning_List {
     u32 count;
 };
 struct Kerning_Hashmap {
-    Kerning_List entries[64];
+    Kerning_List entries[1024];
 };
 inline u32
 kerning_hash(Kerning_Hashmap *hashmap, u32 first, u32 second) {

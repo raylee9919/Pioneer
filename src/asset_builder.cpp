@@ -312,8 +312,8 @@ bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_heig
     static HDC hdc = 0;
     TEXTMETRIC metric = {};
     void *bits = 0;
-    u8 lo = '!';
-    u8 hi = '~';
+    u32 lo = '!';
+    u32 hi = '~';
     if (!hdc) {
         AddFontResourceExA(filename, FR_PRIVATE, 0);
         HFONT font = CreateFontA(cheese_height, 0, 0, 0,
@@ -364,7 +364,7 @@ bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_heig
         fwrite(asset_kern_pairs, sizeof(*asset_kern_pairs) * kern_count, 1, out);
     }
     // write glyphs.
-    for (char ch = lo; ch <= hi; ++ch) {
+    for (u32 ch = lo; ch <= hi; ++ch) {
         Asset_Glyph *glyph = bake_glyph(hdc, ch, bits, bi_width, bi_height, metric);
         fwrite(glyph, sizeof(*glyph), 1, out);
         fwrite(glyph->bitmap.memory, glyph->bitmap.size, 1, out);
@@ -386,7 +386,7 @@ main(int argc, char **argv) {
 
     FILE *out = fopen("../data/asset.pack", "wb");
     if (out) {
-        bake_font("C:/Windows/Fonts/arial.ttf", "Arial", out, 96);
+        bake_font("C:/Windows/Fonts/times.ttf", "Times New Roman", out, 20);
 
 
         fclose(out);
