@@ -12,12 +12,17 @@
 
 #include "types.h"
 #include "game.h"
+#include "memory.cpp"
 #include "render.cpp"
 
 #include "sim.h"
 
-static void
-show_debug_info(RenderGroup *render_group, Game_Assets *game_assets, MemoryArena *arena);
+#ifdef __DEBUG
+  #include <stdio.h>
+  static void
+  show_debug_info(RenderGroup *render_group, Game_Assets *game_assets, MemoryArena *arena);
+#endif
+
 
 #if 0
 internal Asset_Glyph *
@@ -155,7 +160,7 @@ PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work) {
 }
 internal Bitmap *
 GetBitmap(TransientState *transState, Asset_ID assetID,
-        PlatformWorkQueue *queue, __AtomicCompareExchange__ AtomicCompareExchange) {
+        PlatformWorkQueue *queue, Atomic_Compare_Exchange AtomicCompareExchange) {
     Bitmap *result = transState->gameAssets.bitmaps[assetID];
 
     if (!result) {
@@ -184,12 +189,12 @@ GetBitmap(TransientState *transState, Asset_ID assetID,
 
                     INVALID_DEFAULT_CASE
                 }
-#if 1 // Multi-Thread
+#if 1 // multi-thread
                 platformAddEntry(queue, load_asset_work, workData);
-                return 0; // TODO: NO bmp...?
-#else // Single-Thread
+                return 0; // todo: no bmp...?
+#else // single-thread
                 LoadGameAssetWork(queue, workData);
-                return 0; // TODO: NO bmp...?
+                return 0; // todo: no bmp...?
 #endif
             } else {
                 return result;
@@ -247,18 +252,16 @@ GAME_MAIN(GameMain) {
         Chunk *chunk = GetChunk(&gameState->worldArena, chunkHashmap, gameState->player->pos);
         for (s32 X = -8; X <= 8; ++X) {
             for (s32 Y = -4; Y <= 4; ++Y) {
-                if (X == -8 || X == 8 ||
-                        Y == -4 || Y == 4) {
-                    if (X == 0 || Y == 0) {
-                        continue;
+                if (X == -8 || X == 8 || Y == -4 || Y == 4) {
+                    if (X != 0 && Y != 0) {
+                        vec3 dim = {1.0f, 1.0f, 1.0f};
+                        Position pos = {chunk->chunkX, chunk->chunkY, chunk->chunkZ};
+                        pos.offset.x += dim.x * X;
+                        pos.offset.y += dim.y * Y;
+                        RecalcPos(&pos, gameState->world->chunkDim);
+                        Entity *tree = PushEntity(&gameState->worldArena, chunkHashmap, EntityType_Tree, pos);
+                        tree->dim = dim;
                     }
-                    vec3 dim = {1.0f, 1.0f, 1.0f};
-                    Position pos = {chunk->chunkX, chunk->chunkY, chunk->chunkZ};
-                    pos.offset.x += dim.x * X;
-                    pos.offset.y += dim.y * Y;
-                    RecalcPos(&pos, gameState->world->chunkDim);
-                    Entity *tree = PushEntity(&gameState->worldArena, chunkHashmap, EntityType_Tree, pos);
-                    tree->dim = dim;
                 }
             }
         }
@@ -279,11 +282,12 @@ GAME_MAIN(GameMain) {
     if (!transState->isInit) {
         transState->isInit = true;
 
+        // transient arena.
         InitArena(&transState->transientArena,
                 MB(100),
                 (u8 *)transMem + sizeof(TransientState));
         
-        // NOTE: Reserved memory for Multi-Thread Work Data
+        // reserved memory for multi-thread work data.
         for (u32 idx = 0;
                 idx < ArrayCount(transState->workArena);
                 ++idx) {
@@ -291,6 +295,7 @@ GAME_MAIN(GameMain) {
             InitSubArena(&workSlot->memoryArena, &transState->transientArena, MB(4));
         }
         
+        // asset arena.
         InitArena(&transState->assetArena,
                 MB(20),
                 (u8 *)transMem + sizeof(TransientState) + transState->transientArena.size);
@@ -305,9 +310,7 @@ GAME_MAIN(GameMain) {
         transState->gameAssets.familiarBmp[0] = load_bmp(&gameState->worldArena, gameMemory->debug_platform_read_file, "hero_blue_right.bmp");
         transState->gameAssets.familiarBmp[1] = load_bmp(&gameState->worldArena, gameMemory->debug_platform_read_file, "hero_blue_left.bmp");
 
-
         load_font(&gameState->worldArena, gameMemory->debug_platform_read_file, &transState->gameAssets);
-
    }
 
     TemporaryMemory renderMemory = BeginTemporaryMemory(&transState->transientArena);
@@ -326,6 +329,23 @@ GAME_MAIN(GameMain) {
     if (player->accel.x != 0.0f && player->accel.y != 0.0f) {
         player->accel *= 0.707106781187f;
     }
+#ifdef __DEBUG
+    if (gameInput->toggle_debug.is_set) {
+        if (gameState->debug_toggle_delay == 0.0f) {
+            gameState->debug_toggle_delay = 0.1f;
+            if (gameState->debug_mode) {
+                gameState->debug_mode = false;
+            } else {
+                gameState->debug_mode = true;
+            }
+        }
+    }
+    gameState->debug_toggle_delay -= dt;
+    if (gameState->debug_toggle_delay < 0.0f) {
+        gameState->debug_toggle_delay = 0.0f;
+    }
+#endif
+
 
 
 #if 1
@@ -363,7 +383,7 @@ GAME_MAIN(GameMain) {
 
     Game_Assets *gameAssets = &transState->gameAssets;
 
-    PushRect(renderGroup, vec2{},
+    push_rect(renderGroup, vec2{},
             vec2{(r32)gameScreenBuffer->width, (r32)gameScreenBuffer->height},
             vec4{0.2f, 0.3f, 0.3f, 1.0f});
 
@@ -554,7 +574,7 @@ GAME_MAIN(GameMain) {
                     } break;
 
                     case EntityType_Tree: {
-                        Bitmap *bitmap = GetBitmap(transState, GAI_Tree, transState->lowPriorityQueue, gameMemory->AtomicCompareExchange);
+                        Bitmap *bitmap = GetBitmap(transState, GAI_Tree, transState->lowPriorityQueue, gameMemory->atomic_compare_exchange);
                         if (bitmap) {
                             vec2 bmpDim = vec2{(r32)bitmap->width, (r32)bitmap->height};
                             push_bitmap(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, bitmap);
@@ -568,7 +588,7 @@ GAME_MAIN(GameMain) {
                     } break;
 
                     case EntityType_Golem: {
-                        Bitmap *bitmap = GetBitmap(transState, GAI_Golem, transState->lowPriorityQueue, gameMemory->AtomicCompareExchange);
+                        Bitmap *bitmap = GetBitmap(transState, GAI_Golem, transState->lowPriorityQueue, gameMemory->atomic_compare_exchange);
                         if (bitmap) {
                         }
                     } break;
@@ -587,19 +607,21 @@ GAME_MAIN(GameMain) {
 
 
 
+#ifdef __DEBUG
     TemporaryMemory debugRenderMemory = BeginTemporaryMemory(&transState->transientArena);
     RenderGroup *debug_render_group = AllocRenderGroup(&transState->transientArena);
 
-    show_debug_info(debug_render_group, gameAssets, &transState->transientArena);
+    if (gameState->debug_mode) {
+        show_debug_info(debug_render_group, gameAssets, &transState->transientArena);
+    }
 
     cen_y = 100.0f;
     RenderGroupToOutput(debug_render_group, &drawBuffer, transState);
     EndTemporaryMemory(&debugRenderMemory);
+#endif
 }
 
 Debug_Counter g_debug_counters[__COUNTER__];
-
-#include <stdio.h>
 
 internal void
 show_debug_info(RenderGroup *render_group, Game_Assets *game_assets, MemoryArena *arena) {
@@ -611,12 +633,16 @@ show_debug_info(RenderGroup *render_group, Game_Assets *game_assets, MemoryArena
         Debug_Counter *counter = g_debug_counters + idx;
         size_t size = 1024;
         char *buf = PushArray(arena, char, size);
+        u64 cycles_per_hit = 0;
+        if (g_debug_counters[idx].hit_count != 0) {
+            cycles_per_hit = counter->cycles / g_debug_counters[idx].hit_count;
+        }
         _snprintf(buf, size,
                     "  %s: %I64ucyc %uhit %I64ucyc/hit",
                     counter->function,
                     counter->cycles,
                     counter->hit_count,
-                    counter->cycles / g_debug_counters[idx].hit_count);
+                    cycles_per_hit);
         push_text(render_group, buf, game_assets, scale);
         counter->cycles = 0;
         counter->hit_count = 0;

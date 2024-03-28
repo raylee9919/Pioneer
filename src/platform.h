@@ -26,9 +26,14 @@
 
 
 #ifdef COMPILER_MSVC
-    #define __WRITE_BARRIER__ _WriteBarrier();
-    #define ATOMIC_COMPARE_EXCHANGE(Name) int Name(volatile int *dst, int exchange, int comperhand)
-    typedef ATOMIC_COMPARE_EXCHANGE(__AtomicCompareExchange__);
+  #define __WRITE_BARRIER__ _WriteBarrier();
+  // atomic compare exchange.
+  #define ATOMIC_COMPARE_EXCHANGE(Name) int Name(volatile int *dst, int exchange, int comperhand)
+  typedef ATOMIC_COMPARE_EXCHANGE(Atomic_Compare_Exchange);
+
+  // atomic add.
+  #define ATOMIC_ADD(Name) int Name(volatile int *addend, int value)
+  typedef ATOMIC_ADD(Atomic_Add);
 #endif
 
 struct DebugReadFileResult {
@@ -56,11 +61,12 @@ typedef struct {
     GameKey move_down;
     GameKey move_left;
     GameKey move_right;
+
+    GameKey toggle_debug;
 } GameInput;
 
 struct PlatformWorkQueue;
-#define PLATFORM_WORK_QUEUE_CALLBACK(Name) \
-    void Name(PlatformWorkQueue *queue, void *data)
+#define PLATFORM_WORK_QUEUE_CALLBACK(Name) void Name(PlatformWorkQueue *queue, void *data)
 typedef PLATFORM_WORK_QUEUE_CALLBACK(PlatformWorkQueueCallback);
 
 typedef void PlatformAddEntry(PlatformWorkQueue *queue, PlatformWorkQueueCallback *callback, void *data);
@@ -83,7 +89,8 @@ typedef struct {
     DEBUG_PLATFORM_WRITE_FILE_ *debug_platform_write_file;
     DEBUG_PLATFORM_FREE_MEMORY_ *debug_platform_free_memory;
 
-    __AtomicCompareExchange__ *AtomicCompareExchange;
+    Atomic_Compare_Exchange *atomic_compare_exchange;
+    Atomic_Add *atomic_add;
 
 } GameMemory;
 

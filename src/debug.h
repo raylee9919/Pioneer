@@ -11,10 +11,12 @@
     Timed_Block timed_block_##__LINE__(__COUNTER__, __FILE__, __FUNCTION__, __LINE__)
 
 struct Debug_Counter {
-    u64 cycles;
+    // todo: fix multi-threading in cycles.
     const char *filename;
     const char *function;
     s32 line;
+
+    u64 cycles;
     s32 hit_count;
 
     char *debug_str;
@@ -23,22 +25,22 @@ struct Debug_Counter {
 Debug_Counter g_debug_counters[];
 
 struct Timed_Block {
-    s32 idx;
     Debug_Counter *debug_counter;
+    u64 start_cycles;
 
     Timed_Block(s32 counter, const char *filename, const char *function, s32 line) {
-        this->idx = counter;
         this->debug_counter = g_debug_counters + counter;
-        this->debug_counter->cycles = 0;
-        this->debug_counter->cycles -= __rdtsc();
-        this->debug_counter->filename = filename;
-        this->debug_counter->function = function;
-        this->debug_counter->line = line;
-        this->debug_counter->hit_count += 1;
+
+        debug_counter->filename = filename;
+        debug_counter->function = function;
+        debug_counter->line = line;
+
+        start_cycles = __rdtsc();
+        debug_counter->hit_count++;
     }
 
     ~Timed_Block() {
-        this->debug_counter->cycles += __rdtsc();
+        this->debug_counter->cycles += (__rdtsc() - start_cycles);
     }
 };
 

@@ -32,32 +32,6 @@ typedef XINPUT_SET_STATE(__XInputSetState);
 XINPUT_SET_STATE(xinput_set_state_stub) { return 1; }
 __XInputSetState *xinput_set_state = xinput_set_state_stub;
 
-internal void
-Win32HandleDebugCycleCounters(GameMemory *memory) {
-#ifdef INTERNAL_BUILD
-#if 0
-    OutputDebugStringA("DEBUG CYCLE COUNTS:\n");
-    for(s32 idx = 0;
-        idx < ArrayCount(g_debugCycleCounters);
-        ++idx) {
-        debug_cycle_counter *counter = memory->debugCycleCounters + idx; 
-
-        if(counter->hitCount) {
-            char buf[256];
-            _snprintf_s(buf, sizeof(buf),
-                        "  %d: %I64ucyc %uhit %I64ucyc/hit\n",
-                        idx,
-                        counter->cyclesElapsed,
-                        counter->hitCount,
-                        counter->cyclesElapsed / counter->hitCount);
-            OutputDebugStringA(buf);
-            counter->cyclesElapsed = 0;
-            counter->hitCount = 0;
-        }
-    }
-#endif
-#endif
-}
 
 internal void
 Win32LoadXInput() {
@@ -412,8 +386,9 @@ Win32WindowCallback(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     return result;
 }
 
+///////////////////////////////////////////////////////////////////////////////
 //
-// Multi-Threading------------------------------------------------------------
+// Multi-Threading
 // 
 
 struct PlatformWorkQueueEntry {
@@ -453,7 +428,7 @@ Win32DoNextWorkQueueEntry(PlatformWorkQueue *Queue) {
 
     u32 OriginalNextEntryToRead = Queue->NextEntryToRead;
     u32 NewNextEntryToRead = (OriginalNextEntryToRead + 1) % ArrayCount(Queue->Entries);
-    if(OriginalNextEntryToRead != Queue->NextEntryToWrite)
+    if (OriginalNextEntryToRead != Queue->NextEntryToWrite)
     {
         u32 Index = InterlockedCompareExchange((LONG volatile *)&Queue->NextEntryToRead,
                                                   NewNextEntryToRead,
@@ -522,16 +497,22 @@ Win32MakeQueue(PlatformWorkQueue *Queue, uint32 ThreadCount) {
 }
 
 inline
-ATOMIC_COMPARE_EXCHANGE(Win32AtomicCompareExchange) {
+ATOMIC_COMPARE_EXCHANGE(win32_atomic_compare_exchange) {
     LONG result = _InterlockedCompareExchange((volatile LONG *)dst,
             (LONG)exchange, (LONG)comperhand);
     return result;
 }
 
+inline 
+ATOMIC_ADD(win32_atomic_add) {
+    LONG prev = _InterlockedExchangeAdd((volatile LONG *)addend, (LONG)value);
+    return prev;
+}
+
 int WINAPI
 WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     //
-    // Multi-Threading -------------------------------------------------------
+    // Multi-Threading
     //
     PlatformWorkQueue highPriorityQueue = {};
     Win32MakeQueue(&highPriorityQueue, 6);
@@ -539,36 +520,10 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     PlatformWorkQueue lowPriorityQueue = {};
     Win32MakeQueue(&lowPriorityQueue, 2);
 
-#if 0
-    Win32AddEntry(&Queue, DoWorkerWork, "String A0");
-    Win32AddEntry(&Queue, DoWorkerWork, "String A1");
-    Win32AddEntry(&Queue, DoWorkerWork, "String A2");
-    Win32AddEntry(&Queue, DoWorkerWork, "String A3");
-    Win32AddEntry(&Queue, DoWorkerWork, "String A4");
-    Win32AddEntry(&Queue, DoWorkerWork, "String A5");
-    Win32AddEntry(&Queue, DoWorkerWork, "String A6");
-    Win32AddEntry(&Queue, DoWorkerWork, "String A7");
-    Win32AddEntry(&Queue, DoWorkerWork, "String A8");
-    Win32AddEntry(&Queue, DoWorkerWork, "String A9");
-    
-    Win32AddEntry(&Queue, DoWorkerWork, "String B0");
-    Win32AddEntry(&Queue, DoWorkerWork, "String B1");
-    Win32AddEntry(&Queue, DoWorkerWork, "String B2");
-    Win32AddEntry(&Queue, DoWorkerWork, "String B3");
-    Win32AddEntry(&Queue, DoWorkerWork, "String B4");
-    Win32AddEntry(&Queue, DoWorkerWork, "String B5");
-    Win32AddEntry(&Queue, DoWorkerWork, "String B6");
-    Win32AddEntry(&Queue, DoWorkerWork, "String B7");
-    Win32AddEntry(&Queue, DoWorkerWork, "String B8");
-    Win32AddEntry(&Queue, DoWorkerWork, "String B9");
-
-    Win32CompleteAllWork(&Queue);
-#endif
-
     QueryPerformanceFrequency(&g_counter_hz);
     timeBeginPeriod(1);
 
-#if INTERNAL_BUILD
+#if __DEBUG
     g_show_cursor = true;
 #endif
 
@@ -600,7 +555,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     r32 desired_mspf = 1000.0f / (r32)desired_hz;
 
 
-#if INTERNAL_BUILD
+#if __DEBUG
     LPVOID base_address = (LPVOID)TB(2);
 #else
     LPVOID base_address = 0;
@@ -616,7 +571,8 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     game_memory.debug_platform_read_file = DebugPlatformReadEntireFile;
     game_memory.debug_platform_write_file = DebugPlatformWriteEntireFile;
     game_memory.debug_platform_free_memory = DebugPlatformFreeMemory;
-    game_memory.AtomicCompareExchange = Win32AtomicCompareExchange;
+    game_memory.atomic_compare_exchange = win32_atomic_compare_exchange;
+    game_memory.atomic_add = win32_atomic_add;
     uint64 total_capacity = game_memory.permanent_memory_capacity + game_memory.transient_memory_capacity;
     win32_state.game_memory = VirtualAlloc(base_address, (size_t)total_capacity,
                     MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
@@ -709,7 +665,12 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
                             case 'D': {
                                 Win32ProcessKeyboard(&game_input.move_right, isDown);
                             } break;
-#ifdef INTERNAL_BUILD
+#ifdef __DEBUG
+                            // tilde key.
+                            case VK_OEM_3: {
+                                Win32ProcessKeyboard(&game_input.toggle_debug, isDown);
+                            } break;
+
                             case 'L': {
                                 if (isDown) {
                                     if (!win32_state.is_recording) {
@@ -793,7 +754,6 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
          OutputDebugStringA(profile);
 #endif
 
-         Win32HandleDebugCycleCounters(&game_memory);
     }
 
     return 0;

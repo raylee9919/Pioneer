@@ -13,9 +13,9 @@
 // Push to Render Group
 //
 #define PushRenderEntity(GROUP, STRUCT) \
-    (STRUCT *)PushRenderEntity_(GROUP, sizeof(STRUCT), RenderType_##STRUCT)
+  (STRUCT *)__push_render_entity(GROUP, sizeof(STRUCT), RenderType_##STRUCT)
 internal RenderEntityHeader *
-PushRenderEntity_(RenderGroup *renderGroup, u32 size, RenderType type) {
+__push_render_entity(RenderGroup *renderGroup, u32 size, RenderType type) {
     Assert(size + renderGroup->used <= renderGroup->capacity);
     RenderEntityHeader *header = (RenderEntityHeader *)(renderGroup->base + renderGroup->used);
     header->type = type;
@@ -183,14 +183,14 @@ draw_text(Bitmap *buffer, Render_Text *info) {
             draw_bitmap_slow(buffer, vec2{left_x, cen_y - glyph->ascent}, bitmap, info->color);
             left_x += advance_x;
         } else {
-            left_x += 32.0f;
+            left_x += 12.0f;
         }
     }
-    cen_y += 64 * 1.2f;
+    cen_y += 30.0f;
 }
 
 internal void
-PushRect(RenderGroup *renderGroup,
+push_rect(RenderGroup *renderGroup,
         vec2 min, vec2 max, vec4 color) {
     RenderEntityRect *piece = PushRenderEntity(renderGroup, RenderEntityRect);
     if (piece) {
@@ -201,7 +201,7 @@ PushRect(RenderGroup *renderGroup,
 }
 
 internal void
-PushCoordinateSystem(RenderGroup *renderGroup,
+push_coordinate_system(RenderGroup *renderGroup,
         vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp) {
     RenderEntityCoordinateSystem *piece = PushRenderEntity(renderGroup, RenderEntityCoordinateSystem);
     if (piece) {
@@ -225,7 +225,7 @@ AllocRenderGroup(MemoryArena *memoryArena) {
 
 
 internal void
-DrawRect(Bitmap *buffer, vec2 min, vec2 max, vec4 color) {
+draw_rect(Bitmap *buffer, vec2 min, vec2 max, vec4 color) {
     s32 minX = RoundR32ToS32(min.x);
     s32 minY = RoundR32ToS32(min.y);
     s32 maxX = RoundR32ToS32(max.x);
@@ -422,8 +422,9 @@ DrawRectSlowAsf(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp
 }
 #endif
 
+
 internal void
-DrawRectSoftwareSIMD(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp, vec4 color) {
+draw_rect_fast(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp, vec4 color) {
     TIMED_BLOCK();
 
     s32 bufWidthMax = buffer->width - 1;
@@ -667,13 +668,13 @@ struct DrawBmpWorkData {
 PLATFORM_WORK_QUEUE_CALLBACK(DrawBmpWork) {
     DrawBmpWorkData *workData = (DrawBmpWorkData *)data;
 #if 1
-    DrawRectSoftwareSIMD(workData->buffer,
+    draw_rect_fast(workData->buffer,
                          workData->origin,
                          workData->axisX,
                          workData->axisY,
                          workData->bmp,
                          workData->color);
-#else
+#else // TODO: for some reason, atrifact is sharper than scalable one on the above.
     draw_bitmap_slow(workData->buffer, workData->origin, workData->bmp);
 #endif
     EndWorkMemory(workData->workSlot);
@@ -731,13 +732,13 @@ RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer,
 
             case RenderType_RenderEntityRect: {
                 RenderEntityRect *piece = (RenderEntityRect *)at;
-                DrawRect(outputBuffer, piece->min, piece->max, piece->color);
+                draw_rect(outputBuffer, piece->min, piece->max, piece->color);
                 at += sizeof(*piece);
             } break;
 
             case RenderType_RenderEntityCoordinateSystem: {
-#if 0
                 RenderEntityCoordinateSystem *piece = (RenderEntityCoordinateSystem *)at;
+#if 0
                 vec2 dim = vec2{4.0f, 4.0f};
                 vec2 R = 0.5f * dim;
                 vec4 yellow = vec4{1.0f, 1.0f, 0.0f, 1.0f};
@@ -745,13 +746,13 @@ RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer,
                 vec2 origin = piece->origin;
                 vec2 axisX = piece->axisX;
                 vec2 axisY = piece->axisY;
-                DrawRectSoftwareSIMD(outputBuffer, origin, axisX, axisY, piece->bmp);
+                draw_rect_fast(outputBuffer, origin, axisX, axisY, piece->bmp);
                 DrawRect(outputBuffer, origin - R, origin + R, yellow);
                 DrawRect(outputBuffer, origin + axisX - R, origin + axisX + R, yellow);
                 DrawRect(outputBuffer, origin + axisY - R, origin + axisY + R, yellow);
                 DrawRect(outputBuffer, origin + axisX + axisY - R, origin + axisX + axisY + R, yellow);
-                at += sizeof(*piece);
 #endif
+                at += sizeof(*piece);
             } break;
 
             INVALID_DEFAULT_CASE
