@@ -17,16 +17,16 @@
 
 #include "sim.h"
 
-#ifdef __DEBUG
-  #include <stdio.h>
-  static void
-  show_debug_info(RenderGroup *render_group, Game_Assets *game_assets, MemoryArena *arena);
-#endif
+// debug.
+#include <stdio.h>
+static void
+show_debug_info(RenderGroup *render_group, Game_Assets *game_assets, Memory_Arena *arena);
+
 
 
 #if 0
 internal Asset_Glyph *
-load_glyph(MemoryArena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file) {
+load_glyph(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file) {
     Asset_Glyph *result = PushStruct(arena, Asset_Glyph);
     *result = {};
 
@@ -43,14 +43,15 @@ load_glyph(MemoryArena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file) {
 
 
 internal void
-load_font(MemoryArena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, Game_Assets *game_assets) {
+load_font(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, Game_Assets *game_assets) {
     DebugReadFileResult read = read_file(ASSET_FILE_NAME);
     u8 *at = (u8 *)read.contents;
     u8 *end = at + read.content_size;
 
-    // parse kerning header.
-    u32 kern_count = ((Asset_Kerning_Header *)at)->pair_count;
-    at += sizeof(Asset_Kerning_Header);
+    // parse font header.
+    u32 kern_count = ((Asset_Font_Header *)at)->kerning_pair_count;
+    game_assets->v_advance = ((Asset_Font_Header *)at)->vertical_advance;
+    at += sizeof(Asset_Font_Header);
 
     // parse kerning pairs.
     for (u32 count = 0; count < kern_count; ++count) {
@@ -81,7 +82,7 @@ load_font(MemoryArena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, Game_Assets 
 }
 
 internal Bitmap *
-load_bmp(MemoryArena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char *filename) {
+load_bmp(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char *filename) {
     Bitmap *result = PushStruct(arena, Bitmap);
     *result = {};
     
@@ -147,10 +148,10 @@ load_bmp(MemoryArena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char *f
 }
 struct Load_Asset_Work_Data {
     Game_Assets *gameAssets;
-    MemoryArena *assetArena;
+    Memory_Arena *assetArena;
     Asset_ID assetID;
     const char *fileName;
-    WorkMemoryArena *workSlot;
+    WorkMemory_Arena *workSlot;
 };
 PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work) {
     Load_Asset_Work_Data *workData = (Load_Asset_Work_Data *)data;
@@ -160,13 +161,13 @@ PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work) {
 }
 internal Bitmap *
 GetBitmap(TransientState *transState, Asset_ID assetID,
-        PlatformWorkQueue *queue, Atomic_Compare_Exchange AtomicCompareExchange) {
+        PlatformWorkQueue *queue, Platform_API *platform) {
     Bitmap *result = transState->gameAssets.bitmaps[assetID];
 
     if (!result) {
-        if (AtomicCompareExchange((s32 *)&transState->gameAssets.bitmapStates[assetID],
+        if (atomic_compare_exchange_u32((u32 *)&transState->gameAssets.bitmapStates[assetID],
                     Asset_State_Queued, Asset_State_Unloaded)) {
-            WorkMemoryArena *workSlot = BeginWorkMemory(transState);
+            WorkMemory_Arena *workSlot = BeginWorkMemory(transState);
             if (workSlot) {
                 Load_Asset_Work_Data *workData = PushStruct(&workSlot->memoryArena, Load_Asset_Work_Data);
                 workData->gameAssets = &transState->gameAssets;
@@ -176,7 +177,7 @@ GetBitmap(TransientState *transState, Asset_ID assetID,
 
                 switch(assetID) {
                     case GAI_Tree: {
-                        workData->fileName = "tree00.bmp";
+                        workData->fileName = "tree2_teal.bmp";
                     } break;
 
                     case GAI_Particle: {
@@ -190,10 +191,10 @@ GetBitmap(TransientState *transState, Asset_ID assetID,
                     INVALID_DEFAULT_CASE
                 }
 #if 1 // multi-thread
-                platformAddEntry(queue, load_asset_work, workData);
+                platform->platform_add_entry(queue, load_asset_work, workData);
                 return 0; // todo: no bmp...?
 #else // single-thread
-                LoadGameAssetWork(queue, workData);
+                load_asset_work(queue, workData);
                 return 0; // todo: no bmp...?
 #endif
             } else {
@@ -212,9 +213,6 @@ extern "C"
 GAME_MAIN(GameMain) {
     TIMED_BLOCK();
 
-    platformAddEntry = gameMemory->platformAddEntry;
-    platformCompleteAllWork = gameMemory->platformCompleteAllWork;
-
     ///////////////////////////////////////////////////////////////////////////
     //
     // Init GameState
@@ -232,7 +230,7 @@ GAME_MAIN(GameMain) {
         World *world = gameState->world;
         world->ppm = 50.0f;
         world->chunkDim = {17.0f, 9.0f, 3.0f};
-        MemoryArena *worldArena = &gameState->worldArena;
+        Memory_Arena *worldArena = &gameState->worldArena;
         ChunkHashmap *chunkHashmap = &gameState->world->chunkHashmap;
 
 
@@ -291,7 +289,7 @@ GAME_MAIN(GameMain) {
         for (u32 idx = 0;
                 idx < ArrayCount(transState->workArena);
                 ++idx) {
-            WorkMemoryArena *workSlot = transState->workArena + idx;
+            WorkMemory_Arena *workSlot = transState->workArena + idx;
             InitSubArena(&workSlot->memoryArena, &transState->transientArena, MB(4));
         }
         
@@ -303,14 +301,14 @@ GAME_MAIN(GameMain) {
         transState->highPriorityQueue = gameMemory->highPriorityQueue;
         transState->lowPriorityQueue = gameMemory->lowPriorityQueue;
         // TODO: Ain't thrilled about it.
-        transState->gameAssets.debug_platform_read_file = gameMemory->debug_platform_read_file;
+        transState->gameAssets.debug_platform_read_file = gameMemory->platform.debug_platform_read_file;
 
-        transState->gameAssets.playerBmp[0] = load_bmp(&gameState->worldArena, gameMemory->debug_platform_read_file, "hero_red_right.bmp");
-        transState->gameAssets.playerBmp[1] = load_bmp(&gameState->worldArena, gameMemory->debug_platform_read_file, "hero_red_left.bmp");
-        transState->gameAssets.familiarBmp[0] = load_bmp(&gameState->worldArena, gameMemory->debug_platform_read_file, "hero_blue_right.bmp");
-        transState->gameAssets.familiarBmp[1] = load_bmp(&gameState->worldArena, gameMemory->debug_platform_read_file, "hero_blue_left.bmp");
+        transState->gameAssets.playerBmp[0] = load_bmp(&gameState->worldArena, gameMemory->platform.debug_platform_read_file, "hero_red_right.bmp");
+        transState->gameAssets.playerBmp[1] = load_bmp(&gameState->worldArena, gameMemory->platform.debug_platform_read_file, "hero_red_left.bmp");
+        transState->gameAssets.familiarBmp[0] = load_bmp(&gameState->worldArena, gameMemory->platform.debug_platform_read_file, "hero_blue_right.bmp");
+        transState->gameAssets.familiarBmp[1] = load_bmp(&gameState->worldArena, gameMemory->platform.debug_platform_read_file, "hero_blue_left.bmp");
 
-        load_font(&gameState->worldArena, gameMemory->debug_platform_read_file, &transState->gameAssets);
+        load_font(&gameState->worldArena, gameMemory->platform.debug_platform_read_file, &transState->gameAssets);
    }
 
     TemporaryMemory renderMemory = BeginTemporaryMemory(&transState->transientArena);
@@ -574,7 +572,7 @@ GAME_MAIN(GameMain) {
                     } break;
 
                     case EntityType_Tree: {
-                        Bitmap *bitmap = GetBitmap(transState, GAI_Tree, transState->lowPriorityQueue, gameMemory->atomic_compare_exchange);
+                        Bitmap *bitmap = GetBitmap(transState, GAI_Tree, transState->lowPriorityQueue, &gameMemory->platform);
                         if (bitmap) {
                             vec2 bmpDim = vec2{(r32)bitmap->width, (r32)bitmap->height};
                             push_bitmap(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, bitmap);
@@ -588,7 +586,7 @@ GAME_MAIN(GameMain) {
                     } break;
 
                     case EntityType_Golem: {
-                        Bitmap *bitmap = GetBitmap(transState, GAI_Golem, transState->lowPriorityQueue, gameMemory->atomic_compare_exchange);
+                        Bitmap *bitmap = GetBitmap(transState, GAI_Golem, transState->lowPriorityQueue, &gameMemory->platform);
                         if (bitmap) {
                         }
                     } break;
@@ -601,14 +599,13 @@ GAME_MAIN(GameMain) {
     }
     
 
-    RenderGroupToOutput(renderGroup, &drawBuffer, transState);
+    RenderGroupToOutput(renderGroup, &drawBuffer, transState, &gameMemory->platform);
 
     EndTemporaryMemory(&renderMemory);
 
 
-
 #ifdef __DEBUG
-    TemporaryMemory debugRenderMemory = BeginTemporaryMemory(&transState->transientArena);
+    TemporaryMemory debug_render_memory = BeginTemporaryMemory(&transState->transientArena);
     RenderGroup *debug_render_group = AllocRenderGroup(&transState->transientArena);
 
     if (gameState->debug_mode) {
@@ -616,15 +613,15 @@ GAME_MAIN(GameMain) {
     }
 
     cen_y = 100.0f;
-    RenderGroupToOutput(debug_render_group, &drawBuffer, transState);
-    EndTemporaryMemory(&debugRenderMemory);
+    RenderGroupToOutput(debug_render_group, &drawBuffer, transState, &gameMemory->platform);
+    EndTemporaryMemory(&debug_render_memory);
 #endif
 }
 
 Debug_Counter g_debug_counters[__COUNTER__];
 
 internal void
-show_debug_info(RenderGroup *render_group, Game_Assets *game_assets, MemoryArena *arena) {
+show_debug_info(RenderGroup *render_group, Game_Assets *game_assets, Memory_Arena *arena) {
     r32 scale = 1.0f;
 
     for (s32 idx = 0;
@@ -634,17 +631,17 @@ show_debug_info(RenderGroup *render_group, Game_Assets *game_assets, MemoryArena
         size_t size = 1024;
         char *buf = PushArray(arena, char, size);
         u64 cycles_per_hit = 0;
-        if (g_debug_counters[idx].hit_count != 0) {
-            cycles_per_hit = counter->cycles / g_debug_counters[idx].hit_count;
+        if (g_debug_counters[idx].hit != 0) {
+            cycles_per_hit = counter->cycles / g_debug_counters[idx].hit;
         }
         _snprintf(buf, size,
-                    "  %s: %I64ucyc %uhit %I64ucyc/hit",
+                    "%s: %I64ucyc %uhit %I64ucyc/hit",
                     counter->function,
                     counter->cycles,
-                    counter->hit_count,
+                    counter->hit,
                     cycles_per_hit);
         push_text(render_group, buf, game_assets, scale);
-        counter->cycles = 0;
-        counter->hit_count = 0;
+        atomic_exchange_u64(&counter->cycles, 0);
+        atomic_exchange_u32(&counter->hit, 0);
     }
 }

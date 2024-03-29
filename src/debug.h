@@ -17,7 +17,7 @@ struct Debug_Counter {
     s32 line;
 
     u64 cycles;
-    s32 hit_count;
+    u32 hit;
 
     char *debug_str;
 };
@@ -36,11 +36,11 @@ struct Timed_Block {
         debug_counter->line = line;
 
         start_cycles = __rdtsc();
-        debug_counter->hit_count++;
+        atomic_add_u32(&debug_counter->hit, 1);
     }
 
     ~Timed_Block() {
-        this->debug_counter->cycles += (__rdtsc() - start_cycles);
+        atomic_add_u64(&this->debug_counter->cycles, __rdtsc() - start_cycles);
     }
 };
 

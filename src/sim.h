@@ -36,7 +36,7 @@ IsSameChunk(Chunk *chunk, Position pos) {
 }
 
 internal Chunk *
-GetChunk(MemoryArena *arena, ChunkHashmap *hashmap, Position pos) {
+GetChunk(Memory_Arena *arena, ChunkHashmap *hashmap, Position pos) {
     Chunk *result = 0;
 
     u32 bucket = ChunkHash(hashmap, pos);
@@ -75,7 +75,7 @@ IsSet(Entity *entity, EntityFlag flag) {
 }
 
 internal Entity *
-PushEntity(MemoryArena *arena, ChunkHashmap *hashmap, EntityType type, Position pos) {
+PushEntity(Memory_Arena *arena, ChunkHashmap *hashmap, EntityType type, Position pos) {
     Entity *entity = PushStruct(arena, Entity);
     *entity = {};
     entity->pos = pos;
@@ -155,7 +155,7 @@ RecalcPos(Position *pos, vec3 chunkDim) {
 }
 
 internal void
-MapEntityToChunk(MemoryArena *arena, ChunkHashmap *hashmap, Entity *entity,
+MapEntityToChunk(Memory_Arena *arena, ChunkHashmap *hashmap, Entity *entity,
         Position oldPos, Position newPos) {
     Chunk *oldChunk = GetChunk(arena, hashmap, oldPos);
     Chunk *newChunk = GetChunk(arena, hashmap, newPos);

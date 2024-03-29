@@ -57,8 +57,9 @@ enum Asset_State {
 //
 // Font
 //
-struct Asset_Kerning_Header {
-    u32 pair_count;
+struct Asset_Font_Header {
+    u32 kerning_pair_count;
+    u32 vertical_advance;
 };
 struct Asset_Kerning {
     u32 first;
@@ -68,7 +69,9 @@ struct Asset_Kerning {
 struct Asset_Glyph {
     u32 codepoint;
     s32 ascent;
-    Bitmap bitmap;
+    s32 A;
+    s32 C;
+    Bitmap bitmap; // ABC's B will be the width of the bitmap.
 };
 
 #pragma pack(pop)

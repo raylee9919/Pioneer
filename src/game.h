@@ -21,13 +21,14 @@ ClearToZero(size_t size, void *data) {
     }
 }
 
-#include "math.h"
 #include "platform.h"
+#include "intrinsics.h"
+#include "math.h"
 #include "debug.h"
 #include "asset.h"
 #include "random.h"
 
-struct MemoryArena {
+struct Memory_Arena {
     size_t size;
     size_t used;
     u8 *base;
@@ -36,14 +37,14 @@ struct MemoryArena {
 };
 
 struct TemporaryMemory {
-    MemoryArena *memoryArena;
+    Memory_Arena *memoryArena;
     // simply stores what was the used amount before.
     // restoring without any precedence issues problem in multi-threading.
     size_t used;
 };
-struct WorkMemoryArena {
+struct WorkMemory_Arena {
     b32 isUsed;
-    MemoryArena memoryArena;
+    Memory_Arena memoryArena;
     TemporaryMemory flush;
 };
 
@@ -191,6 +192,7 @@ struct Game_Assets {
     Bitmap *playerBmp[2];
     Bitmap *familiarBmp[2];
 
+    u32 v_advance;
     Kerning_Hashmap kern_hashmap;
     Asset_Glyph *glyphs[256];
 
@@ -205,9 +207,9 @@ struct GameState {
     RandomSeries particleRandomSeries;
 
     World *world;
-    MemoryArena worldArena;
+    Memory_Arena worldArena;
 
-    MemoryArena renderArena;
+    Memory_Arena renderArena;
 
     Bitmap drawBuffer;
 
@@ -231,13 +233,13 @@ struct GameState {
 
 struct TransientState {
     b32 isInit;
-    MemoryArena transientArena;
+    Memory_Arena transientArena;
     PlatformWorkQueue *highPriorityQueue;
     PlatformWorkQueue *lowPriorityQueue;
 
-    WorkMemoryArena workArena[4];
+    WorkMemory_Arena workArena[4];
 
-    MemoryArena assetArena;
+    Memory_Arena assetArena;
     Game_Assets gameAssets;
 };
 

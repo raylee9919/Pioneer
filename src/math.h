@@ -7,7 +7,6 @@
     $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
     ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
-#include "intrinsics.h"
 
 //
 // vec2

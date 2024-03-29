@@ -9,6 +9,42 @@
 
 #include <math.h>
 
+#if     __MSVC
+inline u32
+atomic_compare_exchange_u32(volatile u32 *value, u32 _new, u32 expected) {
+    u32 result = _InterlockedCompareExchange((long *)value, _new, expected);
+    return result;
+}
+
+inline u32
+atomic_exchange_u32(volatile u32 *value, u32 _new) {
+    u32 result = _InterlockedExchange((long *)value, _new);
+    return result;
+}
+
+inline u64
+atomic_exchange_u64(volatile u64 *value, u64 _new) {
+    u64 result = _InterlockedExchange64((long long *)value, _new);
+    return result;
+}
+
+inline u32
+atomic_add_u32(u32 *value, u32 addend) {
+    // returns the original value.
+    u32 result = _InterlockedExchangeAdd((long *)value, addend);
+    return result;
+}
+
+inline u64
+atomic_add_u64(u64 *value, u64 addend) {
+    // returns the original value.
+    u64 result = _InterlockedExchangeAdd64((long long *)value, addend);
+    return result;
+}
+#elif   __LLVM
+
+#endif
+
 inline s32 
 RoundR32ToS32(r32 value) {
     s32 result = (s32)(value + 0.5);

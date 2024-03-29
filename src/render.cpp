@@ -166,27 +166,38 @@ internal void
 // draw_text(RenderGroup *renderGroup, const char *str, Game_Assets *gameAssets, r32 scale, vec4 color = vec4{1.0f, 1.0f, 1.0f, 1.0f}) {
 draw_text(Bitmap *buffer, Render_Text *info) {
     r32 left_x = 40.0f;
+    r32 kern = 0.0f;
+    r32 C = 0.0f;
+    r32 A = 0.0f;
     for (const char *ch = info->str;
             *ch;
             ++ch) {
         Asset_Glyph *glyph = info->game_assets->glyphs[*ch];
         Bitmap *bitmap = &glyph->bitmap;
+        if (info->game_assets->glyphs[*ch]) {
+            C = (r32)info->game_assets->glyphs[*ch]->C;
+        }
         if (glyph) {
             r32 w = (r32)bitmap->width;
             r32 h = (r32)bitmap->height;
             r32 advance_x = w;
             if (*(ch + 1)) {
-                r32 kern = (r32)get_kerning(&info->game_assets->kern_hashmap, *ch, *(ch + 1));
-                advance_x += kern;
+                kern = (r32)get_kerning(&info->game_assets->kern_hashmap, *ch, *(ch + 1));
+                if (info->game_assets->glyphs[*(ch + 1)]) {
+                    A = (r32)info->game_assets->glyphs[*(ch + 1)]->A;
+                }
+                advance_x += (C + A + kern);
             }
-            // PushBitmap(renderGroup, vec2{left_x, cen_y - glyph->ascent * scale}, vec2{w, 0}, vec2{0, h}, bitmap, color);
             draw_bitmap_slow(buffer, vec2{left_x, cen_y - glyph->ascent}, bitmap, info->color);
             left_x += advance_x;
+        } else if (*ch == ' ') {
+            // TODO: horizontal advance info in asset.
+            left_x += C + 10.0f;
         } else {
-            left_x += 12.0f;
+
         }
     }
-    cen_y += 30.0f;
+    cen_y += info->game_assets->v_advance;
 }
 
 internal void
@@ -213,7 +224,7 @@ push_coordinate_system(RenderGroup *renderGroup,
 }
 
 internal RenderGroup *
-AllocRenderGroup(MemoryArena *memoryArena) {
+AllocRenderGroup(Memory_Arena *memoryArena) {
     RenderGroup *result = PushStruct(memoryArena, RenderGroup);
     *result = {};
     result->capacity = MB(4);
@@ -424,7 +435,7 @@ DrawRectSlowAsf(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp
 
 
 internal void
-draw_rect_fast(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp, vec4 color) {
+draw_bitmap_fast(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp, vec4 color) {
     TIMED_BLOCK();
 
     s32 bufWidthMax = buffer->width - 1;
@@ -655,34 +666,10 @@ draw_rect_fast(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp,
     }
 
 }
-struct DrawBmpWorkData {
-    Bitmap *buffer;
-    vec2 origin;
-    vec2 axisX;
-    vec2 axisY;
-    Bitmap *bmp;
-    b32 bilinear;
-    vec4 color;
-    WorkMemoryArena *workSlot;
-};
-PLATFORM_WORK_QUEUE_CALLBACK(DrawBmpWork) {
-    DrawBmpWorkData *workData = (DrawBmpWorkData *)data;
-#if 1
-    draw_rect_fast(workData->buffer,
-                         workData->origin,
-                         workData->axisX,
-                         workData->axisY,
-                         workData->bmp,
-                         workData->color);
-#else // TODO: for some reason, atrifact is sharper than scalable one on the above.
-    draw_bitmap_slow(workData->buffer, workData->origin, workData->bmp);
-#endif
-    EndWorkMemory(workData->workSlot);
-}
 
 internal void
 RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer,
-        TransientState *transState) {
+        TransientState *transState, Platform_API *platform) {
     vec2 screenCenter = vec2{
         0.5f * (r32)outputBuffer->width,
         0.5f * (r32)outputBuffer->height
@@ -700,27 +687,7 @@ RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer,
 
             case RenderType_RenderEntityBmp: {
                 RenderEntityBmp *piece = (RenderEntityBmp *)at;
-
-                WorkMemoryArena *workSlot = BeginWorkMemory(transState);
-                if (workSlot) {
-                    DrawBmpWorkData *workData = PushStruct(&workSlot->memoryArena, DrawBmpWorkData);
-                    workData->buffer = outputBuffer;
-                    workData->origin = piece->origin;
-                    workData->axisX = piece->axisX;
-                    workData->axisY = piece->axisY;
-                    workData->bmp = piece->bmp;
-                    workData->color = piece->color;
-                    workData->workSlot = workSlot;
-#if 0
-                    // TODO: Multi-thread ain't working... T^T
-                    // Actually, it shouldn't work...?
-                    platformAddEntry(transState->highPriorityQueue, DrawBmpWork, workData);
-#else
-                    // Single-thread
-                    DrawBmpWork(transState->highPriorityQueue, workData);
-#endif
-                }
-
+                draw_bitmap_fast(outputBuffer, piece->origin, piece->axisX, piece->axisY, piece->bmp, piece->color);
                 at += sizeof(*piece);
             } break;
 
@@ -758,4 +725,7 @@ RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer,
             INVALID_DEFAULT_CASE
         }
     }
+
+    platform->platform_complete_all_work(transState->highPriorityQueue);
+
 }

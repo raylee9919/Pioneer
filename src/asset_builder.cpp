@@ -311,6 +311,7 @@ bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_heig
     s32 bi_height = 1024;
     static HDC hdc = 0;
     TEXTMETRIC metric = {};
+    ABC *ABCs = 0;
     void *bits = 0;
     u32 lo = '!';
     u32 hi = '~';
@@ -341,12 +342,15 @@ bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_heig
 
         GetTextMetrics(hdc, &metric);
 
+        // kerning.
         s32 kern_count = GetKerningPairsA(hdc, 0, 0);
         KERNINGPAIR *kern_pairs = push_array(KERNINGPAIR, kern_count);
         Assert(GetKerningPairsA(hdc, kern_count, kern_pairs));
 
-        Asset_Kerning_Header kern_header = {};
-        kern_header.pair_count = kern_count;
+        // font header.
+        Asset_Font_Header font_header = {};
+        font_header.kerning_pair_count = kern_count;
+        font_header.vertical_advance = metric.tmHeight + metric.tmInternalLeading + metric.tmExternalLeading;
 
         Asset_Kerning *asset_kern_pairs = push_array(Asset_Kerning, kern_count);
         for (s32 idx = 0;
@@ -359,13 +363,22 @@ bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_heig
             asset_kern_pair->value = kern_pair->iKernAmount;
         }
 
-        // write kerning table.
-        fwrite(&kern_header, sizeof(kern_header), 1, out);
+        // ABC. What a convenient name.
+        ABCs = push_array(ABC, hi - lo + 1);
+        GetCharABCWidthsA(hdc, lo, hi, ABCs);
+
+        // write font header.
+        fwrite(&font_header, sizeof(font_header), 1, out);
+        
+        // write kerning pairs.
         fwrite(asset_kern_pairs, sizeof(*asset_kern_pairs) * kern_count, 1, out);
+
     }
     // write glyphs.
     for (u32 ch = lo; ch <= hi; ++ch) {
         Asset_Glyph *glyph = bake_glyph(hdc, ch, bits, bi_width, bi_height, metric);
+        glyph->A = ABCs[ch - lo].abcA;
+        glyph->C = ABCs[ch - lo].abcC;
         fwrite(glyph, sizeof(*glyph), 1, out);
         fwrite(glyph->bitmap.memory, glyph->bitmap.size, 1, out);
     }

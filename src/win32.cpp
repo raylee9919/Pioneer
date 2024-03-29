@@ -414,14 +414,12 @@ Win32AddEntry(PlatformWorkQueue *Queue, PlatformWorkQueueCallback *Callback, voi
     u32 NewNextEntryToWrite = (Queue->NextEntryToWrite + 1) % ArrayCount(Queue->Entries);
     Assert(NewNextEntryToWrite != Queue->NextEntryToRead);
     PlatformWorkQueueEntry *Entry = Queue->Entries + Queue->NextEntryToWrite;
-    Entry->Callback = Callback;
-    Entry->Data = Data;
+    Entry->Callback = Callback;    Entry->Data = Data;
     ++Queue->CompletionGoal;
     _WriteBarrier();
     Queue->NextEntryToWrite = NewNextEntryToWrite;
     ReleaseSemaphore(Queue->SemaphoreHandle, 1, 0);
 }
-
 internal bool32
 Win32DoNextWorkQueueEntry(PlatformWorkQueue *Queue) {
     b32 shouldSleep = false;
@@ -435,7 +433,7 @@ Win32DoNextWorkQueueEntry(PlatformWorkQueue *Queue) {
                                                   OriginalNextEntryToRead);
         if(Index == OriginalNextEntryToRead)
         {        
-            PlatformWorkQueueEntry Entry = Queue->Entries[Index];
+             PlatformWorkQueueEntry Entry = Queue->Entries[Index];
             Entry.Callback(Queue, Entry.Data);
             InterlockedIncrement((LONG volatile *)&Queue->CompletionCount);
         }
@@ -467,15 +465,8 @@ ThreadProc(LPVOID lpParameter) {
     }
 }
 
-internal
-PLATFORM_WORK_QUEUE_CALLBACK(DoWorkerWork) {
-    char Buffer[256];
-    wsprintf(Buffer, "Thread %u: %s\n", GetCurrentThreadId(), (char *)data);
-    OutputDebugStringA(Buffer);
-}
-
 internal void
-Win32MakeQueue(PlatformWorkQueue *Queue, uint32 ThreadCount) {
+Win32MakeQueue(PlatformWorkQueue *Queue, u32 ThreadCount) {
     Queue->CompletionGoal = 0;
     Queue->CompletionCount = 0;
     
@@ -487,26 +478,13 @@ Win32MakeQueue(PlatformWorkQueue *Queue, uint32 ThreadCount) {
                                                InitialCount,
                                                ThreadCount,
                                                0, 0, SEMAPHORE_ALL_ACCESS);
-    for(uint32 ThreadIndex = 0;
+    for(u32 ThreadIndex = 0;
         ThreadIndex < ThreadCount;
         ++ThreadIndex) {
         DWORD ThreadID;
         HANDLE ThreadHandle = CreateThread(0, 0, ThreadProc, Queue, 0, &ThreadID);
         CloseHandle(ThreadHandle);
     }
-}
-
-inline
-ATOMIC_COMPARE_EXCHANGE(win32_atomic_compare_exchange) {
-    LONG result = _InterlockedCompareExchange((volatile LONG *)dst,
-            (LONG)exchange, (LONG)comperhand);
-    return result;
-}
-
-inline 
-ATOMIC_ADD(win32_atomic_add) {
-    LONG prev = _InterlockedExchangeAdd((volatile LONG *)addend, (LONG)value);
-    return prev;
 }
 
 int WINAPI
@@ -566,13 +544,11 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     game_memory.transient_memory_capacity = GB(1);
     game_memory.highPriorityQueue = &highPriorityQueue;
     game_memory.lowPriorityQueue = &lowPriorityQueue;
-    game_memory.platformAddEntry = Win32AddEntry;
-    game_memory.platformCompleteAllWork = Win32CompleteAllWork;
-    game_memory.debug_platform_read_file = DebugPlatformReadEntireFile;
-    game_memory.debug_platform_write_file = DebugPlatformWriteEntireFile;
-    game_memory.debug_platform_free_memory = DebugPlatformFreeMemory;
-    game_memory.atomic_compare_exchange = win32_atomic_compare_exchange;
-    game_memory.atomic_add = win32_atomic_add;
+    game_memory.platform.platform_add_entry = Win32AddEntry;
+    game_memory.platform.platform_complete_all_work = Win32CompleteAllWork;
+    game_memory.platform.debug_platform_read_file = DebugPlatformReadEntireFile;
+    game_memory.platform.debug_platform_write_file = DebugPlatformWriteEntireFile;
+    game_memory.platform.debug_platform_free_memory = DebugPlatformFreeMemory;
     uint64 total_capacity = game_memory.permanent_memory_capacity + game_memory.transient_memory_capacity;
     win32_state.game_memory = VirtualAlloc(base_address, (size_t)total_capacity,
                     MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);

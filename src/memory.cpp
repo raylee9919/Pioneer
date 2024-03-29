@@ -7,7 +7,7 @@
    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 internal void *
-PushSize_(MemoryArena *arena, size_t size) {
+PushSize_(Memory_Arena *arena, size_t size) {
     Assert((arena->used + size) <= arena->size);
     void *result = arena->base + arena->used;
     arena->used += size;
@@ -21,21 +21,21 @@ PushSize_(MemoryArena *arena, size_t size) {
     (type *)PushSize_(arena, count * sizeof(type))
 
 internal void
-InitArena(MemoryArena *arena, size_t size, u8 *base) {
+InitArena(Memory_Arena *arena, size_t size, u8 *base) {
     arena->size = size;
     arena->base = base;
     arena->used = 0;
 }
 
 internal void
-InitSubArena(MemoryArena *subArena, MemoryArena *motherArena, size_t size) {
+InitSubArena(Memory_Arena *subArena, Memory_Arena *motherArena, size_t size) {
     Assert(motherArena->size >= motherArena->used + size);
     InitArena(subArena, size, motherArena->base + motherArena->used);
     motherArena->used += size;
 }
 
 inline TemporaryMemory
-BeginTemporaryMemory(MemoryArena *memoryArena) {
+BeginTemporaryMemory(Memory_Arena *memoryArena) {
     memoryArena->tempCount++;
 
     TemporaryMemory result = {};
@@ -46,20 +46,20 @@ BeginTemporaryMemory(MemoryArena *memoryArena) {
 }
 inline void
 EndTemporaryMemory(TemporaryMemory *temporaryMemory) {
-    MemoryArena *arena = temporaryMemory->memoryArena;
+    Memory_Arena *arena = temporaryMemory->memoryArena;
     Assert(arena->used >= temporaryMemory->used);
     arena->used = temporaryMemory->used;
     Assert(arena->tempCount > 0);
     arena->tempCount--;
 }
 
-inline WorkMemoryArena *
+inline WorkMemory_Arena *
 BeginWorkMemory(TransientState *transState) {
-    WorkMemoryArena *result = 0;
+    WorkMemory_Arena *result = 0;
     for (s32 idx = 0;
             idx < ArrayCount(transState->workArena);
             ++idx) {
-        WorkMemoryArena *workSlot = transState->workArena + idx;
+        WorkMemory_Arena *workSlot = transState->workArena + idx;
         if (!workSlot->isUsed) {
             result = workSlot;
             result->isUsed = true;
@@ -70,8 +70,8 @@ BeginWorkMemory(TransientState *transState) {
     return result;
 }
 inline void
-EndWorkMemory(WorkMemoryArena *workMemoryArena) {
-    EndTemporaryMemory(&workMemoryArena->flush);
+EndWorkMemory(WorkMemory_Arena *workMemory_Arena) {
+    EndTemporaryMemory(&workMemory_Arena->flush);
     __WRITE_BARRIER__
-    workMemoryArena->isUsed = false;
+    workMemory_Arena->isUsed = false;
 }
