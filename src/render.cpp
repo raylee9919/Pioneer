@@ -180,16 +180,15 @@ draw_text(Bitmap *buffer, Render_Text *info) {
         if (glyph) {
             r32 w = (r32)bitmap->width;
             r32 h = (r32)bitmap->height;
-            r32 advance_x = w;
+            draw_bitmap_slow(buffer, vec2{left_x, cen_y - glyph->ascent}, bitmap, info->color);
             if (*(ch + 1)) {
                 kern = (r32)get_kerning(&info->game_assets->kern_hashmap, *ch, *(ch + 1));
                 if (info->game_assets->glyphs[*(ch + 1)]) {
                     A = (r32)info->game_assets->glyphs[*(ch + 1)]->A;
                 }
-                advance_x += (C + A + kern);
+                r32 advance_x = (glyph->B + C + A + kern);
+                left_x += advance_x;
             }
-            draw_bitmap_slow(buffer, vec2{left_x, cen_y - glyph->ascent}, bitmap, info->color);
-            left_x += advance_x;
         } else if (*ch == ' ') {
             // TODO: horizontal advance info in asset.
             left_x += C + 10.0f;
@@ -505,6 +504,7 @@ draw_bitmap_fast(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bm
     __m128 InvLenSquareY = _mm_set1_ps(InvLenSquare(axisY));
 
 
+    {
     for (s32 Y = minY;
             Y <= maxY;
             ++Y) {
@@ -516,6 +516,7 @@ draw_bitmap_fast(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bm
         for (s32 X = minX;
                 X <= maxX;
                 X += 4) {
+            TIMED_BLOCK(4);
 
             // NOTE: Clamp X
             // TODO: Must to it properly.
@@ -525,7 +526,7 @@ draw_bitmap_fast(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bm
             __m128i Xi = _mm_setr_epi32(X, X + 1, X + 2, X + 3);
             __m128 Xf = _mm_cvtepi32_ps(Xi);
             __m128 Px = _mm_sub_ps(Xf, Ox);
-            
+
             // NOTE: We'll just clamp U and V to guarantee that
             // we fetch from valid memory. Then, whatever the value is,
             // we'll knock out useless ones with write mask.
@@ -541,11 +542,11 @@ draw_bitmap_fast(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bm
             Vf = _mm_mul_ps(Vf, bmpHeightMinusTwo);
 
 
-            
-///////////////////////////////////////////////////////////////////////////////
-//
-// Bilinear Filtering
-//
+
+            ///////////////////////////////////////////////////////////////////////////////
+            //
+            // Bilinear Filtering
+            //
             __m128 SA, SR, SG, SB;
 #if 1
             // NOTE: Floor and get weight.
@@ -659,10 +660,11 @@ draw_bitmap_fast(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bm
             __m128i F =  _mm_or_si128(
                     _mm_or_si128(_mm_slli_epi32(FA, 24), _mm_slli_epi32(FR, 16)), 
                     _mm_or_si128(_mm_slli_epi32(FG,  8), _mm_slli_epi32(FB,  0)) );
-            
+
             // NOTE: Write to buffer.
             _mm_storeu_si128((__m128i *)dst, _mm_and_si128(F, WriteMask));
         }
+    }
     }
 
 }
@@ -670,6 +672,7 @@ draw_bitmap_fast(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bm
 internal void
 RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer,
         TransientState *transState, Platform_API *platform) {
+    TIMED_BLOCK();
     vec2 screenCenter = vec2{
         0.5f * (r32)outputBuffer->width,
         0.5f * (r32)outputBuffer->height

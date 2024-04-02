@@ -70,8 +70,9 @@ struct Asset_Glyph {
     u32 codepoint;
     s32 ascent;
     s32 A;
+    s32 B;
     s32 C;
-    Bitmap bitmap; // ABC's B will be the width of the bitmap.
+    Bitmap bitmap;
 };
 
 #pragma pack(pop)

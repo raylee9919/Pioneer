@@ -12,34 +12,20 @@
 
 #include "types.h"
 #include "game.h"
+#include "debug.cpp"
 #include "memory.cpp"
 #include "render.cpp"
 
 #include "sim.h"
 
+
 // debug.
-#include <stdio.h>
-static void
-show_debug_info(RenderGroup *render_group, Game_Assets *game_assets, Memory_Arena *arena);
-
-
-
-#if 0
-internal Asset_Glyph *
-load_glyph(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file) {
-    Asset_Glyph *result = PushStruct(arena, Asset_Glyph);
-    *result = {};
-
-    DebugReadFileResult read = read_file(ASSET_FILE_NAME);
-    if(read.content_size != 0) {
-        Asset_Glyph *at = (Asset_Glyph *)read.contents;
-        *result = *at++;
-        result->bitmap.memory = (u8 *)at + (result->bitmap.height - 1) * -result->bitmap.pitch;
-    }
-
-    return result;
-}
-#endif
+internal void
+init_debug(Debug_Log *debug_log, Memory_Arena *arena);
+internal void
+display_debug_info(Debug_Log *debug_log, RenderGroup *render_group, Game_Assets *game_assets, Memory_Arena *arena);
+internal void
+end_debug_log(Debug_Log *debug_log);
 
 
 internal void
@@ -211,7 +197,6 @@ GetBitmap(TransientState *transState, Asset_ID assetID,
 
 extern "C"
 GAME_MAIN(GameMain) {
-    TIMED_BLOCK();
 
     ///////////////////////////////////////////////////////////////////////////
     //
@@ -224,7 +209,7 @@ GAME_MAIN(GameMain) {
         gameState->particleRandomSeries = Seed(254);
 
         InitArena(&gameState->worldArena,
-                gameMemory->permanent_memory_capacity - sizeof(GameState),
+                gameMemory->permanent_memory_size - sizeof(GameState),
                 (u8 *)gameMemory->permanent_memory + sizeof(GameState));
         gameState->world = PushStruct(&gameState->worldArena, World);
         World *world = gameState->world;
@@ -265,7 +250,14 @@ GAME_MAIN(GameMain) {
         }
 #endif
 
+#ifdef __DEBUG
+        // debug memory.
+        InitArena(&gameState->debug_arena, gameMemory->debug_memory_size, (u8 *)gameMemory->debug_memory);
+        init_debug(&g_debug_log, &gameState->debug_arena);
+#endif
     }
+
+    TIMED_BLOCK();
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -273,12 +265,12 @@ GAME_MAIN(GameMain) {
     // Init Transient Memory
     //
     void *transMem = gameMemory->transient_memory;
-    u64 transMemCap = gameMemory->transient_memory_capacity;
+    u64 transMemCap = gameMemory->transient_memory_size;
     Assert(sizeof(TransientState) < transMemCap);
     TransientState *transState = (TransientState *)transMem;
 
     if (!transState->isInit) {
-        transState->isInit = true;
+        transState->isInit = true;  
 
         // transient arena.
         InitArena(&transState->transientArena,
@@ -318,6 +310,9 @@ GAME_MAIN(GameMain) {
     r32 ppm = gameState->world->ppm;
     r32 dt = gameInput->dt_per_frame;
 
+    //
+    // Process Input
+    //
     Entity *player = gameState->player;
     player->accel = {};
     if (gameInput->move_up.is_set) { player->accel.y = 1.0f; }
@@ -359,14 +354,12 @@ GAME_MAIN(GameMain) {
     RecalcPos(&minPos, chunkDim);
     RecalcPos(&maxPos, chunkDim);
 
-    ///////////////////////////////////////////////////////////////////////////
     //
     // Update entities
     //
     UpdateEntities(gameState, dt, minPos, maxPos);
 
 
-    ///////////////////////////////////////////////////////////////////////////
     //
     // Render entities
     //
@@ -411,7 +404,7 @@ GAME_MAIN(GameMain) {
                         push_bitmap(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, gameAssets->playerBmp[face]);
 #if 1
 #else
-                        ///////////////////////////////////////////////////////
+                        //
                         //
                         // Rotation Demo
                         //
@@ -547,25 +540,14 @@ GAME_MAIN(GameMain) {
                             vec2 particleCen = cen + ppm * vec2{particle->P.x, -particle->P.y};
                             particleCen.y += bmpDim.y * 0.5f;
                             r32 scale = 0.3f;
-#if 0
-                            if (!gameAssets->tmpFont) {
-                                gameAssets->tmpFont = MakeNothing(gameMemory->debug_platform_read_file, &gameState->worldArena);
-                            } else {
-                                PushBitmap(renderGroup,
-                                        particleCen - 0.5f * particleDim,
-                                        vec2{(r32)gameAssets->tmpFont->width, 0}, vec2{0, (r32)gameAssets->tmpFont->height},
-                                        gameAssets->tmpFont, particle->alpha);
-                            }
-#else
-                            Bitmap *bitmap = GetBitmap(transState, GAI_Particle, transState->lowPriorityQueue, gameMemory->AtomicCompareExchange);
+                            Bitmap *bitmap = GetBitmap(transState, GAI_Particle, transState->lowPriorityQueue, &gameMemory->platform);
                             if (bitmap) {
-                                PushBitmap(renderGroup,
+                                push_bitmap(renderGroup,
                                         particleCen - 0.5f * particleDim,
                                         vec2{particleDim.x * scale, 0}, vec2{0, particleDim.y * scale},
-                                        bitmap, particle->alpha);
+                                        bitmap, vec4{1.0f, 1.0f, 1.0f, particle->alpha});
                             }
 
-#endif
                         }
 #endif
                         
@@ -604,44 +586,100 @@ GAME_MAIN(GameMain) {
     EndTemporaryMemory(&renderMemory);
 
 
+    //
+    // Debug Overlay
+    //
 #ifdef __DEBUG
-    TemporaryMemory debug_render_memory = BeginTemporaryMemory(&transState->transientArena);
-    RenderGroup *debug_render_group = AllocRenderGroup(&transState->transientArena);
+    TemporaryMemory debug_render_memory = BeginTemporaryMemory(&gameState->debug_arena);
+    RenderGroup *debug_render_group = AllocRenderGroup(&gameState->debug_arena);
 
     if (gameState->debug_mode) {
-        show_debug_info(debug_render_group, gameAssets, &transState->transientArena);
+        display_debug_info(&g_debug_log, debug_render_group, gameAssets, &gameState->debug_arena);
     }
+    end_debug_log(&g_debug_log);
 
-    cen_y = 100.0f;
     RenderGroupToOutput(debug_render_group, &drawBuffer, transState, &gameMemory->platform);
     EndTemporaryMemory(&debug_render_memory);
 #endif
 }
 
-Debug_Counter g_debug_counters[__COUNTER__];
+
+
+
 
 internal void
-show_debug_info(RenderGroup *render_group, Game_Assets *game_assets, Memory_Arena *arena) {
-    r32 scale = 1.0f;
+init_debug(Debug_Log *debug_log, Memory_Arena *arena) {
+    // COUNTER must be the last one in the game code translation unit.
+    u32 width = __COUNTER__;
+    debug_log->record_width = width;
+    debug_log->debug_records = PushArray(arena, Debug_Record, DEBUG_LOG_FRAME_COUNT * width);
+    debug_log->debug_infos = PushArray(arena, Debug_Info, width);
+    debug_log->next_frame = 0;
 
-    for (s32 idx = 0;
-            idx < ArrayCount(g_debug_counters);
+    for (u32 idx = 0;
+            idx < width;
             ++idx) {
-        Debug_Counter *counter = g_debug_counters + idx;
+        Debug_Info *info = debug_log->debug_infos + idx;
+        info->max_cycles = 0;
+        info->min_cycles = UINT64_MAX;
+        info->avg_cycles = 0;
+    }
+}
+
+internal void
+display_debug_info(Debug_Log *debug_log, RenderGroup *render_group, Game_Assets *game_assets, Memory_Arena *arena) {
+    for (u32 record_idx = 0;
+            record_idx < debug_log->record_width;
+            ++record_idx) {
+        Debug_Info *info = g_debug_log.debug_infos + record_idx;
         size_t size = 1024;
         char *buf = PushArray(arena, char, size);
-        u64 cycles_per_hit = 0;
-        if (g_debug_counters[idx].hit != 0) {
-            cycles_per_hit = counter->cycles / g_debug_counters[idx].hit;
-        }
+        // TODO: remove CRT.
         _snprintf(buf, size,
-                    "%s: %I64ucyc %uhit %I64ucyc/hit",
-                    counter->function,
-                    counter->cycles,
-                    counter->hit,
-                    cycles_per_hit);
-        push_text(render_group, buf, game_assets, scale);
-        atomic_exchange_u64(&counter->cycles, 0);
-        atomic_exchange_u32(&counter->hit, 0);
+                    "%20s(%4d): %10I64uavg_cyc",
+                    info->function,
+                    info->line,
+                    info->avg_cycles);
+        push_text(render_group, buf, game_assets, 1.0f);
+
+#if 1
+        // draw graph.
+        r32 x = 800.0f;
+        r32 max_height = (r32)game_assets->v_advance;
+        r32 width = 2.0f;
+        r32 inv_max_cycles = 0.0f;
+        if (info->max_cycles != 0.0f) {
+            inv_max_cycles = 1.0f / info->max_cycles;
+        }
+
+        for (u32 frame = 0;
+                frame < DEBUG_LOG_FRAME_COUNT;
+                ++frame) {
+            Debug_Record *record = g_debug_log.debug_records + frame * g_debug_log.record_width + record_idx;
+            r32 height = max_height * record->cycles * inv_max_cycles;
+            vec2 min = vec2{x + width * frame, 100.0f + max_height * record_idx - height};
+            push_rect(render_group, min, min + vec2{width * 0.5f, height}, vec4{1.0f, 1.0f, 0.5f, 1.0f});
+        }
+#endif
+
     }
+
+}
+
+internal void
+end_debug_log(Debug_Log *debug_log) {
+    Debug_Record *records = g_debug_log.debug_records + g_debug_log.next_frame * g_debug_log.record_width;
+    for (u32 record_idx = 0;
+            record_idx < g_debug_log.record_width;
+            ++record_idx) {
+        Debug_Record *record = records + record_idx;
+        atomic_exchange_u32(&record->hit, 0);
+    }
+
+    if (++debug_log->next_frame == DEBUG_LOG_FRAME_COUNT) {
+        debug_log->next_frame = 0;
+    }
+
+    // TODO: remove this mf.
+    cen_y = 100.0f;
 }

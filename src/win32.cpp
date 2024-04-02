@@ -22,10 +22,10 @@ global_var LARGE_INTEGER g_counter_hz;
 global_var b32 g_show_cursor;
 global_var WINDOWPLACEMENT g_wpPrev = { sizeof(g_wpPrev) };
 
-#define XINPUT_GET_STATE(NAME) DWORD NAME(DWORD, XINPUT_STATE *)
-typedef XINPUT_GET_STATE(__XInputGetState);
+#define XINPUT_GET_STATE(Name) DWORD Name(DWORD, XINPUT_STATE *)
+typedef XINPUT_GET_STATE(XInput_Get_State);
 XINPUT_GET_STATE(xinput_get_state_stub) { return 1; }
-__XInputGetState *xinput_get_state = xinput_get_state_stub;
+XInput_Get_State *xinput_get_state = xinput_get_state_stub;
 
 #define XINPUT_SET_STATE(name) DWORD name(DWORD, XINPUT_VIBRATION *)
 typedef XINPUT_SET_STATE(__XInputSetState);
@@ -40,7 +40,7 @@ Win32LoadXInput() {
     if(!xinput_module) { LoadLibraryA("xinput1_3.dll"); }
 
     if(xinput_module) {
-        xinput_get_state = (__XInputGetState *)GetProcAddress(xinput_module, "XInputGetState");
+        xinput_get_state = (XInput_Get_State *)GetProcAddress(xinput_module, "XInputGetState");
         xinput_set_state = (__XInputSetState *)GetProcAddress(xinput_module, "XInputSetState");
     } else {
         xinput_get_state = xinput_get_state_stub;
@@ -540,8 +540,20 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
 #endif
     GameMemory game_memory = {};
     Win32State win32_state = {};
-    game_memory.permanent_memory_capacity = MB(64);
-    game_memory.transient_memory_capacity = GB(1);
+    game_memory.permanent_memory_size = MB(64);
+    game_memory.transient_memory_size = GB(1);
+    game_memory.debug_memory_size = MB(100);
+
+    u64 total_capacity = game_memory.permanent_memory_size +
+        game_memory.transient_memory_size + 
+        game_memory.debug_memory_size;
+    win32_state.game_memory = VirtualAlloc(base_address, (size_t)total_capacity,
+                    MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    win32_state.game_mem_total_cap = total_capacity;
+    game_memory.permanent_memory = win32_state.game_memory;
+    game_memory.transient_memory = ((u8 *)(game_memory.permanent_memory) + game_memory.permanent_memory_size);
+    game_memory.debug_memory = ((u8 *)(game_memory.transient_memory) + game_memory.transient_memory_size);
+
     game_memory.highPriorityQueue = &highPriorityQueue;
     game_memory.lowPriorityQueue = &lowPriorityQueue;
     game_memory.platform.platform_add_entry = Win32AddEntry;
@@ -549,12 +561,6 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     game_memory.platform.debug_platform_read_file = DebugPlatformReadEntireFile;
     game_memory.platform.debug_platform_write_file = DebugPlatformWriteEntireFile;
     game_memory.platform.debug_platform_free_memory = DebugPlatformFreeMemory;
-    uint64 total_capacity = game_memory.permanent_memory_capacity + game_memory.transient_memory_capacity;
-    win32_state.game_memory = VirtualAlloc(base_address, (size_t)total_capacity,
-                    MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-    win32_state.game_mem_total_cap = total_capacity;
-    game_memory.permanent_memory = win32_state.game_memory;
-    game_memory.transient_memory = ((uint8 *)(game_memory.permanent_memory) + game_memory.permanent_memory_capacity);
 
     GameState *game_state = (GameState *)game_memory.permanent_memory;
 
@@ -593,7 +599,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     GameInput game_input = {};
 
     //
-    // Loop ------------------------------------------------------
+    // Loop
     //
     while(g_running) {
         LARGE_INTEGER counter_begin = Win32GetClock();

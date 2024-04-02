@@ -306,6 +306,13 @@ bake_glyph(HDC hdc, u32 codepoint, void *bits, s32 bi_width, s32 bi_height, TEXT
 }
 
 static void
+error_handling(const char *str) {
+    fputs(str, stderr);
+    fputc('\n', stderr);
+    exit(1);
+}
+
+static void
 bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_height) {
     s32 bi_width = 1024;
     s32 bi_height = 1024;
@@ -313,16 +320,25 @@ bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_heig
     TEXTMETRIC metric = {};
     ABC *ABCs = 0;
     void *bits = 0;
-    u32 lo = '!';
+    u32 lo = ' ';
     u32 hi = '~';
     if (!hdc) {
-        AddFontResourceExA(filename, FR_PRIVATE, 0);
+        // add font file to resource pool.
+        if (!AddFontResourceExA(filename, FR_PRIVATE, 0)) {
+            error_handling("ERROR: Couldn't add font resource.");
+        }
+
+        // create font.
         HFONT font = CreateFontA(cheese_height, 0, 0, 0,
                 FW_NORMAL, FALSE, FALSE, FALSE,
                 DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
                 CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
                 DEFAULT_PITCH|FF_DONTCARE, fontname);
+        if (!font) { error_handling("ERROR: Couldn't create a font."); }
+
         hdc = CreateCompatibleDC(0);
+        char temp[30];
+        GetTextFaceA(hdc, 30, temp);
         BITMAPINFO info = {};
         info.bmiHeader.biSize = sizeof(info.bmiHeader);
         info.bmiHeader.biWidth = bi_width;
@@ -345,7 +361,7 @@ bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_heig
         // kerning.
         s32 kern_count = GetKerningPairsA(hdc, 0, 0);
         KERNINGPAIR *kern_pairs = push_array(KERNINGPAIR, kern_count);
-        Assert(GetKerningPairsA(hdc, kern_count, kern_pairs));
+        GetKerningPairsA(hdc, kern_count, kern_pairs);
 
         // font header.
         Asset_Font_Header font_header = {};
@@ -373,11 +389,16 @@ bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_heig
         // write kerning pairs.
         fwrite(asset_kern_pairs, sizeof(*asset_kern_pairs) * kern_count, 1, out);
 
+
+
     }
     // write glyphs.
-    for (u32 ch = lo; ch <= hi; ++ch) {
+    for (u32 ch = lo;
+            ch <= hi;
+            ++ch) {
         Asset_Glyph *glyph = bake_glyph(hdc, ch, bits, bi_width, bi_height, metric);
         glyph->A = ABCs[ch - lo].abcA;
+        glyph->B = ABCs[ch - lo].abcB;
         glyph->C = ABCs[ch - lo].abcC;
         fwrite(glyph, sizeof(*glyph), 1, out);
         fwrite(glyph->bitmap.memory, glyph->bitmap.size, 1, out);
@@ -399,7 +420,7 @@ main(int argc, char **argv) {
 
     FILE *out = fopen("../data/asset.pack", "wb");
     if (out) {
-        bake_font("C:/Windows/Fonts/times.ttf", "Times New Roman", out, 20);
+        bake_font("C:/Windows/Fonts/cour.ttf", "Courier New", out, 30);
 
 
         fclose(out);

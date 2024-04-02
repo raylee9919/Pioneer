@@ -296,6 +296,7 @@ UpdateEntityPos(GameState *gameState, Entity *self, r32 dt, Position simMin, Pos
 
 internal void
 UpdateEntities(GameState *gameState, r32 dt, Position simMin, Position simMax) {
+    TIMED_BLOCK();
     for (s32 Z = simMin.chunkZ;
             Z <= simMax.chunkZ;
             ++Z) {

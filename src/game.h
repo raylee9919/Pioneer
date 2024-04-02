@@ -12,9 +12,9 @@
 #define Max(a, b) ( (a > b) ? a : b )
 #define Min(a, b) ( (a < b) ? a : b )
 #define ArrayCount(array) ( sizeof(array) / sizeof(array[0]) )
-#define ZeroStruct(Struct) ClearToZero(sizeof(Struct), Struct)
+#define ZeroStruct(Struct) clear_to_zero(sizeof(Struct), Struct)
 internal void
-ClearToZero(size_t size, void *data) {
+clear_to_zero(size_t size, void *data) {
     u8 *at = (u8 *)data;
     while (size--) {
         *at++ = 0;
@@ -24,7 +24,6 @@ ClearToZero(size_t size, void *data) {
 #include "platform.h"
 #include "intrinsics.h"
 #include "math.h"
-#include "debug.h"
 #include "asset.h"
 #include "random.h"
 
@@ -42,6 +41,7 @@ struct TemporaryMemory {
     // restoring without any precedence issues problem in multi-threading.
     size_t used;
 };
+
 struct WorkMemory_Arena {
     b32 isUsed;
     Memory_Arena memoryArena;
@@ -211,6 +211,7 @@ struct GameState {
 
     Memory_Arena renderArena;
 
+
     Bitmap drawBuffer;
 
     Camera camera;
@@ -225,10 +226,10 @@ struct GameState {
 
     ParticleCel particleGrid[GRID_Y][GRID_X];
 
-#ifdef __DEBUG
+    // debug.
     r32 debug_toggle_delay;
     b32 debug_mode;
-#endif
+    Memory_Arena debug_arena;
 };
 
 struct TransientState {
