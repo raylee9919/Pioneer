@@ -12,22 +12,26 @@
 //
 // Push to Render Group
 //
-#define PushRenderEntity(GROUP, STRUCT) \
-  (STRUCT *)__push_render_entity(GROUP, sizeof(STRUCT), RenderType_##STRUCT)
+#define PushRenderEntity(GROUP, STRUCT, BASE) \
+  (STRUCT *)__push_render_entity(GROUP, sizeof(STRUCT), RenderType_##STRUCT, BASE)
 internal RenderEntityHeader *
-__push_render_entity(RenderGroup *renderGroup, u32 size, RenderType type) {
+__push_render_entity(Render_Group *renderGroup, u32 size, RenderType type, v3 base) {
     Assert(size + renderGroup->used <= renderGroup->capacity);
+
     RenderEntityHeader *header = (RenderEntityHeader *)(renderGroup->base + renderGroup->used);
     header->type = type;
+    header->size = size;
+    header->base = base;
+
     renderGroup->used += size;
 
     return header;
 }
 
 internal void
-push_bitmap(RenderGroup *renderGroup, vec2 origin, vec2 axisX, vec2 axisY,
-        Bitmap *bmp, vec4 color = vec4{1.0f, 1.0f, 1.0f, 1.0f}) {
-    RenderEntityBmp *piece = PushRenderEntity(renderGroup, RenderEntityBmp);
+push_bitmap(Render_Group *renderGroup, v3 base, v2 origin, v2 axisX, v2 axisY,
+        Bitmap *bmp, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f}) {
+    RenderEntityBmp *piece = PushRenderEntity(renderGroup, RenderEntityBmp, base);
     if (piece) {
         piece->origin = origin;
         piece->axisX = axisX;
@@ -38,8 +42,8 @@ push_bitmap(RenderGroup *renderGroup, vec2 origin, vec2 axisX, vec2 axisY,
 }
 
 internal void
-push_text(RenderGroup *renderGroup, const char *str, Game_Assets *gameAssets, r32 scale, vec4 color = vec4{1.0f, 1.0f, 1.0f, 1.0f}) {
-    Render_Text *piece = PushRenderEntity(renderGroup, Render_Text);
+push_text(Render_Group *renderGroup, v3 base, const char *str, Game_Assets *gameAssets, r32 scale, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f}) {
+    Render_Text *piece = PushRenderEntity(renderGroup, Render_Text, base);
     if (piece) {
         piece->str = str;
         piece->game_assets = gameAssets;
@@ -49,7 +53,7 @@ push_text(RenderGroup *renderGroup, const char *str, Game_Assets *gameAssets, r3
 }
 
 internal void
-draw_bitmap_slow(Bitmap *buf, vec2 min, Bitmap *bmp, vec4 color = vec4{1.0f, 1.0f, 1.0f, 1.0f}) {
+draw_bitmap_slow(Bitmap *buf, v2 min, Bitmap *bmp, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f}) {
     s32 minX = RoundR32ToS32(min.x);
     s32 minY = RoundR32ToS32(min.y);
     s32 maxX = minX + bmp->width;
@@ -163,7 +167,7 @@ draw_bitmap_slow(Bitmap *buf, vec2 min, Bitmap *bmp, vec4 color = vec4{1.0f, 1.0
 
 global_var r32 cen_y = 100.0f;
 internal void
-// draw_text(RenderGroup *renderGroup, const char *str, Game_Assets *gameAssets, r32 scale, vec4 color = vec4{1.0f, 1.0f, 1.0f, 1.0f}) {
+// draw_text(Render_Group *renderGroup, const char *str, Game_Assets *gameAssets, r32 scale, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f}) {
 draw_text(Bitmap *buffer, Render_Text *info) {
     r32 left_x = 40.0f;
     r32 kern = 0.0f;
@@ -180,7 +184,7 @@ draw_text(Bitmap *buffer, Render_Text *info) {
         if (glyph) {
             r32 w = (r32)bitmap->width;
             r32 h = (r32)bitmap->height;
-            draw_bitmap_slow(buffer, vec2{left_x, cen_y - glyph->ascent}, bitmap, info->color);
+            draw_bitmap_slow(buffer, v2{left_x, cen_y - glyph->ascent}, bitmap, info->color);
             if (*(ch + 1)) {
                 kern = (r32)get_kerning(&info->game_assets->kern_hashmap, *ch, *(ch + 1));
                 if (info->game_assets->glyphs[*(ch + 1)]) {
@@ -200,9 +204,9 @@ draw_text(Bitmap *buffer, Render_Text *info) {
 }
 
 internal void
-push_rect(RenderGroup *renderGroup,
-        vec2 min, vec2 max, vec4 color) {
-    RenderEntityRect *piece = PushRenderEntity(renderGroup, RenderEntityRect);
+push_rect(Render_Group *renderGroup, v3 base,
+        v2 min, v2 max, v4 color) {
+    RenderEntityRect *piece = PushRenderEntity(renderGroup, RenderEntityRect, base);
     if (piece) {
         piece->min = min;
         piece->max = max;
@@ -211,9 +215,9 @@ push_rect(RenderGroup *renderGroup,
 }
 
 internal void
-push_coordinate_system(RenderGroup *renderGroup,
-        vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp) {
-    RenderEntityCoordinateSystem *piece = PushRenderEntity(renderGroup, RenderEntityCoordinateSystem);
+push_coordinate_system(Render_Group *renderGroup, v3 base,
+        v2 origin, v2 axisX, v2 axisY, Bitmap *bmp) {
+    RenderEntityCoordinateSystem *piece = PushRenderEntity(renderGroup, RenderEntityCoordinateSystem, base);
     if (piece) {
         piece->origin = origin;
         piece->axisX = axisX;
@@ -222,20 +226,21 @@ push_coordinate_system(RenderGroup *renderGroup,
     }
 }
 
-internal RenderGroup *
+internal Render_Group *
 AllocRenderGroup(Memory_Arena *memoryArena) {
-    RenderGroup *result = PushStruct(memoryArena, RenderGroup);
+    Render_Group *result = PushStruct(memoryArena, Render_Group);
     *result = {};
     result->capacity = MB(4);
     result->base = (u8 *)PushSize(memoryArena, result->capacity);
     result->used = 0;
+    result->sort_entry_begin = result->base + result->capacity;
 
     return result;
 }
 
 
 internal void
-draw_rect(Bitmap *buffer, vec2 min, vec2 max, vec4 color) {
+draw_rect(Bitmap *buffer, v2 min, v2 max, v4 color) {
     s32 minX = RoundR32ToS32(min.x);
     s32 minY = RoundR32ToS32(min.y);
     s32 maxX = RoundR32ToS32(max.x);
@@ -302,7 +307,7 @@ draw_rect(Bitmap *buffer, vec2 min, vec2 max, vec4 color) {
 
 #if 0
 internal void
-DrawRectSlowAsf(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp) {
+DrawRectSlowAsf(Bitmap *buffer, v2 origin, v2 axisX, v2 axisY, Bitmap *bmp) {
 
     s32 bufWidthMax = buffer->width - 1;
     s32 bufHeightMax = buffer->height - 1;
@@ -312,7 +317,7 @@ DrawRectSlowAsf(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp
     s32 minY = bufHeightMax;
     s32 maxY = 0;
 
-    vec2 Vs[4] = {
+    v2 Vs[4] = {
         origin,
         origin + axisX,
         origin + axisY,
@@ -322,7 +327,7 @@ DrawRectSlowAsf(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp
     for (s32 idx = 0;
             idx < ArrayCount(Vs);
             ++idx) {
-        vec2 V = Vs[idx];
+        v2 V = Vs[idx];
         s32 floorX = FloorR32ToS32(V.x);
         s32 floorY = FloorR32ToS32(V.y);
         s32 ceilX = CeilR32ToS32(V.x);
@@ -344,7 +349,7 @@ DrawRectSlowAsf(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp
         for (s32 X = minX;
                 X <= maxX;
                 ++X) {
-            vec2 P = vec2{(r32)X, (r32)Y} - origin;
+            v2 P = v2{(r32)X, (r32)Y} - origin;
             r32 Uf = Inner(P, axisX) * InvLenSquare(axisX);
             r32 Vf = Inner(P, axisY) * InvLenSquare(axisY);
             if (Uf >= 0.0f &&
@@ -434,7 +439,7 @@ DrawRectSlowAsf(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp
 
 
 internal void
-draw_bitmap_fast(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bmp, vec4 color) {
+draw_bitmap_fast(Bitmap *buffer, v2 origin, v2 axisX, v2 axisY, Bitmap *bmp, v4 color) {
     TIMED_BLOCK();
 
     s32 bufWidthMax = buffer->width - 1;
@@ -445,7 +450,7 @@ draw_bitmap_fast(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bm
     s32 minY = bufHeightMax;
     s32 maxY = 0;
 
-    vec2 Vs[4] = {
+    v2 Vs[4] = {
         origin,
         origin + axisX,
         origin + axisY,
@@ -455,7 +460,7 @@ draw_bitmap_fast(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bm
     for (s32 idx = 0;
             idx < ArrayCount(Vs);
             ++idx) {
-        vec2 V = Vs[idx];
+        v2 V = Vs[idx];
         s32 floorX = FloorR32ToS32(V.x);
         s32 floorY = FloorR32ToS32(V.y);
         s32 ceilX = CeilR32ToS32(V.x);
@@ -505,182 +510,275 @@ draw_bitmap_fast(Bitmap *buffer, vec2 origin, vec2 axisX, vec2 axisY, Bitmap *bm
 
 
     {
-    for (s32 Y = minY;
-            Y <= maxY;
-            ++Y) {
+        for (s32 Y = minY;
+                Y <= maxY;
+                ++Y) {
 
-        __m128i Yi = _mm_set1_epi32(Y);
-        __m128 Yf = _mm_cvtepi32_ps(Yi);
-        __m128 Py = _mm_sub_ps(Yf, Oy);
+            __m128i Yi = _mm_set1_epi32(Y);
+            __m128 Yf = _mm_cvtepi32_ps(Yi);
+            __m128 Py = _mm_sub_ps(Yf, Oy);
 
-        for (s32 X = minX;
-                X <= maxX;
-                X += 4) {
-            TIMED_BLOCK(4);
+            for (s32 X = minX;
+                    X <= maxX;
+                    X += 4) {
+                TIMED_BLOCK(4);
 
-            // NOTE: Clamp X
-            // TODO: Must to it properly.
-            if (X + 3 > maxX) { X = maxX - 3; }
-            if (X < 0) { X = 0; }
+                // NOTE: Clamp X
+                // TODO: Must to it properly.
+                if (X + 3 > maxX) { X = maxX - 3; }
+                if (X < 0) { X = 0; }
 
-            __m128i Xi = _mm_setr_epi32(X, X + 1, X + 2, X + 3);
-            __m128 Xf = _mm_cvtepi32_ps(Xi);
-            __m128 Px = _mm_sub_ps(Xf, Ox);
+                __m128i Xi = _mm_setr_epi32(X, X + 1, X + 2, X + 3);
+                __m128 Xf = _mm_cvtepi32_ps(Xi);
+                __m128 Px = _mm_sub_ps(Xf, Ox);
 
-            // NOTE: We'll just clamp U and V to guarantee that
-            // we fetch from valid memory. Then, whatever the value is,
-            // we'll knock out useless ones with write mask.
-            __m128 Uf = _mm_clamp01_ps(_mm_mul_ps(_mm_add_ps(_mm_mul_ps(Px, axisXx), _mm_mul_ps(Py, axisXy)), InvLenSquareX));
-            __m128 Vf = _mm_clamp01_ps(_mm_mul_ps(_mm_add_ps(_mm_mul_ps(Px, axisYx), _mm_mul_ps(Py, axisYy)), InvLenSquareY));
+                // NOTE: We'll just clamp U and V to guarantee that
+                // we fetch from valid memory. Then, whatever the value is,
+                // we'll knock out useless ones with write mask.
+                __m128 Uf = _mm_clamp01_ps(_mm_mul_ps(_mm_add_ps(_mm_mul_ps(Px, axisXx), _mm_mul_ps(Py, axisXy)), InvLenSquareX));
+                __m128 Vf = _mm_clamp01_ps(_mm_mul_ps(_mm_add_ps(_mm_mul_ps(Px, axisYx), _mm_mul_ps(Py, axisYy)), InvLenSquareY));
 
-            // NOTE: Write Mask from inner product.
-            __m128i WriteMask = _mm_castps_si128(_mm_and_ps(
-                        _mm_and_ps( _mm_cmpge_ps(Uf, Zerof), _mm_cmple_ps(Uf, Onef) ),
-                        _mm_and_ps( _mm_cmpge_ps(Vf, Zerof), _mm_cmple_ps(Vf, Onef) )));
+                // NOTE: Write Mask from inner product.
+                __m128i WriteMask = _mm_castps_si128(_mm_and_ps(
+                            _mm_and_ps( _mm_cmpge_ps(Uf, Zerof), _mm_cmple_ps(Uf, Onef) ),
+                            _mm_and_ps( _mm_cmpge_ps(Vf, Zerof), _mm_cmple_ps(Vf, Onef) )));
 
-            Uf = _mm_mul_ps(Uf, bmpWidthMinusTwo);
-            Vf = _mm_mul_ps(Vf, bmpHeightMinusTwo);
+                Uf = _mm_mul_ps(Uf, bmpWidthMinusTwo);
+                Vf = _mm_mul_ps(Vf, bmpHeightMinusTwo);
 
 
 
-            ///////////////////////////////////////////////////////////////////////////////
-            //
-            // Bilinear Filtering
-            //
-            __m128 SA, SR, SG, SB;
+                ///////////////////////////////////////////////////////////////////////////////
+                //
+                // Bilinear Filtering
+                //
+                __m128 SA, SR, SG, SB;
 #if 1
-            // NOTE: Floor and get weight.
-            __m128i Ui = _mm_cvttps_epi32(Uf);
-            __m128i Vi = _mm_cvttps_epi32(Vf);
-            __m128 Rx = _mm_sub_ps(Uf, _mm_cvtepi32_ps(Ui));
-            __m128 Ry = _mm_sub_ps(Vf, _mm_cvtepi32_ps(Vi));
+                // NOTE: Floor and get weight.
+                __m128i Ui = _mm_cvttps_epi32(Uf);
+                __m128i Vi = _mm_cvttps_epi32(Vf);
+                __m128 Rx = _mm_sub_ps(Uf, _mm_cvtepi32_ps(Ui));
+                __m128 Ry = _mm_sub_ps(Vf, _mm_cvtepi32_ps(Vi));
 
-            // NOTE: Fetch 4 texels for each pixel.
-            // Sadly, there's no such things as SIMD fetch.
-            // So the loop will stay.
+                // NOTE: Fetch 4 texels for each pixel.
+                // Sadly, there's no such things as SIMD fetch.
+                // So the loop will stay.
 
-            __m128i texel0 = _mm_set1_epi32(0);
-            __m128i texel1 = _mm_set1_epi32(0);
-            __m128i texel2 = _mm_set1_epi32(0);
-            __m128i texel3 = _mm_set1_epi32(0);
+                __m128i texel0 = _mm_set1_epi32(0);
+                __m128i texel1 = _mm_set1_epi32(0);
+                __m128i texel2 = _mm_set1_epi32(0);
+                __m128i texel3 = _mm_set1_epi32(0);
 
-            for (int I = 0;
-                    I < 4;
-                    ++I) {
-                s32 movY = (Mi(Vi, I) * bmp->pitch);
-                s32 movX = (Mi(Ui, I) * sizeof(u32));
+                for (int I = 0;
+                        I < 4;
+                        ++I) {
+                    s32 movY = (Mi(Vi, I) * bmp->pitch);
+                    s32 movX = (Mi(Ui, I) * sizeof(u32));
 
-                u8 *txl0 = (u8 *)bmp->memory + movY + movX;
-                u8 *txl1 = txl0 + sizeof(u32);
-                u8 *txl2 = txl0 + bmp->pitch;
-                u8 *txl3 = txl2 + sizeof(u32);
+                    u8 *txl0 = (u8 *)bmp->memory + movY + movX;
+                    u8 *txl1 = txl0 + sizeof(u32);
+                    u8 *txl2 = txl0 + bmp->pitch;
+                    u8 *txl3 = txl2 + sizeof(u32);
 
-                Mi(texel0, I) = *(u32 *)txl0;
-                Mi(texel1, I) = *(u32 *)txl1;
-                Mi(texel2, I) = *(u32 *)txl2;
-                Mi(texel3, I) = *(u32 *)txl3;
-            }
+                    Mi(texel0, I) = *(u32 *)txl0;
+                    Mi(texel1, I) = *(u32 *)txl1;
+                    Mi(texel2, I) = *(u32 *)txl2;
+                    Mi(texel3, I) = *(u32 *)txl3;
+                }
 
-            // NOTE: Square to move out from sRGB.
-            __m128 A0 =  _mm_mul_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel0, 24), MaskFF)), inv255f); // 0-1
-            __m128 R0 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel0, 16), MaskFF))), inv255f); // 0-255
-            __m128 G0 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel0,  8), MaskFF))), inv255f); // 0-255
-            __m128 B0 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel0,  0), MaskFF))), inv255f); // 0-255
+                // NOTE: Square to move out from sRGB.
+                __m128 A0 =  _mm_mul_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel0, 24), MaskFF)), inv255f); // 0-1
+                __m128 R0 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel0, 16), MaskFF))), inv255f); // 0-255
+                __m128 G0 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel0,  8), MaskFF))), inv255f); // 0-255
+                __m128 B0 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel0,  0), MaskFF))), inv255f); // 0-255
 
-            __m128 A1 =  _mm_mul_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel1, 24), MaskFF)), inv255f); // 0-1
-            __m128 R1 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel1, 16), MaskFF))), inv255f); // 0-255
-            __m128 G1 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel1,  8), MaskFF))), inv255f); // 0-255
-            __m128 B1 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel1,  0), MaskFF))), inv255f); // 0-255
+                __m128 A1 =  _mm_mul_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel1, 24), MaskFF)), inv255f); // 0-1
+                __m128 R1 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel1, 16), MaskFF))), inv255f); // 0-255
+                __m128 G1 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel1,  8), MaskFF))), inv255f); // 0-255
+                __m128 B1 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel1,  0), MaskFF))), inv255f); // 0-255
 
-            __m128 A2 =  _mm_mul_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel2, 24), MaskFF)), inv255f); // 0-1
-            __m128 R2 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel2, 16), MaskFF))), inv255f); // 0-255
-            __m128 G2 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel2,  8), MaskFF))), inv255f); // 0-255
-            __m128 B2 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel2,  0), MaskFF))), inv255f); // 0-255
+                __m128 A2 =  _mm_mul_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel2, 24), MaskFF)), inv255f); // 0-1
+                __m128 R2 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel2, 16), MaskFF))), inv255f); // 0-255
+                __m128 G2 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel2,  8), MaskFF))), inv255f); // 0-255
+                __m128 B2 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel2,  0), MaskFF))), inv255f); // 0-255
 
-            __m128 A3 =  _mm_mul_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel3, 24), MaskFF)), inv255f); // 0-1
-            __m128 R3 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel3, 16), MaskFF))), inv255f); // 0-255
-            __m128 G3 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel3,  8), MaskFF))), inv255f); // 0-255
-            __m128 B3 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel3,  0), MaskFF))), inv255f); // 0-255
+                __m128 A3 =  _mm_mul_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel3, 24), MaskFF)), inv255f); // 0-1
+                __m128 R3 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel3, 16), MaskFF))), inv255f); // 0-255
+                __m128 G3 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel3,  8), MaskFF))), inv255f); // 0-255
+                __m128 B3 =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel3,  0), MaskFF))), inv255f); // 0-255
 
-            // NOTE: Bilinear filtering and premultiply alpha.
-            SA = _mm_mul_ps(mmLerp(mmLerp(A0, A1, Rx), mmLerp(A2, A3, Rx), Ry), alphaf); // 0-1
-            SR = _mm_mul_ps(mmLerp(mmLerp(R0, R1, Rx), mmLerp(R2, R3, Rx), Ry), SA); // 0-255
-            SG = _mm_mul_ps(mmLerp(mmLerp(G0, G1, Rx), mmLerp(G2, G3, Rx), Ry), SA); // 0-255
-            SB = _mm_mul_ps(mmLerp(mmLerp(B0, B1, Rx), mmLerp(B2, B3, Rx), Ry), SA); // 0-255
+                // NOTE: Bilinear filtering and premultiply alpha.
+                SA = _mm_mul_ps(mmLerp(mmLerp(A0, A1, Rx), mmLerp(A2, A3, Rx), Ry), alphaf); // 0-1
+                SR = _mm_mul_ps(mmLerp(mmLerp(R0, R1, Rx), mmLerp(R2, R3, Rx), Ry), SA); // 0-255
+                SG = _mm_mul_ps(mmLerp(mmLerp(G0, G1, Rx), mmLerp(G2, G3, Rx), Ry), SA); // 0-255
+                SB = _mm_mul_ps(mmLerp(mmLerp(B0, B1, Rx), mmLerp(B2, B3, Rx), Ry), SA); // 0-255
 #else
-            // Round to nearest pixel
-            __m128i Ui = _mm_cvtps_epi32(Uf);
-            __m128i Vi = _mm_cvtps_epi32(Vf);
+                // Round to nearest pixel
+                __m128i Ui = _mm_cvtps_epi32(Uf);
+                __m128i Vi = _mm_cvtps_epi32(Vf);
 
-            __m128i texel = _mm_set1_epi32(0);
+                __m128i texel = _mm_set1_epi32(0);
 
-            for (int I = 0;
-                    I < 4;
-                    ++I) {
-                s32 movY = (Mi(Vi, I) * bmp->pitch);
-                s32 movX = (Mi(Ui, I) * sizeof(u32));
+                for (int I = 0;
+                        I < 4;
+                        ++I) {
+                    s32 movY = (Mi(Vi, I) * bmp->pitch);
+                    s32 movX = (Mi(Ui, I) * sizeof(u32));
 
-                u8 *txl = (u8 *)bmp->memory + movY + movX;
-                Mi(texel, I) = *(u32 *)txl;
-            }
+                    u8 *txl = (u8 *)bmp->memory + movY + movX;
+                    Mi(texel, I) = *(u32 *)txl;
+                }
 
-            // Square out from sRGB area
-            SA =  _mm_mul_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel, 24), MaskFF)), inv255f); // 0-1
-            SR =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel, 16), MaskFF))), inv255f); // 0-255
-            SG =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel,  8), MaskFF))), inv255f); // 0-255
-            SB =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel,  0), MaskFF))), inv255f); // 0-255
+                // Square out from sRGB area
+                SA =  _mm_mul_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel, 24), MaskFF)), inv255f); // 0-1
+                SR =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel, 16), MaskFF))), inv255f); // 0-255
+                SG =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel,  8), MaskFF))), inv255f); // 0-255
+                SB =  _mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(texel,  0), MaskFF))), inv255f); // 0-255
 
-            // Premultiply Alpha
-            SR = _mm_mul_ps(SR, SA); // 0-255
-            SG = _mm_mul_ps(SG, SA); // 0-255
-            SB = _mm_mul_ps(SB, SA); // 0-255
+                // Premultiply Alpha
+                SR = _mm_mul_ps(SR, SA); // 0-255
+                SG = _mm_mul_ps(SG, SA); // 0-255
+                SB = _mm_mul_ps(SB, SA); // 0-255
 #endif
 
-            // tint.
-            SR = _mm_mul_ps(SR, tint_r); // 0-255
-            SG = _mm_mul_ps(SG, tint_g); // 0-255
-            SB = _mm_mul_ps(SB, tint_b); // 0-255
+                // tint.
+                SR = _mm_mul_ps(SR, tint_r); // 0-255
+                SG = _mm_mul_ps(SG, tint_g); // 0-255
+                SB = _mm_mul_ps(SB, tint_b); // 0-255
 
-            // NOTE: Fetch what was before in the background buffer.
-            // Square out from sRGB and premultiply alpha.
-            u32 *dst = (u32 *)buffer->memory + Y * buffer->width + X;
-            __m128i D =  _mm_loadu_si128((__m128i *)dst);
-            __m128 DA =  _mm_mul_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(D, 24), MaskFF)), inv255f); // 0-1
-            __m128 DR =  _mm_mul_ps(_mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(D, 16), MaskFF))), inv255f), DA); // 0-255
-            __m128 DG =  _mm_mul_ps(_mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(D,  8), MaskFF))), inv255f), DA); // 0-255
-            __m128 DB =  _mm_mul_ps(_mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(D,  0), MaskFF))), inv255f), DA); // 0-255
+                // NOTE: Fetch what was before in the background buffer.
+                // Square out from sRGB and premultiply alpha.
+                u32 *dst = (u32 *)buffer->memory + Y * buffer->width + X;
+                __m128i D =  _mm_loadu_si128((__m128i *)dst);
+                __m128 DA =  _mm_mul_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(D, 24), MaskFF)), inv255f); // 0-1
+                __m128 DR =  _mm_mul_ps(_mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(D, 16), MaskFF))), inv255f), DA); // 0-255
+                __m128 DG =  _mm_mul_ps(_mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(D,  8), MaskFF))), inv255f), DA); // 0-255
+                __m128 DB =  _mm_mul_ps(_mm_mul_ps(_mm_square_ps(_mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(D,  0), MaskFF))), inv255f), DA); // 0-255
 
-            // NOTE: Get FINAL pixel values.
-            // SquareRoot to sRGB.
-            __m128i FR =_mm_cvttps_epi32(_mm_sqrt_ps(_mm_mul_ps(_mm_add_ps(SR, _mm_mul_ps(DR, _mm_sub_ps(Onef, SA))), m255f))); // 0-255
-            __m128i FG =_mm_cvttps_epi32(_mm_sqrt_ps(_mm_mul_ps(_mm_add_ps(SG, _mm_mul_ps(DG, _mm_sub_ps(Onef, SA))), m255f))); // 0-255
-            __m128i FB =_mm_cvttps_epi32(_mm_sqrt_ps(_mm_mul_ps(_mm_add_ps(SB, _mm_mul_ps(DB, _mm_sub_ps(Onef, SA))), m255f))); // 0-255
-            __m128i FA =_mm_cvttps_epi32(_mm_mul_ps(_mm_add_ps(SA, _mm_mul_ps(DA, _mm_sub_ps(Onef, SA))), m255f));              // 0-255
+                // NOTE: Get FINAL pixel values.
+                // SquareRoot to sRGB.
+                __m128i FR =_mm_cvttps_epi32(_mm_sqrt_ps(_mm_mul_ps(_mm_add_ps(SR, _mm_mul_ps(DR, _mm_sub_ps(Onef, SA))), m255f))); // 0-255
+                __m128i FG =_mm_cvttps_epi32(_mm_sqrt_ps(_mm_mul_ps(_mm_add_ps(SG, _mm_mul_ps(DG, _mm_sub_ps(Onef, SA))), m255f))); // 0-255
+                __m128i FB =_mm_cvttps_epi32(_mm_sqrt_ps(_mm_mul_ps(_mm_add_ps(SB, _mm_mul_ps(DB, _mm_sub_ps(Onef, SA))), m255f))); // 0-255
+                __m128i FA =_mm_cvttps_epi32(_mm_mul_ps(_mm_add_ps(SA, _mm_mul_ps(DA, _mm_sub_ps(Onef, SA))), m255f));              // 0-255
 
-            __m128i F =  _mm_or_si128(
-                    _mm_or_si128(_mm_slli_epi32(FA, 24), _mm_slli_epi32(FR, 16)), 
-                    _mm_or_si128(_mm_slli_epi32(FG,  8), _mm_slli_epi32(FB,  0)) );
+                __m128i F =  _mm_or_si128(
+                        _mm_or_si128(_mm_slli_epi32(FA, 24), _mm_slli_epi32(FR, 16)), 
+                        _mm_or_si128(_mm_slli_epi32(FG,  8), _mm_slli_epi32(FB,  0)) );
 
-            // NOTE: Write to buffer.
-            _mm_storeu_si128((__m128i *)dst, _mm_and_si128(F, WriteMask));
+                // NOTE: Write to buffer.
+                _mm_storeu_si128((__m128i *)dst, _mm_and_si128(F, WriteMask));
+            }
         }
-    }
     }
 
 }
 
 internal void
-RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer,
+push_sort_entry(Render_Group *group, u8 *entity, v3 base) {
+    group->sort_entry_begin -= sizeof(Sort_Entry);
+    Assert(group->sort_entry_begin >= group->base + group->used);
+    Sort_Entry *entry = (Sort_Entry *)group->sort_entry_begin;
+
+    entry->render_entity = entity;
+    entry->base = base;
+}
+
+internal void
+sort_render_group(Render_Group *group) {
+    TIMED_BLOCK();
+    // TODO: bubble sort... for now. O(n^2). Ain't excited about it.
+    // comparing r32 for several times cost some shit.
+    for (Sort_Entry *bubble = (Sort_Entry *)group->sort_entry_begin + 1;
+            (u8 *)bubble < group->base + group->capacity;
+            ++bubble) {
+        for (Sort_Entry *cmp = bubble - 1;
+                (u8 *)cmp >= group->sort_entry_begin;
+                --cmp) {
+            if (bubble->base.z < cmp->base.z) {
+                Sort_Entry tmp = *cmp;
+                *cmp = *bubble;
+                *bubble = tmp;
+                bubble = cmp;
+            } else if (bubble->base.y < cmp->base.y) {
+                Sort_Entry tmp = *cmp;
+                *cmp = *bubble;
+                *bubble = tmp;
+                bubble = cmp;
+            }
+        }
+    }
+}
+
+internal void
+RenderGroupToOutput(Render_Group *render_group, Bitmap *outputBuffer,
         TransientState *transState, Platform_API *platform) {
     TIMED_BLOCK();
-    vec2 screenCenter = vec2{
-        0.5f * (r32)outputBuffer->width,
-        0.5f * (r32)outputBuffer->height
-    };
 
-    u8 *at = renderGroup->base;
+    u8 *at = render_group->base;
 
-    while (at < renderGroup->base + renderGroup->used) {
+    // add sort entries at the back of the render group.
+    while (at < render_group->base + render_group->used) {
+        RenderEntityHeader *header =(RenderEntityHeader *)at;
+        push_sort_entry(render_group, at, header->base);
+        at += header->size;
+    }
+
+    // sort.
+    sort_render_group(render_group);
+
+    // draw.
+    for (Sort_Entry *entry = (Sort_Entry *)render_group->sort_entry_begin;
+            (u8 *)entry < render_group->base + render_group->capacity;
+            ++entry) {
+
+        RenderEntityHeader *entity =(RenderEntityHeader *)entry->render_entity;
+
+        switch (entity->type) {
+            case RenderType_RenderEntityClear: {
+                RenderEntityClear *piece = (RenderEntityClear *)entity;
+            } break;
+
+            case RenderType_RenderEntityBmp: {
+                RenderEntityBmp *piece = (RenderEntityBmp *)entity;
+                draw_bitmap_fast(outputBuffer, piece->origin, piece->axisX, piece->axisY, piece->bmp, piece->color);
+            } break;
+
+            case RenderType_Render_Text: {
+                Render_Text *piece = (Render_Text *)entity;
+                draw_text(outputBuffer, piece);
+            } break;
+
+            case RenderType_RenderEntityRect: {
+                RenderEntityRect *piece = (RenderEntityRect *)entity;
+                draw_rect(outputBuffer, piece->min, piece->max, piece->color);
+            } break;
+
+            case RenderType_RenderEntityCoordinateSystem: {
+                RenderEntityCoordinateSystem *piece = (RenderEntityCoordinateSystem *)entity;
+#if 0
+                v2 dim = v2{4.0f, 4.0f};
+                v2 R = 0.5f * dim;
+                v4 yellow = v4{1.0f, 1.0f, 0.0f, 1.0f};
+                v4 purple = v4{1.0f, 0.0f, 1.0f, 1.0f};
+                v2 origin = piece->origin;
+                v2 axisX = piece->axisX;
+                v2 axisY = piece->axisY;
+                draw_rect_fast(outputBuffer, origin, axisX, axisY, piece->bmp);
+                DrawRect(outputBuffer, origin - R, origin + R, yellow);
+                DrawRect(outputBuffer, origin + axisX - R, origin + axisX + R, yellow);
+                DrawRect(outputBuffer, origin + axisY - R, origin + axisY + R, yellow);
+                DrawRect(outputBuffer, origin + axisX + axisY - R, origin + axisX + axisY + R, yellow);
+#endif
+            } break;
+
+            INVALID_DEFAULT_CASE
+        }
+
+    }
+
+#if 0
+    while (at < render_group->base + render_group->used) {
         RenderEntityHeader *header =(RenderEntityHeader *)at;
         switch (header->type) {
             case RenderType_RenderEntityClear: {
@@ -709,13 +807,13 @@ RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer,
             case RenderType_RenderEntityCoordinateSystem: {
                 RenderEntityCoordinateSystem *piece = (RenderEntityCoordinateSystem *)at;
 #if 0
-                vec2 dim = vec2{4.0f, 4.0f};
-                vec2 R = 0.5f * dim;
-                vec4 yellow = vec4{1.0f, 1.0f, 0.0f, 1.0f};
-                vec4 purple = vec4{1.0f, 0.0f, 1.0f, 1.0f};
-                vec2 origin = piece->origin;
-                vec2 axisX = piece->axisX;
-                vec2 axisY = piece->axisY;
+                v2 dim = v2{4.0f, 4.0f};
+                v2 R = 0.5f * dim;
+                v4 yellow = v4{1.0f, 1.0f, 0.0f, 1.0f};
+                v4 purple = v4{1.0f, 0.0f, 1.0f, 1.0f};
+                v2 origin = piece->origin;
+                v2 axisX = piece->axisX;
+                v2 axisY = piece->axisY;
                 draw_rect_fast(outputBuffer, origin, axisX, axisY, piece->bmp);
                 DrawRect(outputBuffer, origin - R, origin + R, yellow);
                 DrawRect(outputBuffer, origin + axisX - R, origin + axisX + R, yellow);
@@ -728,6 +826,7 @@ RenderGroupToOutput(RenderGroup *renderGroup, Bitmap *outputBuffer,
             INVALID_DEFAULT_CASE
         }
     }
+#endif
 
     platform->platform_complete_all_work(transState->highPriorityQueue);
 

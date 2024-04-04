@@ -22,8 +22,10 @@
 // debug.
 internal void
 init_debug(Debug_Log *debug_log, Memory_Arena *arena);
+
 internal void
-display_debug_info(Debug_Log *debug_log, RenderGroup *render_group, Game_Assets *game_assets, Memory_Arena *arena);
+display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets *game_assets, Memory_Arena *arena);
+
 internal void
 end_debug_log(Debug_Log *debug_log);
 
@@ -198,6 +200,7 @@ GetBitmap(TransientState *transState, Asset_ID assetID,
 extern "C"
 GAME_MAIN(GameMain) {
 
+
     ///////////////////////////////////////////////////////////////////////////
     //
     // Init GameState
@@ -221,11 +224,11 @@ GAME_MAIN(GameMain) {
 
         gameState->player = PushEntity(worldArena, chunkHashmap, EntityType_Player, {0, 0, 0});
 
-        PushEntity(worldArena, chunkHashmap, EntityType_Familiar, {0, 0, 0, vec3{3.0f, 0.0f, 0.0f}});
+        PushEntity(worldArena, chunkHashmap, EntityType_Familiar, {0, 0, 0, v3{3.0f, 0.0f, 0.0f}});
 
 
 #if 0
-        PushEntity(worldArena, chunkHashmap, EntityType_Golem, {0, 0, 0, vec3{3.0f, 3.0f, 0.0f}});
+        PushEntity(worldArena, chunkHashmap, EntityType_Golem, {0, 0, 0, v3{3.0f, 3.0f, 0.0f}});
 #endif
 
         gameState->camera = {};
@@ -237,7 +240,7 @@ GAME_MAIN(GameMain) {
             for (s32 Y = -4; Y <= 4; ++Y) {
                 if (X == -8 || X == 8 || Y == -4 || Y == 4) {
                     if (X != 0 && Y != 0) {
-                        vec3 dim = {1.0f, 1.0f, 1.0f};
+                        v3 dim = {1.0f, 1.0f, 1.0f};
                         Position pos = {chunk->chunkX, chunk->chunkY, chunk->chunkZ};
                         pos.offset.x += dim.x * X;
                         pos.offset.y += dim.y * Y;
@@ -303,10 +306,32 @@ GAME_MAIN(GameMain) {
         load_font(&gameState->worldArena, gameMemory->platform.debug_platform_read_file, &transState->gameAssets);
    }
 
-    TemporaryMemory renderMemory = BeginTemporaryMemory(&transState->transientArena);
-    RenderGroup *renderGroup = AllocRenderGroup(&transState->transientArena);
+    Bitmap drawBuffer = {};
+    drawBuffer.width = gameScreenBuffer->width;
+    drawBuffer.height = gameScreenBuffer->height;
+    drawBuffer.pitch = gameScreenBuffer->pitch;
+    drawBuffer.memory = gameScreenBuffer->memory;
 
-    vec3 chunkDim = gameState->world->chunkDim;
+    TemporaryMemory renderMemory = BeginTemporaryMemory(&transState->transientArena);
+
+    //
+    // Ground Render Group
+    //
+    Render_Group *ground_render_group = AllocRenderGroup(&transState->transientArena);
+
+    push_rect(ground_render_group, v3{0.0f, 0.0f, 0.0f},
+            v2{0.0f, 0.0f}, v2{(r32)gameScreenBuffer->width, (r32)gameScreenBuffer->height},
+            v4{0.2f, 0.3f, 0.3f, 1.0f});
+
+    RenderGroupToOutput(ground_render_group, &drawBuffer, transState, &gameMemory->platform);
+
+
+
+
+
+    Render_Group *render_group = AllocRenderGroup(&transState->transientArena);
+
+    v3 chunkDim = gameState->world->chunkDim;
     r32 ppm = gameState->world->ppm;
     r32 dt = gameInput->dt_per_frame;
 
@@ -345,8 +370,8 @@ GAME_MAIN(GameMain) {
     gameState->camera.pos = player->pos;
 #endif
     Position camPos = gameState->camera.pos;
-    vec2 camScreenPos = {gameScreenBuffer->width * 0.5f, gameScreenBuffer->height * 0.5f};
-    vec3 camDim = {100.0f, 50.0f, 0.0f};
+    v2 camScreenPos = {gameScreenBuffer->width * 0.5f, gameScreenBuffer->height * 0.5f};
+    v3 camDim = {100.0f, 50.0f, 0.0f};
     Position minPos = camPos;
     Position maxPos = camPos;
     minPos.offset -= 0.5f * camDim;
@@ -363,20 +388,10 @@ GAME_MAIN(GameMain) {
     //
     // Render entities
     //
-    Bitmap drawBuffer = {};
-    drawBuffer.width = gameScreenBuffer->width;
-    drawBuffer.height = gameScreenBuffer->height;
-    drawBuffer.pitch = gameScreenBuffer->pitch;
-    drawBuffer.memory = gameScreenBuffer->memory;
-
     gameState->time += 0.01f;
     r32 angle = gameState->time;
 
     Game_Assets *gameAssets = &transState->gameAssets;
-
-    push_rect(renderGroup, vec2{},
-            vec2{(r32)gameScreenBuffer->width, (r32)gameScreenBuffer->height},
-            vec4{0.2f, 0.3f, 0.3f, 1.0f});
 
     for (s32 Y = minPos.chunkY;
             Y <= maxPos.chunkY;
@@ -389,35 +404,35 @@ GAME_MAIN(GameMain) {
             for (Entity *entity = chunk->entities.head;
                     entity != 0;
                     entity = entity->next) {
-                vec3 diff = Subtract(camPos, entity->pos, chunkDim);
-                vec2 cen = camScreenPos;
+                v3 diff = Subtract(camPos, entity->pos, chunkDim);
+                v2 cen = camScreenPos;
                 cen.x -= diff.x * ppm;
                 cen.y += diff.y * ppm;
-                vec2 dim = ppm * vec2{entity->dim.x, entity->dim.y};
-                vec2 min = cen - 0.5f * dim;
-                vec2 max = cen + 0.5f * dim;
+                v2 dim = ppm * v2{entity->dim.x, entity->dim.y};
+                v2 min = cen - 0.5f * dim;
+                v2 max = cen + 0.5f * dim;
+                v3 base = v3{cen.x, cen.y, 0};
 
                 switch (entity->type) {
                     case EntityType_Player: {
                         s32 face = entity->face;
-                        vec2 bmpDim = vec2{(r32)gameAssets->playerBmp[face]->width, (r32)gameAssets->playerBmp[face]->height};
-                        push_bitmap(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, gameAssets->playerBmp[face]);
-#if 1
-#else
+                        v2 bmpDim = v2{(r32)gameAssets->playerBmp[face]->width, (r32)gameAssets->playerBmp[face]->height};
+                        push_bitmap(render_group, base, cen - 0.5f * bmpDim, v2{bmpDim.x, 0}, v2{0, bmpDim.y}, gameAssets->playerBmp[face]);
+#if 0
                         //
                         //
                         // Rotation Demo
                         //
                         PushBitmap(renderGroup,
                                 cen - 0.5f * bmpDim,
-                                bmpDim.x * vec2{Cos(angle), Sin(angle)},
-                                bmpDim.y * vec2{-Sin(angle), Cos(angle)},
+                                bmpDim.x * v2{Cos(angle), Sin(angle)},
+                                bmpDim.y * v2{-Sin(angle), Cos(angle)},
                                 &gameState->playerBmp[face]);
-                        vec2 dotDim {5.0f, 5.0f};
-                        vec2 origin = cen - 0.5f * bmpDim;
-                        PushRect(renderGroup, origin - 0.5f * dotDim, origin + 0.5f * dotDim, vec4{1.0f, 1.0f, 1.0f, 1.0f});
-                        PushRect(renderGroup, origin + vec2{bmpDim.x * Cos(angle), bmpDim.x * Sin(angle)} - 0.5f * dotDim, origin + vec2{bmpDim.x * Cos(angle), bmpDim.x * Sin(angle)} + 0.5f * dotDim, vec4{1.0f, 0.2f, 0.2f, 1.0f});
-                        PushRect(renderGroup, origin + vec2{bmpDim.y * -Sin(angle), bmpDim.y * Cos(angle)} - 0.5f * dotDim, origin + vec2{bmpDim.y * -Sin(angle), bmpDim.y * Cos(angle)} + 0.5f * dotDim, vec4{0.2f, 1.0f, 0.2f, 1.0f});
+                        v2 dotDim {5.0f, 5.0f};
+                        v2 origin = cen - 0.5f * bmpDim;
+                        PushRect(renderGroup, origin - 0.5f * dotDim, origin + 0.5f * dotDim, v4{1.0f, 1.0f, 1.0f, 1.0f});
+                        PushRect(renderGroup, origin + v2{bmpDim.x * Cos(angle), bmpDim.x * Sin(angle)} - 0.5f * dotDim, origin + v2{bmpDim.x * Cos(angle), bmpDim.x * Sin(angle)} + 0.5f * dotDim, v4{1.0f, 0.2f, 0.2f, 1.0f});
+                        PushRect(renderGroup, origin + v2{bmpDim.y * -Sin(angle), bmpDim.y * Cos(angle)} - 0.5f * dotDim, origin + v2{bmpDim.y * -Sin(angle), bmpDim.y * Cos(angle)} + 0.5f * dotDim, v4{0.2f, 1.0f, 0.2f, 1.0f});
 #endif
 
 #if 0
@@ -425,12 +440,12 @@ GAME_MAIN(GameMain) {
                         //
                         // Particle System Demo
                         //
-                        vec2 O = vec2{cen.x, cen.y + 0.5f * bmpDim.y};
-                        vec2 particleDim = ppm * vec2{0.5f, 0.5f}; 
+                        v2 O = v2{cen.x, cen.y + 0.5f * bmpDim.y};
+                        v2 particleDim = ppm * v2{0.5f, 0.5f}; 
                         r32 restitutionC = 0.8f;
                         r32 gridSide = 0.2f;
                         r32 gridSideInPixel = gridSide * ppm;
-                        vec2 gridO = vec2{O.x - (GRID_X / 2.0f) * gridSideInPixel, O.y};
+                        v2 gridO = v2{O.x - (GRID_X / 2.0f) * gridSideInPixel, O.y};
                         r32 invMax = 1.0f / 15.0f;
 
 
@@ -443,9 +458,9 @@ GAME_MAIN(GameMain) {
                                     gridX < GRID_X;
                                     ++gridX) {
                                 PushRect(renderGroup,
-                                        vec2{gridO.x + (r32)gridX * gridSideInPixel, gridO.y - (r32)(gridY + 1) * gridSideInPixel},
-                                        vec2{gridO.x + (r32)(gridX + 1) * gridSideInPixel, gridO.y - (r32)gridY * gridSideInPixel},
-                                        vec4{gameState->particleGrid[gridY][gridX].density * invMax, 0.0f, 0.0f, 1.0f});
+                                        v2{gridO.x + (r32)gridX * gridSideInPixel, gridO.y - (r32)(gridY + 1) * gridSideInPixel},
+                                        v2{gridO.x + (r32)(gridX + 1) * gridSideInPixel, gridO.y - (r32)gridY * gridSideInPixel},
+                                        v4{gameState->particleGrid[gridY][gridX].density * invMax, 0.0f, 0.0f, 1.0f});
                             }
                         }
 #endif
@@ -461,8 +476,8 @@ GAME_MAIN(GameMain) {
                                 gameState->particleNextIdx = 0; 
                             }
 
-                            particle->P = vec3{RandRange(&gameState->particleRandomSeries, -0.2f, 0.2f), 0.0f, 0.0f};
-                            particle->V = vec3{RandRange(&gameState->particleRandomSeries, -0.5f, 0.5f), RandRange(&gameState->particleRandomSeries, 7.0f, 8.0f), 0.0f};
+                            particle->P = v3{RandRange(&gameState->particleRandomSeries, -0.2f, 0.2f), 0.0f, 0.0f};
+                            particle->V = v3{RandRange(&gameState->particleRandomSeries, -0.5f, 0.5f), RandRange(&gameState->particleRandomSeries, 7.0f, 8.0f), 0.0f};
                             particle->alpha = 0.01f;
                             particle->dAlpha = 1.0f;
                         }
@@ -474,11 +489,11 @@ GAME_MAIN(GameMain) {
                             Particle *particle = gameState->particles + particleIdx; 
 
                             // Integrate gravity.
-                            particle->A = vec3{0.0f, -9.81f, 0.0f};
+                            particle->A = v3{0.0f, -9.81f, 0.0f};
                             particle->V += dt * particle->A;
                             
                             // Iterate particles and add grid info.
-                            vec2 P = O + vec2{particle->P.x * ppm, -particle->P.y * ppm} - gridO;
+                            v2 P = O + v2{particle->P.x * ppm, -particle->P.y * ppm} - gridO;
                             s32 gridX = Clamp(FloorR32ToS32(P.x) / (s32)gridSideInPixel, 0, GRID_X - 1);
                             s32 gridY = Clamp(FloorR32ToS32(-P.y) / (s32)gridSideInPixel, 0, GRID_Y - 1);
                             r32 density = particle->alpha;
@@ -516,7 +531,7 @@ GAME_MAIN(GameMain) {
                                 particleIdx < ArrayCount(gameState->particles);
                                 ++particleIdx) {
                             Particle *particle = gameState->particles + particleIdx;
-                            vec2 P = O + vec2{particle->P.x * ppm, -particle->P.y * ppm} - gridO;
+                            v2 P = O + v2{particle->P.x * ppm, -particle->P.y * ppm} - gridO;
                             s32 gridX = Clamp(FloorR32ToS32(P.x) / (s32)gridSideInPixel, 0, GRID_X - 1);
                             s32 gridY = Clamp(FloorR32ToS32(-P.y) / (s32)gridSideInPixel, 0, GRID_Y - 1);
                             particle->V = gameState->particleGrid[gridY][gridX].V;
@@ -537,15 +552,15 @@ GAME_MAIN(GameMain) {
                             }
 
                             // Render Particle
-                            vec2 particleCen = cen + ppm * vec2{particle->P.x, -particle->P.y};
+                            v2 particleCen = cen + ppm * v2{particle->P.x, -particle->P.y};
                             particleCen.y += bmpDim.y * 0.5f;
                             r32 scale = 0.3f;
                             Bitmap *bitmap = GetBitmap(transState, GAI_Particle, transState->lowPriorityQueue, &gameMemory->platform);
                             if (bitmap) {
-                                push_bitmap(renderGroup,
+                                push_bitmap(renderGroup, base,
                                         particleCen - 0.5f * particleDim,
-                                        vec2{particleDim.x * scale, 0}, vec2{0, particleDim.y * scale},
-                                        bitmap, vec4{1.0f, 1.0f, 1.0f, particle->alpha});
+                                        v2{particleDim.x * scale, 0}, v2{0, particleDim.y * scale},
+                                        bitmap, v4{1.0f, 1.0f, 1.0f, particle->alpha});
                             }
 
                         }
@@ -556,15 +571,15 @@ GAME_MAIN(GameMain) {
                     case EntityType_Tree: {
                         Bitmap *bitmap = GetBitmap(transState, GAI_Tree, transState->lowPriorityQueue, &gameMemory->platform);
                         if (bitmap) {
-                            vec2 bmpDim = vec2{(r32)bitmap->width, (r32)bitmap->height};
-                            push_bitmap(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, bitmap);
+                            v2 bmpDim = v2{(r32)bitmap->width, (r32)bitmap->height};
+                            push_bitmap(render_group, base, cen - 0.5f * bmpDim, v2{bmpDim.x, 0}, v2{0, bmpDim.y}, bitmap);
                         }
                     } break;
 
                     case EntityType_Familiar: {
                         s32 face = entity->face;
-                        vec2 bmpDim = vec2{(r32)gameAssets->familiarBmp[face]->width, (r32)gameAssets->familiarBmp[face]->height};
-                        push_bitmap(renderGroup, cen - 0.5f * bmpDim, vec2{bmpDim.x, 0}, vec2{0, bmpDim.y}, gameAssets->familiarBmp[face]);
+                        v2 bmpDim = v2{(r32)gameAssets->familiarBmp[face]->width, (r32)gameAssets->familiarBmp[face]->height};
+                        push_bitmap(render_group, base, cen - 0.5f * bmpDim, v2{bmpDim.x, 0}, v2{0, bmpDim.y}, gameAssets->familiarBmp[face]);
                     } break;
 
                     case EntityType_Golem: {
@@ -579,9 +594,8 @@ GAME_MAIN(GameMain) {
             }
         }
     }
-    
 
-    RenderGroupToOutput(renderGroup, &drawBuffer, transState, &gameMemory->platform);
+    RenderGroupToOutput(render_group, &drawBuffer, transState, &gameMemory->platform);
 
     EndTemporaryMemory(&renderMemory);
 
@@ -591,7 +605,7 @@ GAME_MAIN(GameMain) {
     //
 #ifdef __DEBUG
     TemporaryMemory debug_render_memory = BeginTemporaryMemory(&gameState->debug_arena);
-    RenderGroup *debug_render_group = AllocRenderGroup(&gameState->debug_arena);
+    Render_Group *debug_render_group = AllocRenderGroup(&gameState->debug_arena);
 
     if (gameState->debug_mode) {
         display_debug_info(&g_debug_log, debug_render_group, gameAssets, &gameState->debug_arena);
@@ -627,7 +641,7 @@ init_debug(Debug_Log *debug_log, Memory_Arena *arena) {
 }
 
 internal void
-display_debug_info(Debug_Log *debug_log, RenderGroup *render_group, Game_Assets *game_assets, Memory_Arena *arena) {
+display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets *game_assets, Memory_Arena *arena) {
     for (u32 record_idx = 0;
             record_idx < debug_log->record_width;
             ++record_idx) {
@@ -640,7 +654,7 @@ display_debug_info(Debug_Log *debug_log, RenderGroup *render_group, Game_Assets 
                     info->function,
                     info->line,
                     info->avg_cycles);
-        push_text(render_group, buf, game_assets, 1.0f);
+        push_text(render_group, v3{0.0f, 0.0f, 0.0f}, buf, game_assets, 1.0f);
 
 #if 1
         // draw graph.
@@ -657,8 +671,8 @@ display_debug_info(Debug_Log *debug_log, RenderGroup *render_group, Game_Assets 
                 ++frame) {
             Debug_Record *record = g_debug_log.debug_records + frame * g_debug_log.record_width + record_idx;
             r32 height = max_height * record->cycles * inv_max_cycles;
-            vec2 min = vec2{x + width * frame, 100.0f + max_height * record_idx - height};
-            push_rect(render_group, min, min + vec2{width * 0.5f, height}, vec4{1.0f, 1.0f, 0.5f, 1.0f});
+            v2 min = v2{x + width * frame, 100.0f + max_height * record_idx - height};
+            push_rect(render_group, v3{0.0f, 0.0f, 0.0f}, min, min + v2{width * 0.5f, height}, v4{1.0f, 1.0f, 0.5f, 1.0f});
         }
 #endif
 

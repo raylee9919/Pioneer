@@ -53,7 +53,7 @@ struct Position {
     s32 chunkX;
     s32 chunkY;
     s32 chunkZ;
-    vec3 offset;
+    v3 offset;
 };
 
 struct Camera {
@@ -73,10 +73,10 @@ enum EntityFlag {
 
 struct Entity {
     EntityType type;
-    vec3 dim;
+    v3 dim;
     Position pos;
-    vec3 velocity;
-    vec3 accel;
+    v3 velocity;
+    v3 accel;
     r32 u;
     Bitmap bmp;
     u32 flags;
@@ -111,24 +111,24 @@ struct World {
     r32 ppm;
 
     ChunkHashmap chunkHashmap;
-    vec3 chunkDim;
+    v3 chunkDim;
 
     Entity entities[1024];
     u32 entityCount;
 };
 
 struct Particle {
-    vec3 P;
-    vec3 V;
-    vec3 A;
+    v3 P;
+    v3 V;
+    v3 A;
     r32 alpha;
     r32 dAlpha;
 };
 
 struct ParticleCel {
     r32 density;
-    vec3 VSum;
-    vec3 V;
+    v3 VSum;
+    v3 V;
 };
 
 struct Kerning {

@@ -198,7 +198,7 @@ Font Rendering
 
 
 
-                        Theme 4. Debug Infrastructure
+                            Theme 4. Debug Infrastructure
 
 Why?
     Coax bugs to the surface. Locate bugs that are clearly present but difficult 
@@ -213,11 +213,14 @@ Log
       watch window.
 
 
-                    
 
 
+                            Theme 5. Sorting Render Group
 
-
-
-
-
+Bubble Sort
+Merge Sort
+Radix Sort
+Quick Sort
+Insertion Sort
+Stable Sort
+etc.

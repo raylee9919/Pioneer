@@ -118,7 +118,7 @@ PushEntity(Memory_Arena *arena, ChunkHashmap *hashmap, EntityType type, Position
 }
 
 internal void
-RecalcPos(Position *pos, vec3 chunkDim) {
+RecalcPos(Position *pos, v3 chunkDim) {
     r32 boundX = chunkDim.x * 0.5f;
     r32 boundY = chunkDim.y * 0.5f;
     r32 boundZ = chunkDim.z * 0.5f;
@@ -183,9 +183,9 @@ MapEntityToChunk(Memory_Arena *arena, ChunkHashmap *hashmap, Entity *entity,
     }
 }
 
-internal vec3
-Subtract(Position A, Position B, vec3 chunkDim) {
-    vec3 diff = {};
+internal v3
+Subtract(Position A, Position B, v3 chunkDim) {
+    v3 diff = {};
     diff.x = (r32)(A.chunkX - B.chunkX) * chunkDim.x;
     diff.y = (r32)(A.chunkY - B.chunkY) * chunkDim.y;
     diff.z = (r32)(A.chunkZ - B.chunkZ) * chunkDim.z;
@@ -207,7 +207,7 @@ UpdateEntityPos(GameState *gameState, Entity *self, r32 dt, Position simMin, Pos
     // NOTE: Minkowski Collision
     r32 tRemain = dt;
     r32 epsilon = 0.001f;
-    vec3 vTotal = self->velocity;
+    v3 vTotal = self->velocity;
     for (s32 count = 0;
             count < 4 && tRemain > 0.0f;
             ++count) {
@@ -230,12 +230,12 @@ UpdateEntityPos(GameState *gameState, Entity *self, r32 dt, Position simMin, Pos
                                 IsSet(other, EntityFlag_Collides) ) {
                             // NOTE: For now, we will test entities on same level.
                             if (self->pos.chunkZ == other->pos.chunkZ) {
-                                vec3 boxDim = self->dim + other->dim;
-                                Rect3 box = {vec3{0, 0, 0}, boxDim};
-                                vec3 min = -0.5f * boxDim;
-                                vec3 max = 0.5f * boxDim;
-                                vec3 oldRelP = Subtract(oldPos, other->pos, gameState->world->chunkDim);
-                                vec3 newRelP = Subtract(newPos, other->pos, gameState->world->chunkDim);
+                                v3 boxDim = self->dim + other->dim;
+                                Rect3 box = {v3{0, 0, 0}, boxDim};
+                                v3 min = -0.5f * boxDim;
+                                v3 max = 0.5f * boxDim;
+                                v3 oldRelP = Subtract(oldPos, other->pos, gameState->world->chunkDim);
+                                v3 newRelP = Subtract(newPos, other->pos, gameState->world->chunkDim);
                                 r32 tUsed = 0.0f;
                                 u32 axis = 0;
                                 if (IsPointInRect(newRelP, box)) {
@@ -265,9 +265,9 @@ UpdateEntityPos(GameState *gameState, Entity *self, r32 dt, Position simMin, Pos
                                     }
 
                                     tUsed -= epsilon;
-                                    vec3 vUsed = tUsed * vTotal;
+                                    v3 vUsed = tUsed * vTotal;
                                     tRemain -= tUsed;
-                                    vec3 vRemain = tRemain * vTotal;
+                                    v3 vRemain = tRemain * vTotal;
                                     if (axis == 0) {
                                         vRemain.x *= -1;
                                     } else {
@@ -331,10 +331,10 @@ UpdateEntities(GameState *gameState, r32 dt, Position simMin, Position simMax) {
                             if (entity->velocity.x < -epsilon) {
                                 entity->face = 1;
                             }
-                            vec3 V = Subtract(gameState->player->pos, entity->pos, gameState->world->chunkDim);
+                            v3 V = Subtract(gameState->player->pos, entity->pos, gameState->world->chunkDim);
                             r32 dist = Len(V);
                             V *= (1.0f / Len(V));
-                            entity->accel = (dist > 2.5f) ? V : vec3{};
+                            entity->accel = (dist > 2.5f) ? V : v3{};
                             UpdateEntityPos(gameState, entity, dt, simMin, simMax);
                         } break;
 
