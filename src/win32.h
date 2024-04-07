@@ -22,10 +22,10 @@ struct Win32WindowDimension {
 
 struct Win32State {
     HANDLE record_file;
-    bool32 is_recording;
-    bool32 is_playing;
+    b32 is_recording;
+    b32 is_playing;
     void *game_memory;
-    uint64 game_mem_total_cap;
+    u64 game_mem_total_cap;
 };
 
 #define WIN32_GAME_H

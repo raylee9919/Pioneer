@@ -49,7 +49,7 @@ Win32LoadXInput() {
 }
 
 internal void
-Win32InitOpenGL(HWND window) {
+win32_init_openGL(HWND window) {
     HDC windowDC = GetDC(window);
 
     PIXELFORMATDESCRIPTOR desiredPixelFormat = {};
@@ -66,7 +66,9 @@ Win32InitOpenGL(HWND window) {
     DescribePixelFormat(windowDC, suggestedPixelFormatIndex, sizeof(suggestedPixelFormat), &suggestedPixelFormat);
     SetPixelFormat(windowDC, suggestedPixelFormatIndex, &suggestedPixelFormat);
 
+    // finally, create context.
     HGLRC openGLRC = wglCreateContext(windowDC);
+    // associate with the thread.
     if (wglMakeCurrent(windowDC, openGLRC)) {
 
     } else {
@@ -137,32 +139,96 @@ Win32ResizeDIBSection(Win32ScreenBuffer *screen_buffer, int width, int height) {
             MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 }
 
-internal void 
-Win32UpdateScreen(HDC hdc, int windowWidth, int windowHeight) {
-    // NOTE: For debugging purpose
-    StretchDIBits(hdc,
-#if 0
-            0, 0, g_screen_buffer.width, g_screen_buffer.height,
-#else
-            0, 0, windowWidth, windowHeight,
-#endif
-            0, 0, g_screen_buffer.width, g_screen_buffer.height,
-            g_screen_buffer.memory, &g_screen_buffer.bitmap_info, DIB_RGB_COLORS, SRCCOPY);
+internal void
+gl_draw() {
 }
 
-internal inline LARGE_INTEGER
-Win32GetClock() {
-         LARGE_INTEGER result;
-         QueryPerformanceCounter(&result);
+internal void 
+win32_update_screen(HDC hdc, int windowWidth, int windowHeight) {
+    // NOTE: For debugging purpose
+#if 0
+    StretchDIBits(hdc,
+  #if 0
+            0, 0, g_screen_buffer.width, g_screen_buffer.height,
+  #else
+            0, 0, windowWidth, windowHeight,
+  #endif
+            0, 0, g_screen_buffer.width, g_screen_buffer.height,
+            g_screen_buffer.memory, &g_screen_buffer.bitmap_info, DIB_RGB_COLORS, SRCCOPY);
+#else
+    glViewport(0, 0, windowWidth, windowHeight);
 
-         return result;
+    glBindTexture(GL_TEXTURE_2D, 1);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, g_screen_buffer.width, g_screen_buffer.height,
+            0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, g_screen_buffer.memory);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+    glEnable(GL_TEXTURE_2D);
+
+    glMatrixMode(GL_TEXTURE);
+    glLoadIdentity();
+
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    glMatrixMode(GL_PROJECTION);
+    r32 width = (r32)g_screen_buffer.width;
+    r32 height = (r32)g_screen_buffer.height;
+    r32 w = 2.0f / width;
+    r32 h = 2.0f / height;
+    r32 proj[] = {
+        w,  0,  0,  0,
+        0,  h,  0,  0,
+        0,  0,  1,  0,
+       -1, -1,  0,  1
+    };
+    glLoadMatrixf(proj);
+
+    glBegin(GL_TRIANGLES);
+    
+    // TODO: examine why it is upside-down!
+
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex2f(0.0f, height);
+
+    glTexCoord2f(1.0f, 0.0f);
+    glVertex2f(width, height);
+
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex2f(width, 0.0f);
+
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex2f(0.0f, height);
+
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex2f(width, 0.0f);
+
+    glTexCoord2f(0.0f, 1.0f);
+    glVertex2f(0.0f, 0.0f);
+
+    glEnd();
+
+    // hey, I'll kick off. It's now up to you mr. driver.
+    SwapBuffers(hdc);
+#endif
+}
+
+inline LARGE_INTEGER
+Win32GetClock() {
+    LARGE_INTEGER result;
+    QueryPerformanceCounter(&result);
+
+    return result;
 }
 
 internal inline r32
 Win32GetElapsedSec(LARGE_INTEGER begin, LARGE_INTEGER end) {
-    r32 result = (r32)(end.QuadPart - begin.QuadPart)
-    / (r32)g_counter_hz.QuadPart;
-
+    r32 result = (r32)(end.QuadPart - begin.QuadPart) / (r32)g_counter_hz.QuadPart;
     return result;
 }
 
@@ -362,7 +428,7 @@ Win32WindowCallback(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
             HDC hdc = BeginPaint(hwnd, &paint);
             Assert(hdc != 0);
             Win32WindowDimension wd = Win32GetWindowDimension(hwnd);
-            Win32UpdateScreen(hdc, wd.width, wd.height);
+            win32_update_screen(hdc, wd.width, wd.height);
             ReleaseDC(hwnd, hdc);
             EndPaint(hwnd, &paint);
         } break;
@@ -517,14 +583,14 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     Win32ResizeDIBSection(&g_screen_buffer, 1920, 1080);
 
     HWND hwnd = CreateWindowExA(
-            0, wnd_class.lpszClassName, "Winter Serenity",
+            0, wnd_class.lpszClassName, "Game",
             WS_OVERLAPPEDWINDOW | WS_VISIBLE,
             CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
             0, 0, hinst, 0);
+    Assert(hwnd);
 
-    if (hwnd) {
-        Win32ToggleFullScreen(hwnd);
-    }
+    Win32ToggleFullScreen(hwnd);
+    win32_init_openGL(hwnd);
 
     Win32LoadXInput();
 
@@ -716,7 +782,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
          Win32WindowDimension wd = Win32GetWindowDimension(hwnd);
          HDC dc = GetDC(hwnd);
          Assert(dc != 0);
-         Win32UpdateScreen(dc, wd.width, wd.height);
+         win32_update_screen(dc, wd.width, wd.height);
          ReleaseDC(hwnd, dc);
 
          LARGE_INTEGER counter_end = Win32GetClock();

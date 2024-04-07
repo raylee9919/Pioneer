@@ -9,9 +9,7 @@
 
 
 
-
-
-                            Theme 0. CPU SIMD
+                                Theme 0. CPU SIMD
 
   Unaligned Store can be pretty expensive. Most of the time, you wanna keep the 
 perspective to keep things aligned. Since, We are now using 128-bit wide vector,
@@ -224,3 +222,121 @@ Quick Sort
 Insertion Sort
 Stable Sort
 etc.
+
+
+
+
+                                Theme 6. GPU/OpenGL
+
+CPU packs commands in the buffer and transmitted to GPU through PCI bus. GPU 
+actually executes those commands, not CPU. CPU just tells it to do so.
+
+open32.lib is just a point to link to OS services. It will either lead straight 
+to the driver or OS first and then driver.
+
+Dedicated 3d acceleration hardware is built-in these days.
+
+For all this time, Windows has been moving CPU rendered bitmap in the main 
+memory (16GB) to GPU's memory(1GB) silently. Then GPU has been encoding data to 
+HDMI/DVI format and sending to screen. It ain't always the case. This is the
+case when CPU and GPU are on separate card. Typical mobile setup share one bank
+of memory. Integrated Intel Skylake chips too.
+
+
+          CPU --- System Ram ----------- Graphics Ram --- GPU
+                               PCI bus
+
+So there's a speed hit when transferring between two sections. It's more about 
+latency. It isn't so much about bandwidth. It's like a very big pipe that is 
+very long.
+
+So why can't CPU do all the work? It is about a tradeoff in terms of memory 
+architectures and instruction architectures. CPU and GPU started very different
+in pre-millennium era. They are getting similar over the years. CPU was about 
+single thread fast heterogenous SISD. A huge amount of general stuff has been 
+crafted into GPU, and a huge amount of PERF specific stuff has been crafted into
+CPU. Both CPU and GPU are now set up to do both things.
+
+We don't necessarily know the exact GPU architecture, cuz NVIDIA won't tell us. 
+Basically, GPU consists of tons of ALUs. Unlike CPU is 4 or 8-wide, GPU is more
+like 16 or 32-wide.
+
+            CUDA core = GPU cores * width of ALU * number of ALUs
+
+don't be a fool. It's ridiculous.
+
+GPUs are designed to execute shader code which pretty much looks like a CPU code 
+16 or 32-wide. GPUs aren't set up to do CPUs' specialized random accessing memory,
+jumps, executing branched code, etc. They are made to do much more coherent code.
+It depends on parallelism.
+
+GPU rendering is pretty much like our software-rendering code. It masks out 
+untouched pixel from triangles. So how does 'if' work in GPU then? There's no 
+such thing as a branch not taken in GPU world. Loops are the same. They loop until
+the very last guy tests for the loop.
+
+Warp is a 16 or 32 guys who are in together. They are gonna go through loops 
+and branches all together always. To sum it up, GPUs are very 'masky', very 'wide'.
+
+There's a concept called 'mapped'. A portion of CPU side system RAM is mapped to
+GPU side graphics RAM. These days, GPU has a so called 'copy engine', a
+DMA controller. They take instructions to grab memory from system RAM. So, 
+'mapped' in nowadays ends up meaning putting something in a range of memory so 
+that the GPUs' copy engines can see and get. So when the GPU tries to grab a 
+memory, the memory better be in RAM, not virtual disk memory, at least. So, it 
+locks down the memory in the RAM until GPU reads it and confirms that it no 
+longer needs it. So, the concept tends to end up being a lot less about thinking 
+of in terms of shared memory like synchronization between it, and more about 
+transfers where we lock the memory in system side and tell the GPU to read from 
+it or write to it. So how are we gonna tell the GPU what to do? You start off 
+by taking some chunk of a system RAM, lock it down, put a known binary structured 
+thing that has pointers to other locked down pieces of memory, and GPU is 
+insructed to read from the top of that and do what is says. And this particular
+piece of memory is called "Push Buffer".
+
+
+
+        -------------------
+        Game Code
+        calls opengl32.dll
+        -------------------
+
+        Push Buffer (Command Buffer)
+
+
+
+        --------------------
+        opengl32.dll
+        dynamically linked
+        -------------------
+
+
+We have to call into opengl, direct3d, vulkan... whatever because we don't know
+the format of the buffer. We can't build it up manually. We have to call into
+that to construct a push buffer. Then at some point, we trust that the driver 
+will take the ring transition and kick it off.
+
+It gets handed off the PCI bus over the GPU and it will do the work while we do
+other things. We don't wait. That is a nutshell.
+
+Like in raspberry-pi or something, in a hardware we know the exact hardware 
+configuration of it, and we have the docs and everything, we could do the low-
+level version, where u know the format of push buffer. You know how ring 0 stuff
+does the work. But in PC, there's no way you can write it yourself.
+
+Those are the reasons why putting a triangle on your screen takes cubersome 
+steps. WE NEED ONE BEEEEFY CPU. AND FCK U NVIDIA.
+
+
+Q. What about Play Station architecture? They are like integrated Intel chips, 
+so they can short-circuit things. It is certainly a better architecture.
+
+Q. How do graphcis driver optimize for specific games?
+Driver writers will take a look at the game, what does it call, what does it do,
+and optimize things for the game. It will optimize things before it kicks off to
+GPU.
+
+Q. Why GDDR? You remember fetching memory for each 4 lanes in software render
+code? That's because the system memory architecture doesn't match with the 
+SIMD code. That's why GPU has it's own arthitectured memory so they can do it
+at one go.

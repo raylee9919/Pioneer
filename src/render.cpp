@@ -742,6 +742,8 @@ RenderGroupToOutput(Render_Group *render_group, Bitmap *outputBuffer,
             case RenderType_RenderEntityBmp: {
                 RenderEntityBmp *piece = (RenderEntityBmp *)entity;
                 draw_bitmap_fast(outputBuffer, piece->origin, piece->axisX, piece->axisY, piece->bmp, piece->color);
+
+                glBegin(GL_TEXTURE_2D);
             } break;
 
             case RenderType_Render_Text: {
