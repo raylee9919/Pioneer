@@ -66,7 +66,9 @@ push_text(Render_Group *render_group, v3 base, const char *str, Game_Assets *gam
         if (glyph) {
             r32 w = (r32)bitmap->width;
             r32 h = (r32)bitmap->height;
-            push_bitmap(render_group, v3{0.0f, 0.0f, 0.0f}, v2{left_x, cen_y - glyph->ascent}, v2{w, 0.0f}, v2{0.0f, h}, bitmap);
+            if (*ch != ' ') {
+                push_bitmap(render_group, v3{0.0f, 0.0f, 0.0f}, v2{left_x, cen_y - glyph->ascent}, v2{w, 0.0f}, v2{0.0f, h}, bitmap);
+            }
             if (*(ch + 1)) {
                 kern = (r32)get_kerning(&game_assets->kern_hashmap, *ch, *(ch + 1));
                 if (game_assets->glyphs[*(ch + 1)]) {
@@ -725,7 +727,7 @@ sort_render_group(Render_Group *group) {
                 *cmp = *bubble;
                 *bubble = tmp;
                 bubble = cmp;
-            } else if (bubble->base.y > cmp->base.y) {
+            } else if (bubble->base.y < cmp->base.y) {
                 Sort_Entry tmp = *cmp;
                 *cmp = *bubble;
                 *bubble = tmp;

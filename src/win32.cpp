@@ -102,23 +102,23 @@ win32_gl_draw_bitmap(HDC hdc, v2 origin, v2 axis_x, v2 axis_y, Bitmap *bitmap, v
     glColor4f(color.r, color.g, color.b, color.a);
     
     // bottom triangle.
-    glTexCoord2f(0.0f, 0.0f);
+    glTexCoord2f(0.0f, 1.0f);
     glVertex2f(origin.x, origin.y);
 
-    glTexCoord2f(1.0f, 0.0f);
+    glTexCoord2f(1.0f, 1.0f);
     glVertex2f(origin.x + axis_x.x, origin.y + axis_x.y);
 
-    glTexCoord2f(1.0f, 1.0f);
+    glTexCoord2f(1.0f, 0.0f);
     glVertex2f(origin.x + axis_x.x + axis_y.x, origin.y + axis_x.y + axis_y.y);
 
     // upper triangle.
-    glTexCoord2f(0.0f, 0.0f);
+    glTexCoord2f(0.0f, 1.0f);
     glVertex2f(origin.x, origin.y);
 
-    glTexCoord2f(0.0f, 1.0f);
+    glTexCoord2f(0.0f, 0.0f);
     glVertex2f(origin.x + axis_y.x, origin.y + axis_y.y);
 
-    glTexCoord2f(1.0f, 1.0f);
+    glTexCoord2f(1.0f, 0.0f);
     glVertex2f(origin.x + axis_x.x + axis_y.x, origin.y + axis_x.y + axis_y.y);
 
     glEnd();
@@ -145,12 +145,12 @@ win32_gl_draw(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
     r32 width = (r32)g_screen_buffer.width;
     r32 height = (r32)g_screen_buffer.height;
     r32 w = 2.0f / width;
-    r32 h = 2.0f / height;
+    r32 h = -2.0f / height;
     r32 proj[] = {
         w,  0,  0,  0,
         0,  h,  0,  0,
         0,  0,  1,  0,
-       -1, -1,  0,  1
+       -1,  1,  0,  1
     };
     glLoadMatrixf(proj);
 
@@ -259,7 +259,7 @@ Win32GetWindowDimension(HWND hwnd) {
 
 internal void
 Win32ResizeDIBSection(Win32ScreenBuffer *screen_buffer, int width, int height) {
-    if(screen_buffer->memory) {
+    if (screen_buffer->memory) {
         VirtualFree(g_screen_buffer.memory, 0, MEM_RELEASE);
     }
 

@@ -80,9 +80,12 @@ load_bmp(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char *
     if(read.content_size != 0) {
         BMP_Info_Header *header = (BMP_Info_Header *)read.contents;
         u32 *pixels = (u32 *)((u8 *)read.contents + header->bitmap_offset);
-        result->memory = pixels;
+
+        result->memory = pixels + header->width * (header->height - 1);
         result->width = header->width;
         result->height = header->height;
+        result->pitch = -result->width * BYTES_PER_PIXEL;
+        result->size = result->width * result->height * BYTES_PER_PIXEL;
         result->handle = 0;
 
         Assert(header->compression == 3);
@@ -126,7 +129,6 @@ load_bmp(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char *
                 r32 a = (r32)((c & a_mask) >> a_shift);
 
                 r32 ra = a * inv_255f;
-
 #if 1
                 r *= ra;
                 g *= ra;
@@ -141,10 +143,6 @@ load_bmp(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char *
         }
     }
 
-    result->pitch = -result->width * BYTES_PER_PIXEL;
-    result->size = result->width * result->height * BYTES_PER_PIXEL;
-    result->memory = (u8 *)result->memory - result->pitch * (result->height - 1);
-    
     return result;
 }
 struct Load_Asset_Work_Data {
@@ -422,7 +420,7 @@ GAME_MAIN(GameMain) {
                 v3 diff = Subtract(camPos, entity->pos, chunkDim);
                 v2 cen = camScreenPos;
                 cen.x -= diff.x * ppm;
-                cen.y -= diff.y * ppm;
+                cen.y += diff.y * ppm;
                 v2 dim = ppm * v2{entity->dim.x, entity->dim.y};
                 v2 min = cen - 0.5f * dim;
                 v2 max = cen + 0.5f * dim;
