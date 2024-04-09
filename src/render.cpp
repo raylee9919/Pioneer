@@ -8,17 +8,16 @@
 
 #include "render.h"
 
-///////////////////////////////////////////////////////////////////////////////
 //
 // Push to Render Group
 //
 #define PushRenderEntity(GROUP, STRUCT, BASE) \
   (STRUCT *)__push_render_entity(GROUP, sizeof(STRUCT), RenderType_##STRUCT, BASE)
-internal RenderEntityHeader *
+internal Render_Entity_Header *
 __push_render_entity(Render_Group *renderGroup, u32 size, RenderType type, v3 base) {
     Assert(size + renderGroup->used <= renderGroup->capacity);
 
-    RenderEntityHeader *header = (RenderEntityHeader *)(renderGroup->base + renderGroup->used);
+    Render_Entity_Header *header = (Render_Entity_Header *)(renderGroup->base + renderGroup->used);
     header->type = type;
     header->size = size;
     header->base = base;
@@ -41,17 +40,52 @@ push_bitmap(Render_Group *renderGroup, v3 base, v2 origin, v2 axisX, v2 axisY,
     }
 }
 
+global_var r32 cen_y = 100.0f;
 internal void
-push_text(Render_Group *renderGroup, v3 base, const char *str, Game_Assets *gameAssets, r32 scale, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f}) {
-    Render_Text *piece = PushRenderEntity(renderGroup, Render_Text, base);
+push_text(Render_Group *render_group, v3 base, const char *str, Game_Assets *game_assets, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f}) {
+#if 0
+    Render_Text *piece = PushRenderEntity(render_group, Render_Text, base);
     if (piece) {
         piece->str = str;
         piece->game_assets = gameAssets;
-        piece->scale = scale;
         piece->color = color;
     }
+#endif
+    r32 left_x = 40.0f;
+    r32 kern = 0.0f;
+    r32 C = 0.0f;
+    r32 A = 0.0f;
+    for (const char *ch = str;
+            *ch;
+            ++ch) {
+        Asset_Glyph *glyph = game_assets->glyphs[*ch];
+        Bitmap *bitmap = &glyph->bitmap;
+        if (game_assets->glyphs[*ch]) {
+            C = (r32)game_assets->glyphs[*ch]->C;
+        }
+        if (glyph) {
+            r32 w = (r32)bitmap->width;
+            r32 h = (r32)bitmap->height;
+            push_bitmap(render_group, v3{0.0f, 0.0f, 0.0f}, v2{left_x, cen_y - glyph->ascent}, v2{w, 0.0f}, v2{0.0f, h}, bitmap);
+            if (*(ch + 1)) {
+                kern = (r32)get_kerning(&game_assets->kern_hashmap, *ch, *(ch + 1));
+                if (game_assets->glyphs[*(ch + 1)]) {
+                    A = (r32)game_assets->glyphs[*(ch + 1)]->A;
+                }
+                r32 advance_x = (glyph->B + C + A + kern);
+                left_x += advance_x;
+            }
+        } else if (*ch == ' ') {
+            // TODO: horizontal advance info in asset.
+            left_x += C + 10.0f;
+        } else {
+
+        }
+    }
+    cen_y += game_assets->v_advance;
 }
 
+#if 0
 internal void
 draw_bitmap_slow(Bitmap *buf, v2 min, Bitmap *bmp, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f}) {
     s32 minX = RoundR32ToS32(min.x);
@@ -164,10 +198,10 @@ draw_bitmap_slow(Bitmap *buf, v2 min, Bitmap *bmp, v4 color = v4{1.0f, 1.0f, 1.0
         srcRow += bmp->pitch;
     }
 }
+#endif
 
-global_var r32 cen_y = 100.0f;
+#if 0
 internal void
-// draw_text(Render_Group *renderGroup, const char *str, Game_Assets *gameAssets, r32 scale, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f}) {
 draw_text(Bitmap *buffer, Render_Text *info) {
     r32 left_x = 40.0f;
     r32 kern = 0.0f;
@@ -202,6 +236,7 @@ draw_text(Bitmap *buffer, Render_Text *info) {
     }
     cen_y += info->game_assets->v_advance;
 }
+#endif
 
 internal void
 push_rect(Render_Group *renderGroup, v3 base,
@@ -214,20 +249,8 @@ push_rect(Render_Group *renderGroup, v3 base,
     }
 }
 
-internal void
-push_coordinate_system(Render_Group *renderGroup, v3 base,
-        v2 origin, v2 axisX, v2 axisY, Bitmap *bmp) {
-    RenderEntityCoordinateSystem *piece = PushRenderEntity(renderGroup, RenderEntityCoordinateSystem, base);
-    if (piece) {
-        piece->origin = origin;
-        piece->axisX = axisX;
-        piece->axisY = axisY;
-        piece->bmp = bmp;
-    }
-}
-
 internal Render_Group *
-AllocRenderGroup(Memory_Arena *memoryArena) {
+alloc_render_group(Memory_Arena *memoryArena) {
     Render_Group *result = PushStruct(memoryArena, Render_Group);
     *result = {};
     result->capacity = MB(4);
@@ -438,6 +461,7 @@ DrawRectSlowAsf(Bitmap *buffer, v2 origin, v2 axisX, v2 axisY, Bitmap *bmp) {
 #endif
 
 
+#if 0 // pure cpu simd render.
 internal void
 draw_bitmap_fast(Bitmap *buffer, v2 origin, v2 axisX, v2 axisY, Bitmap *bmp, v4 color) {
     TIMED_BLOCK();
@@ -673,6 +697,7 @@ draw_bitmap_fast(Bitmap *buffer, v2 origin, v2 axisX, v2 axisY, Bitmap *bmp, v4 
     }
 
 }
+#endif
 
 internal void
 push_sort_entry(Render_Group *group, u8 *entity, v3 base) {
@@ -700,7 +725,7 @@ sort_render_group(Render_Group *group) {
                 *cmp = *bubble;
                 *bubble = tmp;
                 bubble = cmp;
-            } else if (bubble->base.y < cmp->base.y) {
+            } else if (bubble->base.y > cmp->base.y) {
                 Sort_Entry tmp = *cmp;
                 *cmp = *bubble;
                 *bubble = tmp;
@@ -711,15 +736,21 @@ sort_render_group(Render_Group *group) {
 }
 
 internal void
-RenderGroupToOutput(Render_Group *render_group, Bitmap *outputBuffer,
-        TransientState *transState, Platform_API *platform) {
+push_render_group(Render_Group *group, Render_Batch *batch) {
+    Assert(batch->used + sizeof(Render_Group) <= batch->size);
+    *(Render_Group *)((u8 *)batch->base + batch->used) = *group;
+    batch->used += sizeof(Render_Group);
+}
+
+internal void
+RenderGroupToOutput(Render_Group *render_group, Platform_API *platform, Render_Batch *batch) {
     TIMED_BLOCK();
 
     u8 *at = render_group->base;
 
     // add sort entries at the back of the render group.
     while (at < render_group->base + render_group->used) {
-        RenderEntityHeader *header =(RenderEntityHeader *)at;
+        Render_Entity_Header *header =(Render_Entity_Header *)at;
         push_sort_entry(render_group, at, header->base);
         at += header->size;
     }
@@ -727,109 +758,6 @@ RenderGroupToOutput(Render_Group *render_group, Bitmap *outputBuffer,
     // sort.
     sort_render_group(render_group);
 
-    // draw.
-    for (Sort_Entry *entry = (Sort_Entry *)render_group->sort_entry_begin;
-            (u8 *)entry < render_group->base + render_group->capacity;
-            ++entry) {
-
-        RenderEntityHeader *entity =(RenderEntityHeader *)entry->render_entity;
-
-        switch (entity->type) {
-            case RenderType_RenderEntityClear: {
-                RenderEntityClear *piece = (RenderEntityClear *)entity;
-            } break;
-
-            case RenderType_RenderEntityBmp: {
-                RenderEntityBmp *piece = (RenderEntityBmp *)entity;
-                draw_bitmap_fast(outputBuffer, piece->origin, piece->axisX, piece->axisY, piece->bmp, piece->color);
-
-                glBegin(GL_TEXTURE_2D);
-            } break;
-
-            case RenderType_Render_Text: {
-                Render_Text *piece = (Render_Text *)entity;
-                draw_text(outputBuffer, piece);
-            } break;
-
-            case RenderType_RenderEntityRect: {
-                RenderEntityRect *piece = (RenderEntityRect *)entity;
-                draw_rect(outputBuffer, piece->min, piece->max, piece->color);
-            } break;
-
-            case RenderType_RenderEntityCoordinateSystem: {
-                RenderEntityCoordinateSystem *piece = (RenderEntityCoordinateSystem *)entity;
-#if 0
-                v2 dim = v2{4.0f, 4.0f};
-                v2 R = 0.5f * dim;
-                v4 yellow = v4{1.0f, 1.0f, 0.0f, 1.0f};
-                v4 purple = v4{1.0f, 0.0f, 1.0f, 1.0f};
-                v2 origin = piece->origin;
-                v2 axisX = piece->axisX;
-                v2 axisY = piece->axisY;
-                draw_rect_fast(outputBuffer, origin, axisX, axisY, piece->bmp);
-                DrawRect(outputBuffer, origin - R, origin + R, yellow);
-                DrawRect(outputBuffer, origin + axisX - R, origin + axisX + R, yellow);
-                DrawRect(outputBuffer, origin + axisY - R, origin + axisY + R, yellow);
-                DrawRect(outputBuffer, origin + axisX + axisY - R, origin + axisX + axisY + R, yellow);
-#endif
-            } break;
-
-            INVALID_DEFAULT_CASE
-        }
-
-    }
-
-#if 0
-    while (at < render_group->base + render_group->used) {
-        RenderEntityHeader *header =(RenderEntityHeader *)at;
-        switch (header->type) {
-            case RenderType_RenderEntityClear: {
-                RenderEntityClear *piece = (RenderEntityClear *)at;
-                at += sizeof(*piece);
-            } break;
-
-            case RenderType_RenderEntityBmp: {
-                RenderEntityBmp *piece = (RenderEntityBmp *)at;
-                draw_bitmap_fast(outputBuffer, piece->origin, piece->axisX, piece->axisY, piece->bmp, piece->color);
-                at += sizeof(*piece);
-            } break;
-
-            case RenderType_Render_Text: {
-                Render_Text *piece = (Render_Text *)at;
-                draw_text(outputBuffer, piece);
-                at += sizeof(*piece);
-            } break;
-
-            case RenderType_RenderEntityRect: {
-                RenderEntityRect *piece = (RenderEntityRect *)at;
-                draw_rect(outputBuffer, piece->min, piece->max, piece->color);
-                at += sizeof(*piece);
-            } break;
-
-            case RenderType_RenderEntityCoordinateSystem: {
-                RenderEntityCoordinateSystem *piece = (RenderEntityCoordinateSystem *)at;
-#if 0
-                v2 dim = v2{4.0f, 4.0f};
-                v2 R = 0.5f * dim;
-                v4 yellow = v4{1.0f, 1.0f, 0.0f, 1.0f};
-                v4 purple = v4{1.0f, 0.0f, 1.0f, 1.0f};
-                v2 origin = piece->origin;
-                v2 axisX = piece->axisX;
-                v2 axisY = piece->axisY;
-                draw_rect_fast(outputBuffer, origin, axisX, axisY, piece->bmp);
-                DrawRect(outputBuffer, origin - R, origin + R, yellow);
-                DrawRect(outputBuffer, origin + axisX - R, origin + axisX + R, yellow);
-                DrawRect(outputBuffer, origin + axisY - R, origin + axisY + R, yellow);
-                DrawRect(outputBuffer, origin + axisX + axisY - R, origin + axisX + axisY + R, yellow);
-#endif
-                at += sizeof(*piece);
-            } break;
-
-            INVALID_DEFAULT_CASE
-        }
-    }
-#endif
-
-    platform->platform_complete_all_work(transState->highPriorityQueue);
-
+    // pass to platform to draw.
+    push_render_group(render_group, batch);
 }

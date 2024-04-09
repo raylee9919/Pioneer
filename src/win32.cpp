@@ -14,6 +14,7 @@
 
 #include "types.h"
 #include "game.h"
+#include "render.h"
 #include "win32.h"
 
 global_var bool g_running = true;
@@ -36,8 +37,8 @@ __XInputSetState *xinput_set_state = xinput_set_state_stub;
 internal void
 Win32LoadXInput() {
     HMODULE xinput_module = LoadLibraryA("xinput1_4.dll");
-    if(!xinput_module) { LoadLibraryA("Xinput9_1_0.dll"); }
-    if(!xinput_module) { LoadLibraryA("xinput1_3.dll"); }
+    if (!xinput_module) { LoadLibraryA("Xinput9_1_0.dll"); }
+    if (!xinput_module) { LoadLibraryA("xinput1_3.dll"); }
 
     if(xinput_module) {
         xinput_get_state = (XInput_Get_State *)GetProcAddress(xinput_module, "XInputGetState");
@@ -49,7 +50,7 @@ Win32LoadXInput() {
 }
 
 internal void
-win32_init_openGL(HWND window) {
+win32_init_opengl(HWND window) {
     HDC windowDC = GetDC(window);
 
     PIXELFORMATDESCRIPTOR desiredPixelFormat = {};
@@ -76,6 +77,147 @@ win32_init_openGL(HWND window) {
     }
 
     ReleaseDC(window, windowDC);
+}
+
+internal void
+win32_gl_draw_rect(HDC hdc, v2 min, v2 max, v4 color) {
+    glColor4f(color.r, color.g, color.b, color.a);
+    glBegin(GL_TRIANGLES);
+
+    glVertex2f(min.x, min.y);
+    glVertex2f(max.x, min.y);
+    glVertex2f(max.x, max.y);
+
+    glVertex2f(min.x, min.y);
+    glVertex2f(min.x, max.y);
+    glVertex2f(max.x, max.y);
+
+    glEnd();
+}
+
+internal void
+win32_gl_draw_bitmap(HDC hdc, v2 origin, v2 axis_x, v2 axis_y, Bitmap *bitmap, v4 color) {
+    glBegin(GL_TRIANGLES);
+
+    glColor4f(color.r, color.g, color.b, color.a);
+    
+    // bottom triangle.
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex2f(origin.x, origin.y);
+
+    glTexCoord2f(1.0f, 0.0f);
+    glVertex2f(origin.x + axis_x.x, origin.y + axis_x.y);
+
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex2f(origin.x + axis_x.x + axis_y.x, origin.y + axis_x.y + axis_y.y);
+
+    // upper triangle.
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex2f(origin.x, origin.y);
+
+    glTexCoord2f(0.0f, 1.0f);
+    glVertex2f(origin.x + axis_y.x, origin.y + axis_y.y);
+
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex2f(origin.x + axis_x.x + axis_y.x, origin.y + axis_x.y + axis_y.y);
+
+    glEnd();
+}
+
+internal void
+win32_gl_draw(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
+    glViewport(0, 0, win_w, win_h);
+
+    glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glEnable(GL_TEXTURE_2D);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+
+    glMatrixMode(GL_TEXTURE);
+    glLoadIdentity();
+
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    glMatrixMode(GL_PROJECTION);
+    r32 width = (r32)g_screen_buffer.width;
+    r32 height = (r32)g_screen_buffer.height;
+    r32 w = 2.0f / width;
+    r32 h = 2.0f / height;
+    r32 proj[] = {
+        w,  0,  0,  0,
+        0,  h,  0,  0,
+        0,  0,  1,  0,
+       -1, -1,  0,  1
+    };
+    glLoadMatrixf(proj);
+
+    for (Render_Group *group = (Render_Group *)batch->base;
+            (u8 *)group < (u8 *)batch->base + batch->used;
+            ++group) {
+        for (Sort_Entry *entry = (Sort_Entry *)group->sort_entry_begin;
+                (u8 *)entry < group->base + group->capacity;
+                ++entry) {
+
+            Render_Entity_Header *entity =(Render_Entity_Header *)entry->render_entity;
+
+            switch (entity->type) {
+                case RenderType_RenderEntityClear: {
+                    RenderEntityClear *piece = (RenderEntityClear *)entity;
+                } break;
+
+                case RenderType_RenderEntityBmp: {
+                    RenderEntityBmp *piece = (RenderEntityBmp *)entity;
+                    local_persist s32 handle_idx = 1;
+                    Bitmap *bitmap = piece->bmp;
+                    if (bitmap->handle) {
+                        glBindTexture(GL_TEXTURE_2D, bitmap->handle);
+                    } else {
+                        bitmap->handle = handle_idx++;
+                        glBindTexture(GL_TEXTURE_2D, bitmap->handle);
+                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, bitmap->width, bitmap->height,
+                                0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, (u8 *)bitmap->memory + bitmap->pitch * (bitmap->height - 1));
+
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+                        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+                    }
+
+                    win32_gl_draw_bitmap(hdc, piece->origin, piece->axisX, piece->axisY, bitmap, piece->color);
+                } break;
+
+                case RenderType_Render_Text: {
+                    Render_Text *piece = (Render_Text *)entity;
+
+                    struct Render_Text {
+                        Render_Entity_Header header;
+                        const char *str;
+                        Game_Assets *game_assets;
+                        r32 scale;
+                        v4 color;
+                    };
+
+                } break;
+
+                case RenderType_RenderEntityRect: {
+                    RenderEntityRect *piece = (RenderEntityRect *)entity;
+                    glDisable(GL_TEXTURE_2D);
+                    win32_gl_draw_rect(hdc, piece->min, piece->max, piece->color);
+                    glEnable(GL_TEXTURE_2D);
+                } break;
+
+                INVALID_DEFAULT_CASE
+            }
+
+        }
+    }
+            
+    SwapBuffers(hdc);
+    batch->used = 0;
 }
 
 internal void 
@@ -139,9 +281,6 @@ Win32ResizeDIBSection(Win32ScreenBuffer *screen_buffer, int width, int height) {
             MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 }
 
-internal void
-gl_draw() {
-}
 
 internal void 
 win32_update_screen(HDC hdc, int windowWidth, int windowHeight) {
@@ -155,66 +294,6 @@ win32_update_screen(HDC hdc, int windowWidth, int windowHeight) {
   #endif
             0, 0, g_screen_buffer.width, g_screen_buffer.height,
             g_screen_buffer.memory, &g_screen_buffer.bitmap_info, DIB_RGB_COLORS, SRCCOPY);
-#else
-    glViewport(0, 0, windowWidth, windowHeight);
-
-    glBindTexture(GL_TEXTURE_2D, 1);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, g_screen_buffer.width, g_screen_buffer.height,
-            0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, g_screen_buffer.memory);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-    glEnable(GL_TEXTURE_2D);
-
-    glMatrixMode(GL_TEXTURE);
-    glLoadIdentity();
-
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-
-    glMatrixMode(GL_PROJECTION);
-    r32 width = (r32)g_screen_buffer.width;
-    r32 height = (r32)g_screen_buffer.height;
-    r32 w = 2.0f / width;
-    r32 h = 2.0f / height;
-    r32 proj[] = {
-        w,  0,  0,  0,
-        0,  h,  0,  0,
-        0,  0,  1,  0,
-       -1, -1,  0,  1
-    };
-    glLoadMatrixf(proj);
-
-    glBegin(GL_TRIANGLES);
-    
-    // TODO: examine why it is upside-down!
-
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex2f(0.0f, height);
-
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex2f(width, height);
-
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex2f(width, 0.0f);
-
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex2f(0.0f, height);
-
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex2f(width, 0.0f);
-
-    glTexCoord2f(0.0f, 1.0f);
-    glVertex2f(0.0f, 0.0f);
-
-    glEnd();
-
-    // hey, I'll kick off. It's now up to you mr. driver.
-    SwapBuffers(hdc);
 #endif
 }
 
@@ -452,6 +531,13 @@ Win32WindowCallback(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     return result;
 }
 
+internal void
+win32_init_render_batch(Render_Batch *batch, size_t size) {
+    batch->base = VirtualAlloc(0, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    batch->size = size;
+    batch->used = 0;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // Multi-Threading
@@ -590,7 +676,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     Assert(hwnd);
 
     Win32ToggleFullScreen(hwnd);
-    win32_init_openGL(hwnd);
+    win32_init_opengl(hwnd);
 
     Win32LoadXInput();
 
@@ -628,6 +714,8 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     game_memory.platform.debug_platform_write_file = DebugPlatformWriteEntireFile;
     game_memory.platform.debug_platform_free_memory = DebugPlatformFreeMemory;
 
+    win32_init_render_batch(&game_memory.render_batch, KB(4));
+
     GameState *game_state = (GameState *)game_memory.permanent_memory;
 
     GameScreenBuffer gameScreenBuffer = {};
@@ -638,8 +726,8 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     gameScreenBuffer.pitch = g_screen_buffer.bpp * g_screen_buffer.width;
 
     HMODULE xinput_dll = LoadLibraryA(TEXT("xinput.dll"));
-    if (!xinput_dll) { 
-        // TODO: Diagnostic 
+    if (!xinput_dll) {
+        // TODO: diagnostic.
     }
 
     HMODULE game_dll = {};
@@ -782,7 +870,8 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
          Win32WindowDimension wd = Win32GetWindowDimension(hwnd);
          HDC dc = GetDC(hwnd);
          Assert(dc != 0);
-         win32_update_screen(dc, wd.width, wd.height);
+         win32_gl_draw(dc, &game_memory.render_batch, wd.width, wd.height);
+         // win32_update_screen(dc, wd.width, wd.height);
          ReleaseDC(hwnd, dc);
 
          LARGE_INTEGER counter_end = Win32GetClock();

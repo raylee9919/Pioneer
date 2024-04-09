@@ -12,10 +12,9 @@ enum RenderType {
     RenderType_RenderEntityBmp,
     RenderType_RenderEntityRect,
     RenderType_Render_Text,
-    RenderType_RenderEntityCoordinateSystem
 };
 
-struct RenderEntityHeader {
+struct Render_Entity_Header {
     RenderType type;
     u32 size;
     v3 base;
@@ -26,13 +25,13 @@ struct RenderEntityHeader {
 //
 
 struct RenderEntityClear {
-    RenderEntityHeader header;
+    Render_Entity_Header header;
 };
 
 struct Game_Assets;
 
 struct Render_Text {
-    RenderEntityHeader header;
+    Render_Entity_Header header;
     const char *str;
     Game_Assets *game_assets;
     r32 scale;
@@ -40,7 +39,7 @@ struct Render_Text {
 };
 
 struct RenderEntityBmp {
-    RenderEntityHeader header;
+    Render_Entity_Header header;
     v3 base;
     v2 origin;
     v2 axisX;
@@ -50,19 +49,12 @@ struct RenderEntityBmp {
 };
 
 struct RenderEntityRect {
-    RenderEntityHeader header;
+    Render_Entity_Header header;
     v2 min;
     v2 max;
     v4 color;
 };
 
-struct RenderEntityCoordinateSystem {
-    RenderEntityHeader header;
-    v2 origin;
-    v2 axisX;
-    v2 axisY;
-    Bitmap *bmp;
-};
 
 struct Sort_Entry {
     v3 base;

@@ -340,3 +340,11 @@ Q. Why GDDR? You remember fetching memory for each 4 lanes in software render
 code? That's because the system memory architecture doesn't match with the 
 SIMD code. That's why GPU has it's own arthitectured memory so they can do it
 at one go.
+
+
+
+
+Geometry -> Vertex -> Pixel -> (*)
+
+this (*) stage is not really programmable in these days, where Blending belongs.
+Fixed Function is the way to perform blending.

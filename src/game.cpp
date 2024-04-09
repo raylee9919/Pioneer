@@ -12,12 +12,14 @@
 
 #include "types.h"
 #include "game.h"
-#include "debug.cpp"
+#include "debug.h"
 #include "memory.cpp"
 #include "render.cpp"
 
 #include "sim.h"
 
+
+global_var s32 g_gl_bind = 1;
 
 // debug.
 internal void
@@ -81,6 +83,7 @@ load_bmp(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char *
         result->memory = pixels;
         result->width = header->width;
         result->height = header->height;
+        result->handle = 0;
 
         Assert(header->compression == 3);
 
@@ -103,6 +106,8 @@ load_bmp(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char *
         s32 g_shift = (s32)g_scan.index;
         s32 b_shift = (s32)b_scan.index;
         s32 a_shift = (s32)a_scan.index;
+
+        r32 inv_255f = 1.0f / 255.0f;
         
         u32 *at = pixels;
         for(s32 y = 0;
@@ -119,6 +124,14 @@ load_bmp(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char *
                 r32 g = (r32)((c & g_mask) >> g_shift);
                 r32 b = (r32)((c & b_mask) >> b_shift);
                 r32 a = (r32)((c & a_mask) >> a_shift);
+
+                r32 ra = a * inv_255f;
+
+#if 1
+                r *= ra;
+                g *= ra;
+                b *= ra;
+#endif
 
                 *at++ = (((u32)(a + 0.5f) << 24) |
                          ((u32)(r + 0.5f) << 16) |
@@ -317,19 +330,20 @@ GAME_MAIN(GameMain) {
     //
     // Ground Render Group
     //
-    Render_Group *ground_render_group = AllocRenderGroup(&transState->transientArena);
+    Render_Group *ground_render_group = alloc_render_group(&transState->transientArena);
 
+#if 0
     push_rect(ground_render_group, v3{0.0f, 0.0f, 0.0f},
             v2{0.0f, 0.0f}, v2{(r32)gameScreenBuffer->width, (r32)gameScreenBuffer->height},
             v4{0.2f, 0.3f, 0.3f, 1.0f});
-
-    RenderGroupToOutput(ground_render_group, &drawBuffer, transState, &gameMemory->platform);
-
-
+#endif
+    RenderGroupToOutput(ground_render_group, &gameMemory->platform, &gameMemory->render_batch);
 
 
 
-    Render_Group *render_group = AllocRenderGroup(&transState->transientArena);
+
+
+    Render_Group *render_group = alloc_render_group(&transState->transientArena);
 
     v3 chunkDim = gameState->world->chunkDim;
     r32 ppm = gameState->world->ppm;
@@ -347,6 +361,7 @@ GAME_MAIN(GameMain) {
     if (player->accel.x != 0.0f && player->accel.y != 0.0f) {
         player->accel *= 0.707106781187f;
     }
+
 #ifdef __DEBUG
     if (gameInput->toggle_debug.is_set) {
         if (gameState->debug_toggle_delay == 0.0f) {
@@ -407,7 +422,7 @@ GAME_MAIN(GameMain) {
                 v3 diff = Subtract(camPos, entity->pos, chunkDim);
                 v2 cen = camScreenPos;
                 cen.x -= diff.x * ppm;
-                cen.y += diff.y * ppm;
+                cen.y -= diff.y * ppm;
                 v2 dim = ppm * v2{entity->dim.x, entity->dim.y};
                 v2 min = cen - 0.5f * dim;
                 v2 max = cen + 0.5f * dim;
@@ -419,7 +434,6 @@ GAME_MAIN(GameMain) {
                         v2 bmpDim = v2{(r32)gameAssets->playerBmp[face]->width, (r32)gameAssets->playerBmp[face]->height};
                         push_bitmap(render_group, base, cen - 0.5f * bmpDim, v2{bmpDim.x, 0}, v2{0, bmpDim.y}, gameAssets->playerBmp[face]);
 #if 0
-                        //
                         //
                         // Rotation Demo
                         //
@@ -595,7 +609,7 @@ GAME_MAIN(GameMain) {
         }
     }
 
-    RenderGroupToOutput(render_group, &drawBuffer, transState, &gameMemory->platform);
+    RenderGroupToOutput(render_group, &gameMemory->platform, &gameMemory->render_batch);
 
     EndTemporaryMemory(&renderMemory);
 
@@ -605,20 +619,18 @@ GAME_MAIN(GameMain) {
     //
 #ifdef __DEBUG
     TemporaryMemory debug_render_memory = BeginTemporaryMemory(&gameState->debug_arena);
-    Render_Group *debug_render_group = AllocRenderGroup(&gameState->debug_arena);
+    Render_Group *debug_render_group = alloc_render_group(&gameState->debug_arena);
 
     if (gameState->debug_mode) {
         display_debug_info(&g_debug_log, debug_render_group, gameAssets, &gameState->debug_arena);
     }
     end_debug_log(&g_debug_log);
 
-    RenderGroupToOutput(debug_render_group, &drawBuffer, transState, &gameMemory->platform);
+    RenderGroupToOutput(debug_render_group, &gameMemory->platform, &gameMemory->render_batch);
     EndTemporaryMemory(&debug_render_memory);
 #endif
 }
-
-
-
+// end of main.
 
 
 internal void
@@ -654,7 +666,7 @@ display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets
                     info->function,
                     info->line,
                     info->avg_cycles);
-        push_text(render_group, v3{0.0f, 0.0f, 0.0f}, buf, game_assets, 1.0f);
+        push_text(render_group, v3{0.0f, 0.0f, 0.0f}, buf, game_assets);
 
 #if 1
         // draw graph.

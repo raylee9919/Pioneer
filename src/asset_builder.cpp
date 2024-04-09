@@ -228,6 +228,7 @@ bake_glyph(HDC hdc, u32 codepoint, void *bits, s32 bi_width, s32 bi_height, TEXT
     result->bitmap.width = glyph_width + margin * 2;
     result->bitmap.height = glyph_height + margin * 2;
     result->bitmap.pitch = -result->bitmap.width * 4;
+    result->bitmap.handle = 0;
     result->bitmap.size = result->bitmap.height * result->bitmap.width * 4;
     result->bitmap.memory = push_size(result->bitmap.size);
     // memset(result->bitmap.memory, 0x7f, result->bitmap.size);
@@ -244,7 +245,6 @@ bake_glyph(HDC hdc, u32 codepoint, void *bits, s32 bi_width, s32 bi_height, TEXT
                 ++x) {
             // COLORREF pixel = GetPixel(hdc, off_x + x, off_y + y);
             u8 gray = (u8)(*pixel++ & 0xff);
-            u8 alpha = 0xff;
 #if 0 // debug
             u32 c = (alpha << 24) |
                 (gray << 16) |
@@ -252,9 +252,9 @@ bake_glyph(HDC hdc, u32 codepoint, void *bits, s32 bi_width, s32 bi_height, TEXT
                 gray;
 #else
             u32 c = (gray << 24) |
-                    (0xff << 16) |
-                    (0xff <<  8) |
-                     0xff;
+                    (gray << 16) |
+                    (gray <<  8) |
+                     gray;
 #endif
             *dst_at++ = c; 
         }

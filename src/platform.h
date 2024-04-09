@@ -7,6 +7,9 @@
     $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
     ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
+struct v2;
+struct Bitmap;
+
 #include "intrin.h"
 
 #define KB(value) (   value  * 1024ll)
@@ -17,6 +20,7 @@
 #define Assert(expression)  if(!(expression)) { *(volatile int *)0 = 0; }
 #define INVALID_CODE_PATH Assert(!"Invalid Code Path")
 #define INVALID_DEFAULT_CASE default: { INVALID_CODE_PATH } break;
+
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -75,14 +79,21 @@ extern "C" {
     typedef void Platform_Complete_All_Work(PlatformWorkQueue *queue);
 
     typedef struct Platform_API {
-        Platform_Add_Entry *platform_add_entry;
-        Platform_Complete_All_Work *platform_complete_all_work;
+        Platform_Add_Entry          *platform_add_entry;
+        Platform_Complete_All_Work  *platform_complete_all_work;
 
-        DEBUG_PLATFORM_READ_FILE_ *debug_platform_read_file;
-        DEBUG_PLATFORM_WRITE_FILE_ *debug_platform_write_file;
+        DEBUG_PLATFORM_READ_FILE_   *debug_platform_read_file;
+        DEBUG_PLATFORM_WRITE_FILE_  *debug_platform_write_file;
         DEBUG_PLATFORM_FREE_MEMORY_ *debug_platform_free_memory;
 
+
     } Platform_API;
+
+    typedef struct Render_Batch {
+        size_t  size;
+        void    *base;
+        size_t  used;
+    } Render_Batch;
 
     typedef struct GameMemory {
         // NOTE: Spec memory to be initialized to zero.
@@ -100,6 +111,7 @@ extern "C" {
 
         Platform_API platform;
 
+        Render_Batch render_batch;
     } GameMemory;
 
     typedef struct GameScreenBuffer{
@@ -109,6 +121,7 @@ extern "C" {
         u32 bpp;
         u32 pitch;
     } GameScreenBuffer;
+
 }
 
 
