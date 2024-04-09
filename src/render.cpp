@@ -55,18 +55,17 @@ push_text(Render_Group *render_group, v3 base, const char *str, Game_Assets *gam
     r32 kern = 0.0f;
     r32 C = 0.0f;
     r32 A = 0.0f;
+
     for (const char *ch = str;
             *ch;
             ++ch) {
         Asset_Glyph *glyph = game_assets->glyphs[*ch];
-        Bitmap *bitmap = &glyph->bitmap;
-        if (game_assets->glyphs[*ch]) {
-            C = (r32)game_assets->glyphs[*ch]->C;
-        }
         if (glyph) {
-            r32 w = (r32)bitmap->width;
-            r32 h = (r32)bitmap->height;
+            C = (r32)game_assets->glyphs[*ch]->C;
             if (*ch != ' ') {
+                Bitmap *bitmap = &glyph->bitmap;
+                r32 w = (r32)bitmap->width;
+                r32 h = (r32)bitmap->height;
                 push_bitmap(render_group, v3{0.0f, 0.0f, 0.0f}, v2{left_x, cen_y - glyph->ascent}, v2{w, 0.0f}, v2{0.0f, h}, bitmap);
             }
             if (*(ch + 1)) {

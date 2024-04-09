@@ -128,7 +128,7 @@ internal void
 win32_gl_draw(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
     glViewport(0, 0, win_w, win_h);
 
-    glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
+    glClearColor(0.2f, 0.3f, 0.2f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
     glEnable(GL_TEXTURE_2D);
