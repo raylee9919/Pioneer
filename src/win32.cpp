@@ -17,11 +17,11 @@
 #include "render.h"
 #include "win32.h"
 
-global_var bool g_running = true;
-global_var Win32ScreenBuffer g_screen_buffer;
-global_var LARGE_INTEGER g_counter_hz;
-global_var b32 g_show_cursor;
-global_var WINDOWPLACEMENT g_wpPrev = { sizeof(g_wpPrev) };
+global_var bool                 g_running = true;
+global_var Win32ScreenBuffer    g_screen_buffer;
+global_var LARGE_INTEGER        g_counter_hz;
+global_var b32                  g_show_cursor;
+global_var WINDOWPLACEMENT      g_wpPrev = { sizeof(g_wpPrev) };
 
 #define XINPUT_GET_STATE(Name) DWORD Name(DWORD, XINPUT_STATE *)
 typedef XINPUT_GET_STATE(XInput_Get_State);
@@ -32,6 +32,9 @@ XInput_Get_State *xinput_get_state = xinput_get_state_stub;
 typedef XINPUT_SET_STATE(__XInputSetState);
 XINPUT_SET_STATE(xinput_set_state_stub) { return 1; }
 __XInputSetState *xinput_set_state = xinput_set_state_stub;
+
+typedef BOOL Wgl_Swap_Interval(int interval);
+Wgl_Swap_Interval *wgl_swap_interval;
 
 
 internal void
@@ -49,18 +52,53 @@ Win32LoadXInput() {
     }
 }
 
+internal inline size_t
+str_len(const char *str) {
+    size_t result = 0;
+    while (str[result] != '\0') { ++result; }
+    return result;
+}
+
+internal void *
+str_find(char *text, size_t t_len, char *pattern, size_t p_len) {
+    void *result = 0;
+
+    if (t_len >= p_len) {
+        unsigned char *t = (unsigned char *)text;
+        unsigned char *p = (unsigned char *)pattern;
+        for (unsigned char *t_base = t;
+                t_base < t + t_len;
+                ++t_base) {
+            unsigned char *t_at = t_base;
+            for (unsigned char *p_at = p;
+                    p_at < p + p_len && *p_at == *t_at;
+                    ++p_at, ++t_at) {
+                if (p_at == p + p_len - 1) {
+                    result = t_base;
+                    break;
+                }
+            }
+            if (result) {
+                break;
+            }
+        }
+    }
+
+    return result;
+}
+
 internal void
 win32_init_opengl(HWND window) {
     HDC windowDC = GetDC(window);
 
     PIXELFORMATDESCRIPTOR desiredPixelFormat = {};
-    desiredPixelFormat.nSize = sizeof(desiredPixelFormat);
-    desiredPixelFormat.nVersion = 1;
-    desiredPixelFormat.dwFlags = PFD_SUPPORT_OPENGL | PFD_DRAW_TO_WINDOW | PFD_DOUBLEBUFFER;
-    desiredPixelFormat.iPixelType = PFD_TYPE_RGBA;
-    desiredPixelFormat.cColorBits = 32;
-    desiredPixelFormat.cAlphaBits = 8;
-    desiredPixelFormat.iLayerType = PFD_MAIN_PLANE;
+    desiredPixelFormat.nSize            = sizeof(desiredPixelFormat);
+    desiredPixelFormat.nVersion         = 1;
+    desiredPixelFormat.dwFlags          = PFD_SUPPORT_OPENGL | PFD_DRAW_TO_WINDOW | PFD_DOUBLEBUFFER;
+    desiredPixelFormat.iPixelType       = PFD_TYPE_RGBA;
+    desiredPixelFormat.cColorBits       = 32;
+    desiredPixelFormat.cAlphaBits       = 8;
+    desiredPixelFormat.iLayerType       = PFD_MAIN_PLANE;
 
     int suggestedPixelFormatIndex = ChoosePixelFormat(windowDC, &desiredPixelFormat);
     PIXELFORMATDESCRIPTOR suggestedPixelFormat;
@@ -71,6 +109,21 @@ win32_init_opengl(HWND window) {
     HGLRC openGLRC = wglCreateContext(windowDC);
     // associate with the thread.
     if (wglMakeCurrent(windowDC, openGLRC)) {
+        // TODO: check for extensions.
+        const u8 *extensions = glGetString(GL_EXTENSIONS);
+        if (extensions) {
+            const char *ext = "WGL_EXT_swap_control";
+            if (str_find((char *)extensions, str_len((const char *)extensions), (char *)ext, str_len(ext))) {
+
+                // v-sync.
+                wgl_swap_interval = (Wgl_Swap_Interval *)wglGetProcAddress("wglSwapIntervalEXT");
+                if (wgl_swap_interval) {
+                    wgl_swap_interval(1);
+                }
+
+            }
+        }
+
 
     } else {
         INVALID_CODE_PATH;
@@ -101,7 +154,7 @@ win32_gl_draw_bitmap(HDC hdc, v2 origin, v2 axis_x, v2 axis_y, Bitmap *bitmap, v
 
     glColor4f(color.r, color.g, color.b, color.a);
     
-    // bottom triangle.
+    // upper triangle.
     glTexCoord2f(0.0f, 1.0f);
     glVertex2f(origin.x, origin.y);
 
@@ -111,7 +164,7 @@ win32_gl_draw_bitmap(HDC hdc, v2 origin, v2 axis_x, v2 axis_y, Bitmap *bitmap, v
     glTexCoord2f(1.0f, 0.0f);
     glVertex2f(origin.x + axis_x.x + axis_y.x, origin.y + axis_x.y + axis_y.y);
 
-    // upper triangle.
+    // bottom triangle.
     glTexCoord2f(0.0f, 1.0f);
     glVertex2f(origin.x, origin.y);
 
@@ -337,13 +390,6 @@ Win32ConcatNString(char *dst,
     *at = '\0';
 }
 
-internal inline size_t
-StrLen(const char *str) {
-    size_t result = 0;
-    while (str[result] != '\0') { ++result; }
-
-    return result;
-}
 
 internal void
 Win32XInputHandleDeadzone(XINPUT_STATE *state) {
@@ -743,8 +789,8 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
 
     char game_dll_abs_path[MAX_PATH];
     char game_dll_load_abs_path[MAX_PATH];
-    Win32ConcatNString(game_dll_abs_path, exe_path_buf, last_backslash_idx + 1, game_dll_filename, StrLen(game_dll_filename));
-    Win32ConcatNString(game_dll_load_abs_path, exe_path_buf, last_backslash_idx + 1, game_dll_load_filename, StrLen(game_dll_load_filename));
+    Win32ConcatNString(game_dll_abs_path, exe_path_buf, last_backslash_idx + 1, game_dll_filename, str_len(game_dll_filename));
+    Win32ConcatNString(game_dll_load_abs_path, exe_path_buf, last_backslash_idx + 1, game_dll_load_filename, str_len(game_dll_load_filename));
 
     FILETIME game_dll_time_last = {};
     FILETIME game_dll_time = {};

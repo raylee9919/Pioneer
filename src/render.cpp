@@ -713,7 +713,7 @@ push_sort_entry(Render_Group *group, u8 *entity, v3 base) {
 internal void
 sort_render_group(Render_Group *group) {
     TIMED_BLOCK();
-    // TODO: bubble sort... for now. O(n^2). Ain't excited about it.
+    // TODO: bubble sort... for now. O(n^2). Ain't really thrilled about it.
     // comparing r32 for several times cost some shit.
     for (Sort_Entry *bubble = (Sort_Entry *)group->sort_entry_begin + 1;
             (u8 *)bubble < group->base + group->capacity;
