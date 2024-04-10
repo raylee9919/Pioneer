@@ -348,3 +348,8 @@ Geometry -> Vertex -> Pixel -> (*)
 
 this (*) stage is not really programmable in these days, where Blending belongs.
 Fixed Function is the way to perform blending.
+
+
+
+Nvidia --> EXT (multi-vendor) --> ARB (Architecture Review Board) says we want
+this want to be permanent part of openGL forward. --> Integrate to openGL 

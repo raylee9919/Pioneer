@@ -14,14 +14,16 @@
 
 #include "types.h"
 #include "game.h"
-#include "render.h"
 #include "win32.h"
+
 
 global_var bool                 g_running = true;
 global_var Win32ScreenBuffer    g_screen_buffer;
 global_var LARGE_INTEGER        g_counter_hz;
 global_var b32                  g_show_cursor;
 global_var WINDOWPLACEMENT      g_wpPrev = { sizeof(g_wpPrev) };
+
+#include "opengl.cpp"
 
 #define XINPUT_GET_STATE(Name) DWORD Name(DWORD, XINPUT_STATE *)
 typedef XINPUT_GET_STATE(XInput_Get_State);
@@ -32,9 +34,6 @@ XInput_Get_State *xinput_get_state = xinput_get_state_stub;
 typedef XINPUT_SET_STATE(__XInputSetState);
 XINPUT_SET_STATE(xinput_set_state_stub) { return 1; }
 __XInputSetState *xinput_set_state = xinput_set_state_stub;
-
-typedef BOOL Wgl_Swap_Interval(int interval);
-Wgl_Swap_Interval *wgl_swap_interval;
 
 
 internal void
@@ -57,6 +56,36 @@ str_len(const char *str) {
     size_t result = 0;
     while (str[result] != '\0') { ++result; }
     return result;
+}
+
+internal inline b32
+is_whitespace(char c) {
+    b32 result = (c == ' ')  ||
+                 (c == '\t') ||
+                 (c == '\v') ||
+                 (c == '\n') ||
+                 (c == '\f') ||
+                 (c == '\r') ||
+                 (c == 0);
+    return result;
+}
+
+internal b32
+str_match(char *text, char *pattern, size_t len) {
+    b32 found = true;
+    if (len > 0) {
+        for (size_t i = 0;
+                i < len;
+                ++i) { 
+            if (text[i] != pattern[i]) {
+                found = false;
+                break;
+            }
+        }
+    } else {
+        found = false;
+    }
+    return found;
 }
 
 internal void *
@@ -109,19 +138,22 @@ win32_init_opengl(HWND window) {
     HGLRC openGLRC = wglCreateContext(windowDC);
     // associate with the thread.
     if (wglMakeCurrent(windowDC, openGLRC)) {
-        // TODO: check for extensions.
-        const u8 *extensions = glGetString(GL_EXTENSIONS);
-        if (extensions) {
-            const char *ext = "WGL_EXT_swap_control";
-            if (str_find((char *)extensions, str_len((const char *)extensions), (char *)ext, str_len(ext))) {
+        GL_Info gl_info = gl_get_info();
 
-                // v-sync.
-                wgl_swap_interval = (Wgl_Swap_Interval *)wglGetProcAddress("wglSwapIntervalEXT");
-                if (wgl_swap_interval) {
-                    wgl_swap_interval(1);
-                }
+        // v-sync.
+        wgl_swap_interval = (Wgl_Swap_Interval *)wglGetProcAddress("wglSwapIntervalEXT");
+        if (wgl_swap_interval) {
+            wgl_swap_interval(1);
+        }
 
-            }
+        // texture sRGB.
+        if (gl_info.has_ext[GL_EXT_texture_sRGB]) {
+            g_gl_texture_internal_format = SRGB8_ALPHA8_EXT;
+        }
+
+        // framebuffer sRGB.
+        if (gl_info.has_ext[GL_EXT_framebuffer_sRGB]) {
+            glEnable(GL_FRAMEBUFFER_SRGB);
         }
 
 
@@ -130,147 +162,6 @@ win32_init_opengl(HWND window) {
     }
 
     ReleaseDC(window, windowDC);
-}
-
-internal void
-win32_gl_draw_rect(HDC hdc, v2 min, v2 max, v4 color) {
-    glColor4f(color.r, color.g, color.b, color.a);
-    glBegin(GL_TRIANGLES);
-
-    glVertex2f(min.x, min.y);
-    glVertex2f(max.x, min.y);
-    glVertex2f(max.x, max.y);
-
-    glVertex2f(min.x, min.y);
-    glVertex2f(min.x, max.y);
-    glVertex2f(max.x, max.y);
-
-    glEnd();
-}
-
-internal void
-win32_gl_draw_bitmap(HDC hdc, v2 origin, v2 axis_x, v2 axis_y, Bitmap *bitmap, v4 color) {
-    glBegin(GL_TRIANGLES);
-
-    glColor4f(color.r, color.g, color.b, color.a);
-    
-    // upper triangle.
-    glTexCoord2f(0.0f, 1.0f);
-    glVertex2f(origin.x, origin.y);
-
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex2f(origin.x + axis_x.x, origin.y + axis_x.y);
-
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex2f(origin.x + axis_x.x + axis_y.x, origin.y + axis_x.y + axis_y.y);
-
-    // bottom triangle.
-    glTexCoord2f(0.0f, 1.0f);
-    glVertex2f(origin.x, origin.y);
-
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex2f(origin.x + axis_y.x, origin.y + axis_y.y);
-
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex2f(origin.x + axis_x.x + axis_y.x, origin.y + axis_x.y + axis_y.y);
-
-    glEnd();
-}
-
-internal void
-win32_gl_draw(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
-    glViewport(0, 0, win_w, win_h);
-
-    glClearColor(0.2f, 0.3f, 0.2f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    glEnable(GL_TEXTURE_2D);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-
-    glMatrixMode(GL_TEXTURE);
-    glLoadIdentity();
-
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-
-    glMatrixMode(GL_PROJECTION);
-    r32 width = (r32)g_screen_buffer.width;
-    r32 height = (r32)g_screen_buffer.height;
-    r32 w = 2.0f / width;
-    r32 h = -2.0f / height;
-    r32 proj[] = {
-        w,  0,  0,  0,
-        0,  h,  0,  0,
-        0,  0,  1,  0,
-       -1,  1,  0,  1
-    };
-    glLoadMatrixf(proj);
-
-    for (Render_Group *group = (Render_Group *)batch->base;
-            (u8 *)group < (u8 *)batch->base + batch->used;
-            ++group) {
-        for (Sort_Entry *entry = (Sort_Entry *)group->sort_entry_begin;
-                (u8 *)entry < group->base + group->capacity;
-                ++entry) {
-
-            Render_Entity_Header *entity =(Render_Entity_Header *)entry->render_entity;
-
-            switch (entity->type) {
-                case RenderType_RenderEntityClear: {
-                    RenderEntityClear *piece = (RenderEntityClear *)entity;
-                } break;
-
-                case RenderType_RenderEntityBmp: {
-                    RenderEntityBmp *piece = (RenderEntityBmp *)entity;
-                    local_persist s32 handle_idx = 1;
-                    Bitmap *bitmap = piece->bmp;
-                    if (bitmap->handle) {
-                        glBindTexture(GL_TEXTURE_2D, bitmap->handle);
-                    } else {
-                        bitmap->handle = handle_idx++;
-                        glBindTexture(GL_TEXTURE_2D, bitmap->handle);
-                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, bitmap->width, bitmap->height,
-                                0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, (u8 *)bitmap->memory + bitmap->pitch * (bitmap->height - 1));
-
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-                        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-                    }
-
-                    win32_gl_draw_bitmap(hdc, piece->origin, piece->axisX, piece->axisY, bitmap, piece->color);
-                } break;
-
-                case RenderType_Render_Text: {
-                    Render_Text *piece = (Render_Text *)entity;
-
-                    struct Render_Text {
-                        Render_Entity_Header header;
-                        const char *str;
-                        Game_Assets *game_assets;
-                        r32 scale;
-                        v4 color;
-                    };
-
-                } break;
-
-                case RenderType_RenderEntityRect: {
-                    RenderEntityRect *piece = (RenderEntityRect *)entity;
-                    glDisable(GL_TEXTURE_2D);
-                    win32_gl_draw_rect(hdc, piece->min, piece->max, piece->color);
-                    glEnable(GL_TEXTURE_2D);
-                } break;
-
-                INVALID_DEFAULT_CASE
-            }
-
-        }
-    }
-            
-    SwapBuffers(hdc);
-    batch->used = 0;
 }
 
 internal void 
@@ -916,7 +807,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
          Win32WindowDimension wd = Win32GetWindowDimension(hwnd);
          HDC dc = GetDC(hwnd);
          Assert(dc != 0);
-         win32_gl_draw(dc, &game_memory.render_batch, wd.width, wd.height);
+         gl_render_batch(dc, &game_memory.render_batch, wd.width, wd.height);
          // win32_update_screen(dc, wd.width, wd.height);
          ReleaseDC(hwnd, dc);
 
