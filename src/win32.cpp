@@ -148,7 +148,7 @@ win32_init_opengl(HWND window) {
 
         // texture sRGB.
         if (gl_info.has_ext[GL_EXT_texture_sRGB]) {
-            g_gl_texture_internal_format = SRGB8_ALPHA8_EXT;
+            g_gl_texture_internal_format = GL_SRGB8_ALPHA8;
         }
 
         // framebuffer sRGB.

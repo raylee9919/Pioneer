@@ -8,7 +8,6 @@
     ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 enum RenderType {
-    RenderType_RenderEntityClear,
     RenderType_RenderEntityBmp,
     RenderType_RenderEntityRect,
     RenderType_Render_Text,
@@ -23,10 +22,6 @@ struct Render_Entity_Header {
 //
 // Render Entities
 //
-
-struct RenderEntityClear {
-    Render_Entity_Header header;
-};
 
 struct Game_Assets;
 

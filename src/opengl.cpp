@@ -10,8 +10,9 @@
 #include "render.h"
 
 
-#define SRGB8_ALPHA8_EXT            0x8C43
-#define GL_FRAMEBUFFER_SRGB         0x8DB9            
+#define GL_SRGB8_ALPHA8                     0x8C43
+#define GL_FRAMEBUFFER_SRGB                 0x8DB9            
+#define GL_SHADING_LANGUAGE_VERSION         0x8B8C
 
 
 typedef BOOL Wgl_Swap_Interval(int interval);
@@ -62,8 +63,6 @@ struct GL_Info {
 // Global
 //
 global_var GLint g_gl_texture_internal_format = GL_RGBA8;
-
-
 
 
 internal GL_Info
@@ -212,10 +211,6 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
             Render_Entity_Header *entity =(Render_Entity_Header *)entry->render_entity;
 
             switch (entity->type) {
-                case RenderType_RenderEntityClear: {
-                    RenderEntityClear *piece = (RenderEntityClear *)entity;
-                } break;
-
                 case RenderType_RenderEntityBmp: {
                     RenderEntityBmp *piece = (RenderEntityBmp *)entity;
                     local_persist s32 handle_idx = 1;

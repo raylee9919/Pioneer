@@ -353,3 +353,61 @@ Fixed Function is the way to perform blending.
 
 Nvidia --> EXT (multi-vendor) --> ARB (Architecture Review Board) says we want
 this want to be permanent part of openGL forward. --> Integrate to openGL 
+
+
+            (x, y, z Object Coordinates) --> (Projection Matrix) --> 
+    (Bilateral -1 ~ 1 Normalized Device Coordinates) --> glViewPort() -->
+                       (0~w, 0~h Window Coordinates)
+
+   Model Matrix is an artifact. You can say Projection Matrix just a matrix.
+
+
+
+                                Theme 7. 3D
+
+History
+  Pre-Quake games used sorting which overdrawing was a problem. So they 
+  sub-divided the portion of an entity to be drawn. But, when the primitive got 
+  smaller to about 3x3 pixel-size, calculation to dodge overdrawing cost more 
+  than overdrawing. Then, Quake used Z-buffer for drawing characters, not the 
+  world.
+
+Z-Buffer
+  It's more correctly called 'Depth Buffer', becuase it has really nothing to do
+  with Z coordinate. It's just about how 'deep' into the screen something is.
+  Framebuffer really doesn't care about alpha channel addition to our RGB, and
+  we will augment a buffer. It looks like below.
+
+        |R|G|B|A|  |Depth|Stencil|
+         8 8 8 8     24      8           
+
+  It will test per pixel to figure out whether or not something should be in
+  front of something. Therefore, it is order-independent. Drawing intersecting
+  objects become easy.
+
+  Stencil is a binary concept. If a stencil is equal to something, draw. Drawing
+  ciruclar outlined UI becomes easy.
+
+Caveat
+  There is one nasty problem comes along with it, 'Blending'. The problem here 
+  is that Blending is not order-independent.
+
+  Pure Lunacy Solution.
+    'Atomics' (Frame Buffer). Really the reason we have the problem is that, 
+    we are not sorting. We will store a linked list of RGBAZs per pixel where 
+    every time I add to a pixel, I add to a chain. So if there are 8 things
+    overlapping the pixel, there will be 8 nodes chained in the pixel. Then, I
+    write a 'shader' that does a resolution of that buffer. It sorts linked-
+    lists of every pixel. Obviously, there is a huge cost to it. To reduce some
+    cost, we can first draw opaque objects first, then objects with 
+    tranaparency whose pixels will be chained as a linked list. It is totally up
+    to shader, which means, it is totally up to you. Shaders are incredibly
+    complicated and powerful these days. They can pretty much do things you
+    could do in C code.
+
+  Z-Prepass.
+    Overdrawing?
+    Turn off the expensive cool super light shaders, then compute the final z
+    for the pixel first. Then when z == z, we will draw that. What that means is,
+    I will never draw a pixel if it's not a final one that I will see so that I
+    am smart enough to early out.
