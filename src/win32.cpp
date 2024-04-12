@@ -58,9 +58,8 @@ str_len(const char *str) {
     return result;
 }
 
-internal inline b32
-is_whitespace(char c)
-{
+inline b32
+is_whitespace(char c) {
     b32 result = ( (c == ' ')  ||
                    (c == '\t') ||
                    (c == '\v') ||

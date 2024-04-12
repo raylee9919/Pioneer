@@ -55,8 +55,8 @@ inline WorkMemory_Arena *
 BeginWorkMemory(TransientState *transState) {
     WorkMemory_Arena *result = 0;
     for (s32 idx = 0;
-            idx < ArrayCount(transState->workArena);
-            ++idx) {
+         idx < ArrayCount(transState->workArena);
+         ++idx) {
         WorkMemory_Arena *workSlot = transState->workArena + idx;
         if (!workSlot->isUsed) {
             result = workSlot;

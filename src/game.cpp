@@ -241,7 +241,7 @@ GAME_MAIN(GameMain) {
         PushEntity(worldArena, chunkHashmap, EntityType_Golem, {0, 0, 0, v3{3.0f, 3.0f, 0.0f}});
 #endif
 
-#if 0
+#if 1
         Chunk *chunk = GetChunk(&gameState->worldArena, chunkHashmap, gameState->player->pos);
         for (s32 X = -8; X <= 8; ++X) {
             for (s32 Y = -4; Y <= 4; ++Y) {
@@ -422,7 +422,7 @@ GAME_MAIN(GameMain) {
                         r32 card_h = 1.8f;
                         r32 card_w = card_h * bmp_height_over_width;
                         push_bitmap(render_group, base, 
-                                    v3{base.x - card_w * 0.5f, 0.0f, 0.0f},
+                                    v3{base.x - card_w * 0.5f, base.y, 0.0f},
                                     v3{card_w, 0.0f, 0.0f},
                                     v3{0.0f, card_h, 0.0f},
                                     gameAssets->playerBmp[face]);
@@ -568,7 +568,7 @@ GAME_MAIN(GameMain) {
                             r32 card_h = 2.0f;
                             r32 card_w = card_h * bmp_height_over_width;
                             push_bitmap(render_group, base, 
-                                        v3{base.x - card_w * 0.5f, 0.0f, 0.0f},
+                                        v3{base.x - card_w * 0.5f, base.y, 0.0f},
                                         v3{card_w, 0.0f, 0.0f},
                                         v3{0.0f, card_h, 0.0f},
                                         bitmap);
@@ -582,7 +582,7 @@ GAME_MAIN(GameMain) {
                         r32 card_h = 1.8f;
                         r32 card_w = card_h * bmp_height_over_width;
                         push_bitmap(render_group, base, 
-                                    v3{base.x - card_w * 0.5f, 0.0f, 0.0f},
+                                    v3{base.x - card_w * 0.5f, base.y, 0.0f},
                                     v3{card_w, 0.0f, 0.0f},
                                     v3{0.0f, card_h, 0.0f},
                                     gameAssets->familiarBmp[face]);

@@ -306,10 +306,15 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
                          ++idx) 
                     {
                         v3 V = vertices[idx];
+#if 0
                         r32 inv_d = 1.0f / sqrt(square(C.x - V.x) +
                                                 square(C.y - V.y));
                         vertices[idx].x *= inv_d;
                         vertices[idx].y *= inv_d;
+#endif
+                        r32 inv_z = 1.0f / (C.z - V.z);
+                        vertices[idx].x *= inv_z;
+                        vertices[idx].y *= inv_z;
                     }
 
                     gl_draw_bitmap(hdc, vertices, bitmap, piece->color);

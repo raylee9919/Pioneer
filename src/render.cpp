@@ -270,7 +270,7 @@ alloc_render_group(Memory_Arena *memoryArena, b32 ortho) {
     cam->orthographic       = ortho;
     cam->focal_length       = 1.0f;
     cam->transform          = identity_4x4();
-    cam->pos                = v3{0.0f, 0.0f, 10.0f};
+    cam->pos                = v3{0.0f, 0.0f, 2.0f};
     cam->screen_dim         = v2{16.0f, 9.0f};
 
     return result;
@@ -730,17 +730,17 @@ sort_render_group(Render_Group *group) {
     // TODO: bubble sort... for now. O(n^2). Ain't really thrilled about it.
     // comparing r32 for several times cost some shit.
     for (Sort_Entry *bubble = (Sort_Entry *)group->sort_entry_begin + 1;
-            (u8 *)bubble < group->base + group->capacity;
-            ++bubble) {
+         (u8 *)bubble < group->base + group->capacity;
+         ++bubble) {
         for (Sort_Entry *cmp = bubble - 1;
-                (u8 *)cmp >= group->sort_entry_begin;
-                --cmp) {
+             (u8 *)cmp >= group->sort_entry_begin;
+             --cmp) {
             if (bubble->base.z < cmp->base.z) {
                 Sort_Entry tmp = *cmp;
                 *cmp = *bubble;
                 *bubble = tmp;
                 bubble = cmp;
-            } else if (bubble->base.y < cmp->base.y) {
+            } else if (bubble->base.y > cmp->base.y) {
                 Sort_Entry tmp = *cmp;
                 *cmp = *bubble;
                 *bubble = tmp;
