@@ -28,58 +28,65 @@ __push_render_entity(Render_Group *renderGroup, u32 size, RenderType type, v3 ba
 }
 
 internal void
-push_bitmap(Render_Group *renderGroup, v3 base, v2 origin, v2 axisX, v2 axisY,
-        Bitmap *bmp, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f}) {
-    RenderEntityBmp *piece = PushRenderEntity(renderGroup, RenderEntityBmp, base);
-    if (piece) {
-        piece->origin = origin;
-        piece->axisX = axisX;
-        piece->axisY = axisY;
-        piece->bmp = bmp;
-        piece->color = color;
+push_bitmap(Render_Group *render_group, v3 base,
+            v3 origin, v3 axis_x, v3 axis_y,
+            Bitmap *bitmap, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f})
+{
+    RenderEntityBitmap *piece = PushRenderEntity(render_group, RenderEntityBitmap, base);
+    if (piece)
+    {
+        piece->origin       = origin;
+        piece->axis_x       = axis_x;
+        piece->axis_y       = axis_y;
+        piece->bitmap       = bitmap;
+        piece->color        = color;
     }
 }
 
 global_var r32 cen_y = 100.0f;
 internal void
-push_text(Render_Group *render_group, v3 base, const char *str, Game_Assets *game_assets, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f}) {
-#if 0
-    Render_Text *piece = PushRenderEntity(render_group, Render_Text, base);
-    if (piece) {
-        piece->str = str;
-        piece->game_assets = gameAssets;
-        piece->color = color;
-    }
-#endif
+push_text(Render_Group *render_group, v3 base,
+          const char *str, Game_Assets *game_assets,
+          v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f})
+{
     r32 left_x = 40.0f;
     r32 kern = 0.0f;
     r32 C = 0.0f;
     r32 A = 0.0f;
 
     for (const char *ch = str;
-            *ch;
-            ++ch) {
+         *ch;
+         ++ch)
+    {
         Asset_Glyph *glyph = game_assets->glyphs[*ch];
-        if (glyph) {
+        if (glyph)
+        {
             C = (r32)game_assets->glyphs[*ch]->C;
-            if (*ch != ' ') {
+            if (*ch != ' ')
+            {
                 Bitmap *bitmap = &glyph->bitmap;
                 r32 w = (r32)bitmap->width;
                 r32 h = (r32)bitmap->height;
-                push_bitmap(render_group, v3{0.0f, 0.0f, 0.0f}, v2{left_x, cen_y - glyph->ascent}, v2{w, 0.0f}, v2{0.0f, h}, bitmap);
+                // push_bitmap(render_group, v3{0.0f, 0.0f, 0.0f}, v2{left_x, cen_y - glyph->ascent}, v2{w, 0.0f}, v2{0.0f, h}, bitmap);
             }
-            if (*(ch + 1)) {
+            if (*(ch + 1))
+            {
                 kern = (r32)get_kerning(&game_assets->kern_hashmap, *ch, *(ch + 1));
-                if (game_assets->glyphs[*(ch + 1)]) {
+                if (game_assets->glyphs[*(ch + 1)])
+                {
                     A = (r32)game_assets->glyphs[*(ch + 1)]->A;
                 }
                 r32 advance_x = (glyph->B + C + A + kern);
                 left_x += advance_x;
             }
-        } else if (*ch == ' ') {
+        } 
+        else if (*ch == ' ')
+        {
             // TODO: horizontal advance info in asset.
             left_x += C + 10.0f;
-        } else {
+        } 
+        else 
+        {
 
         }
     }
@@ -251,13 +258,20 @@ push_rect(Render_Group *renderGroup, v3 base,
 }
 
 internal Render_Group *
-alloc_render_group(Memory_Arena *memoryArena) {
+alloc_render_group(Memory_Arena *memoryArena, b32 ortho) {
     Render_Group *result = PushStruct(memoryArena, Render_Group);
     *result = {};
     result->capacity = MB(4);
     result->base = (u8 *)PushSize(memoryArena, result->capacity);
     result->used = 0;
     result->sort_entry_begin = result->base + result->capacity;
+
+    Camera *cam = &result->camera;
+    cam->orthographic       = ortho;
+    cam->focal_length       = 1.0f;
+    cam->transform          = identity_4x4();
+    cam->pos                = v3{0.0f, 0.0f, 10.0f};
+    cam->screen_dim         = v2{16.0f, 9.0f};
 
     return result;
 }

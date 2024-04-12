@@ -1,4 +1,3 @@
-#ifndef SW_PLATFORM_H
  /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
     $File: $
     $Date: $
@@ -123,7 +122,3 @@ extern "C" {
     } GameScreenBuffer;
 
 }
-
-
-#define SW_PLATFORM_H
-#endif

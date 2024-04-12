@@ -1,4 +1,3 @@
-#ifndef DEBUG_H
 /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
    $File: $
    $Date: $
@@ -74,6 +73,3 @@ struct Timed_Block {
         
     }
 };
-
-#define DEBUG_H
-#endif

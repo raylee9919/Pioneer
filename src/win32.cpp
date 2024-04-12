@@ -59,14 +59,15 @@ str_len(const char *str) {
 }
 
 internal inline b32
-is_whitespace(char c) {
-    b32 result = (c == ' ')  ||
-                 (c == '\t') ||
-                 (c == '\v') ||
-                 (c == '\n') ||
-                 (c == '\f') ||
-                 (c == '\r') ||
-                 (c == 0);
+is_whitespace(char c)
+{
+    b32 result = ( (c == ' ')  ||
+                   (c == '\t') ||
+                   (c == '\v') ||
+                   (c == '\n') ||
+                   (c == '\f') ||
+                   (c == '\r') ||
+                   (c == 0) );
     return result;
 }
 
@@ -75,14 +76,16 @@ str_match(char *text, char *pattern, size_t len) {
     b32 found = true;
     if (len > 0) {
         for (size_t i = 0;
-                i < len;
-                ++i) { 
+             i < len;
+             ++i) 
+        {
             if (text[i] != pattern[i]) {
                 found = false;
                 break;
             }
         }
-    } else {
+    }
+    else {
         found = false;
     }
     return found;
@@ -92,22 +95,27 @@ internal void *
 str_find(char *text, size_t t_len, char *pattern, size_t p_len) {
     void *result = 0;
 
-    if (t_len >= p_len) {
-        unsigned char *t = (unsigned char *)text;
-        unsigned char *p = (unsigned char *)pattern;
-        for (unsigned char *t_base = t;
-                t_base < t + t_len;
-                ++t_base) {
-            unsigned char *t_at = t_base;
-            for (unsigned char *p_at = p;
-                    p_at < p + p_len && *p_at == *t_at;
-                    ++p_at, ++t_at) {
-                if (p_at == p + p_len - 1) {
+    if (t_len >= p_len)
+    {
+        u8 *t = (u8 *)text;
+        u8 *p = (u8 *)pattern;
+        for (u8 *t_base = t;
+             t_base < t + t_len;
+             ++t_base)
+        {
+            u8 *t_at = t_base;
+            for (u8 *p_at = p;
+                 p_at < p + p_len && *p_at == *t_at;
+                 ++p_at, ++t_at)
+            {
+                if (p_at == p + p_len - 1)
+                {
                     result = t_base;
                     break;
                 }
             }
-            if (result) {
+            if (result)
+            {
                 break;
             }
         }

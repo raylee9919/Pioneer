@@ -1,4 +1,3 @@
-#ifndef RENDER_H
  /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
     $File: $
     $Date: $
@@ -8,7 +7,7 @@
     ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 enum RenderType {
-    RenderType_RenderEntityBmp,
+    RenderType_RenderEntityBitmap,
     RenderType_RenderEntityRect,
     RenderType_Render_Text,
 };
@@ -33,13 +32,13 @@ struct Render_Text {
     v4 color;
 };
 
-struct RenderEntityBmp {
+struct RenderEntityBitmap {
     Render_Entity_Header header;
     v3 base;
-    v2 origin;
-    v2 axisX;
-    v2 axisY;
-    Bitmap *bmp;
+    v3 origin;
+    v3 axis_x;
+    v3 axis_y;
+    Bitmap *bitmap;
     v4 color;
 };
 
@@ -56,12 +55,19 @@ struct Sort_Entry {
     void *render_entity;
 };
 
+struct Camera {
+    b32     orthographic;
+    m4x4    transform;
+    r32     focal_length;
+    v2      screen_dim;
+    v3      pos;
+};
+
 struct Render_Group {
     size_t capacity;
     size_t used;
     u8 *base;
     u8 *sort_entry_begin;
+    Camera camera;
 };
 
-#define RENDER_H
-#endif

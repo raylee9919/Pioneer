@@ -1,4 +1,3 @@
-#ifndef WIN32_GAME_H
  /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
     $File: $
     $Date: $
@@ -27,6 +26,3 @@ struct Win32State {
     void *game_memory;
     u64 game_mem_total_cap;
 };
-
-#define WIN32_GAME_H
-#endif

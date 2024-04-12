@@ -1,4 +1,3 @@
-#ifndef SIM_H
 /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
    $File: $
    $Date: $
@@ -351,7 +350,3 @@ UpdateEntities(GameState *gameState, r32 dt, Position simMin, Position simMax) {
         }
     }
 }
-
-
-#define SIM_H
-#endif

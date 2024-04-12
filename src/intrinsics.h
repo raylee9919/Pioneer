@@ -1,4 +1,3 @@
-#ifndef SW_INTRINSICS_H
  /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
     $File: $
     $Date: $
@@ -58,13 +57,13 @@ RoundR32ToU32(r32 value) {
 }
 
 internal r32
-Cos(r32 x) {
+cos(r32 x) {
     r32 result = cosf(x);
     return result;
 }
 
 internal r32
-Sin(r32 x) {
+sin(r32 x) {
     r32 result = sinf(x);
     return result;
 }
@@ -112,7 +111,3 @@ find_least_significant_set_bit(u32 value) {
     
     return result;
 }
-
-
-#define SW_INTRINSICS_H
-#endif

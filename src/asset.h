@@ -1,4 +1,3 @@
-#ifndef ASSET_H
 /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
    $File: $
    $Date: $
@@ -77,7 +76,3 @@ struct Asset_Glyph {
 };
 
 #pragma pack(pop)
-
-
-#define ASSET_H
-#endif

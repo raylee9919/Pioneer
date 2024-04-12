@@ -1,5 +1,3 @@
-#ifndef TYPES_H
-#define TYPES_H
  /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
     $File: $
     $Date: $
@@ -39,5 +37,3 @@ typedef uint64_t u64;
 
 typedef float r32; 
 typedef double r64; 
-
-#endif

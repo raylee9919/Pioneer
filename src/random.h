@@ -1,4 +1,3 @@
-#ifndef RANDOM_H
  /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
     $File: $
     $Date: $
@@ -175,9 +174,6 @@ RandBilateral(RandomSeries *series) {
 
 inline r32
 RandRange(RandomSeries *series, r32 lo, r32 hi) {
-    r32 result = Lerp(lo, hi, RandUnilateral(series));
+    r32 result = lerp(lo, hi, RandUnilateral(series));
     return result;
 }
-
-#define RANDOM_H
-#endif

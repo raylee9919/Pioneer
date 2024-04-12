@@ -223,11 +223,10 @@ GAME_MAIN(GameMain) {
         gameState->particleRandomSeries = Seed(254);
 
         InitArena(&gameState->worldArena,
-                gameMemory->permanent_memory_size - sizeof(GameState),
-                (u8 *)gameMemory->permanent_memory + sizeof(GameState));
+                  gameMemory->permanent_memory_size - sizeof(GameState),
+                  (u8 *)gameMemory->permanent_memory + sizeof(GameState));
         gameState->world = PushStruct(&gameState->worldArena, World);
         World *world = gameState->world;
-        world->ppm = 50.0f;
         world->chunkDim = {17.0f, 9.0f, 3.0f};
         Memory_Arena *worldArena = &gameState->worldArena;
         ChunkHashmap *chunkHashmap = &gameState->world->chunkHashmap;
@@ -242,10 +241,7 @@ GAME_MAIN(GameMain) {
         PushEntity(worldArena, chunkHashmap, EntityType_Golem, {0, 0, 0, v3{3.0f, 3.0f, 0.0f}});
 #endif
 
-        gameState->camera = {};
-        gameState->camera.pos = {0, 0, 0};
-
-#if 1
+#if 0
         Chunk *chunk = GetChunk(&gameState->worldArena, chunkHashmap, gameState->player->pos);
         for (s32 X = -8; X <= 8; ++X) {
             for (s32 Y = -4; Y <= 4; ++Y) {
@@ -325,26 +321,11 @@ GAME_MAIN(GameMain) {
 
     TemporaryMemory renderMemory = BeginTemporaryMemory(&transState->transientArena);
 
-    //
-    // Ground Render Group
-    //
-    Render_Group *ground_render_group = alloc_render_group(&transState->transientArena);
-
-#if 0
-    push_rect(ground_render_group, v3{0.0f, 0.0f, 0.0f},
-            v2{0.0f, 0.0f}, v2{(r32)gameScreenBuffer->width, (r32)gameScreenBuffer->height},
-            v4{0.2f, 0.3f, 0.3f, 1.0f});
-#endif
-    RenderGroupToOutput(ground_render_group, &gameMemory->platform, &gameMemory->render_batch);
 
 
-
-
-
-    Render_Group *render_group = alloc_render_group(&transState->transientArena);
+    Render_Group *render_group = alloc_render_group(&transState->transientArena, false);
 
     v3 chunkDim = gameState->world->chunkDim;
-    r32 ppm = gameState->world->ppm;
     r32 dt = gameInput->dt_per_frame;
 
     //
@@ -379,10 +360,7 @@ GAME_MAIN(GameMain) {
 
 
 
-#if 1
-    gameState->camera.pos = player->pos;
-#endif
-    Position camPos = gameState->camera.pos;
+    Position camPos = Position{};
     v2 camScreenPos = {gameScreenBuffer->width * 0.5f, gameScreenBuffer->height * 0.5f};
     v3 camDim = {100.0f, 50.0f, 0.0f};
     Position minPos = camPos;
@@ -407,16 +385,20 @@ GAME_MAIN(GameMain) {
     Game_Assets *gameAssets = &transState->gameAssets;
 
     for (s32 Y = minPos.chunkY;
-            Y <= maxPos.chunkY;
-            ++Y) {
+         Y <= maxPos.chunkY;
+         ++Y)
+    {
         for (s32 X = minPos.chunkX;
-                X <= maxPos.chunkX;
-                ++X) {
+             X <= maxPos.chunkX;
+             ++X)
+        {
             Chunk *chunk = GetChunk(&gameState->worldArena,
-                    &gameState->world->chunkHashmap, {X, Y, 0});
+                                    &gameState->world->chunkHashmap, {X, Y, 0});
             for (Entity *entity = chunk->entities.head;
-                    entity != 0;
-                    entity = entity->next) {
+                 entity != 0;
+                 entity = entity->next) 
+            {
+#if 0
                 v3 diff = Subtract(camPos, entity->pos, chunkDim);
                 v2 cen = camScreenPos;
                 cen.x -= diff.x * ppm;
@@ -425,27 +407,25 @@ GAME_MAIN(GameMain) {
                 v2 min = cen - 0.5f * dim;
                 v2 max = cen + 0.5f * dim;
                 v3 base = v3{cen.x, cen.y, 0};
+#endif
+                v3 base = v3{
+                    entity->pos.chunkX * gameState->world->chunkDim.x + entity->pos.offset.x,
+                    entity->pos.chunkY * gameState->world->chunkDim.y + entity->pos.offset.y,
+                    entity->pos.chunkZ * gameState->world->chunkDim.z + entity->pos.offset.z,
+                };
 
                 switch (entity->type) {
                     case EntityType_Player: {
                         s32 face = entity->face;
-                        v2 bmpDim = v2{(r32)gameAssets->playerBmp[face]->width, (r32)gameAssets->playerBmp[face]->height};
-                        push_bitmap(render_group, base, cen - 0.5f * bmpDim, v2{bmpDim.x, 0}, v2{0, bmpDim.y}, gameAssets->playerBmp[face]);
-#if 0
-                        //
-                        // Rotation Demo
-                        //
-                        PushBitmap(renderGroup,
-                                cen - 0.5f * bmpDim,
-                                bmpDim.x * v2{Cos(angle), Sin(angle)},
-                                bmpDim.y * v2{-Sin(angle), Cos(angle)},
-                                &gameState->playerBmp[face]);
-                        v2 dotDim {5.0f, 5.0f};
-                        v2 origin = cen - 0.5f * bmpDim;
-                        PushRect(renderGroup, origin - 0.5f * dotDim, origin + 0.5f * dotDim, v4{1.0f, 1.0f, 1.0f, 1.0f});
-                        PushRect(renderGroup, origin + v2{bmpDim.x * Cos(angle), bmpDim.x * Sin(angle)} - 0.5f * dotDim, origin + v2{bmpDim.x * Cos(angle), bmpDim.x * Sin(angle)} + 0.5f * dotDim, v4{1.0f, 0.2f, 0.2f, 1.0f});
-                        PushRect(renderGroup, origin + v2{bmpDim.y * -Sin(angle), bmpDim.y * Cos(angle)} - 0.5f * dotDim, origin + v2{bmpDim.y * -Sin(angle), bmpDim.y * Cos(angle)} + 0.5f * dotDim, v4{0.2f, 1.0f, 0.2f, 1.0f});
-#endif
+                        v2 bmp_dim = v2{(r32)gameAssets->playerBmp[face]->width, (r32)gameAssets->playerBmp[face]->height};
+                        r32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
+                        r32 card_h = 1.8f;
+                        r32 card_w = card_h * bmp_height_over_width;
+                        push_bitmap(render_group, base, 
+                                    v3{base.x - card_w * 0.5f, 0.0f, 0.0f},
+                                    v3{card_w, 0.0f, 0.0f},
+                                    v3{0.0f, card_h, 0.0f},
+                                    gameAssets->playerBmp[face]);
 
 #if 0
                         ///////////////////////////////////////////////////////
@@ -583,15 +563,29 @@ GAME_MAIN(GameMain) {
                     case EntityType_Tree: {
                         Bitmap *bitmap = GetBitmap(transState, GAI_Tree, transState->lowPriorityQueue, &gameMemory->platform);
                         if (bitmap) {
-                            v2 bmpDim = v2{(r32)bitmap->width, (r32)bitmap->height};
-                            push_bitmap(render_group, base, cen - 0.5f * bmpDim, v2{bmpDim.x, 0}, v2{0, bmpDim.y}, bitmap);
+                            v2 bmp_dim = v2{(r32)bitmap->width, (r32)bitmap->height};
+                            r32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
+                            r32 card_h = 2.0f;
+                            r32 card_w = card_h * bmp_height_over_width;
+                            push_bitmap(render_group, base, 
+                                        v3{base.x - card_w * 0.5f, 0.0f, 0.0f},
+                                        v3{card_w, 0.0f, 0.0f},
+                                        v3{0.0f, card_h, 0.0f},
+                                        bitmap);
                         }
                     } break;
 
                     case EntityType_Familiar: {
                         s32 face = entity->face;
-                        v2 bmpDim = v2{(r32)gameAssets->familiarBmp[face]->width, (r32)gameAssets->familiarBmp[face]->height};
-                        push_bitmap(render_group, base, cen - 0.5f * bmpDim, v2{bmpDim.x, 0}, v2{0, bmpDim.y}, gameAssets->familiarBmp[face]);
+                        v2 bmp_dim = v2{(r32)gameAssets->familiarBmp[face]->width, (r32)gameAssets->familiarBmp[face]->height};
+                        r32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
+                        r32 card_h = 1.8f;
+                        r32 card_w = card_h * bmp_height_over_width;
+                        push_bitmap(render_group, base, 
+                                    v3{base.x - card_w * 0.5f, 0.0f, 0.0f},
+                                    v3{card_w, 0.0f, 0.0f},
+                                    v3{0.0f, card_h, 0.0f},
+                                    gameAssets->familiarBmp[face]);
                     } break;
 
                     case EntityType_Golem: {
@@ -617,7 +611,7 @@ GAME_MAIN(GameMain) {
     //
 #ifdef __DEBUG
     TemporaryMemory debug_render_memory = BeginTemporaryMemory(&gameState->debug_arena);
-    Render_Group *debug_render_group = alloc_render_group(&gameState->debug_arena);
+    Render_Group *debug_render_group = alloc_render_group(&gameState->debug_arena, true);
 
     if (gameState->debug_mode) {
         display_debug_info(&g_debug_log, debug_render_group, gameAssets, &gameState->debug_arena);

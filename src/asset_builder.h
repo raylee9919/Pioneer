@@ -1,4 +1,3 @@
-#ifndef ASSET_BUILDER_H
 /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
    $File: $
    $Date: $
@@ -40,6 +39,3 @@ struct Package_Header {
 struct Package {
     Package_Header header;
 };
-
-#define ASSET_BUILDER_H
-#endif

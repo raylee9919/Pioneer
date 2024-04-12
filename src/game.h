@@ -1,5 +1,3 @@
-#ifndef GAME_H
-#define GAME_H
  /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
     $File: $
     $Date: $
@@ -56,10 +54,6 @@ struct Position {
     v3 offset;
 };
 
-struct Camera {
-    Position pos;
-};
-
 enum EntityType {
     EntityType_Player,
     EntityType_Familiar,
@@ -108,8 +102,6 @@ struct ChunkHashmap {
 };
 
 struct World {
-    r32 ppm;
-
     ChunkHashmap chunkHashmap;
     v3 chunkDim;
 
@@ -214,8 +206,6 @@ struct GameState {
 
     Bitmap drawBuffer;
 
-    Camera camera;
-
     Entity *player;
 
     Particle particles[512];
@@ -249,6 +239,3 @@ struct TransientState {
 #define GAME_MAIN(name) void name(GameMemory *gameMemory, GameState *gameState, \
         GameInput *gameInput, GameScreenBuffer *gameScreenBuffer)
 typedef GAME_MAIN(GameMain_);
-
-
-#endif
