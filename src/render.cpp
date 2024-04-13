@@ -11,16 +11,15 @@
 //
 // Push to Render Group
 //
-#define PushRenderEntity(GROUP, STRUCT, BASE) \
-  (STRUCT *)__push_render_entity(GROUP, sizeof(STRUCT), RenderType_##STRUCT, BASE)
+#define PushRenderEntity(GROUP, STRUCT) \
+  (STRUCT *)__push_render_entity(GROUP, sizeof(STRUCT), RenderType_##STRUCT)
 internal Render_Entity_Header *
-__push_render_entity(Render_Group *renderGroup, u32 size, RenderType type, v3 base) {
+__push_render_entity(Render_Group *renderGroup, u32 size, RenderType type) {
     Assert(size + renderGroup->used <= renderGroup->capacity);
 
     Render_Entity_Header *header = (Render_Entity_Header *)(renderGroup->base + renderGroup->used);
     header->type = type;
     header->size = size;
-    header->base = base;
 
     renderGroup->used += size;
 
@@ -28,11 +27,11 @@ __push_render_entity(Render_Group *renderGroup, u32 size, RenderType type, v3 ba
 }
 
 internal void
-push_bitmap(Render_Group *render_group, v3 base,
+push_bitmap(Render_Group *render_group,
             v3 origin, v3 axis_x, v3 axis_y,
             Bitmap *bitmap, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f})
 {
-    RenderEntityBitmap *piece = PushRenderEntity(render_group, RenderEntityBitmap, base);
+    RenderEntityBitmap *piece = PushRenderEntity(render_group, RenderEntityBitmap);
     if (piece)
     {
         piece->origin       = origin;
@@ -247,9 +246,9 @@ draw_text(Bitmap *buffer, Render_Text *info) {
 #endif
 
 internal void
-push_rect(Render_Group *renderGroup, v3 base,
-        v2 min, v2 max, v4 color) {
-    RenderEntityRect *piece = PushRenderEntity(renderGroup, RenderEntityRect, base);
+push_rect(Render_Group *renderGroup,
+          v2 min, v2 max, v4 color) {
+    RenderEntityRect *piece = PushRenderEntity(renderGroup, RenderEntityRect);
     if (piece) {
         piece->min = min;
         piece->max = max;
@@ -258,25 +257,47 @@ push_rect(Render_Group *renderGroup, v3 base,
 }
 
 internal Render_Group *
-alloc_render_group(Memory_Arena *memoryArena, b32 ortho) {
-    Render_Group *result = PushStruct(memoryArena, Render_Group);
+alloc_render_group(Memory_Arena *arena, b32 ortho, r32 aspect_ratio) {
+    Render_Group *result = PushStruct(arena, Render_Group);
     *result = {};
-    result->capacity = MB(4);
-    result->base = (u8 *)PushSize(memoryArena, result->capacity);
-    result->used = 0;
-    result->sort_entry_begin = result->base + result->capacity;
+    result->capacity            = MB(4);
+    result->base                = (u8 *)PushSize(arena, result->capacity);
+    result->used                = 0;
+    result->sort_entry_begin    = result->base + result->capacity;
 
     Camera *cam = &result->camera;
     cam->orthographic       = ortho;
-    cam->focal_length       = 1.0f;
-    cam->transform          = identity_4x4();
-    cam->pos                = v3{0.0f, 0.0f, 2.0f};
-    cam->screen_dim         = v2{16.0f, 9.0f};
+    cam->focal_length       = 0.5f;
+
+    if (cam->orthographic) {
+        r32 a = aspect_ratio;
+        cam->projection = m4x4{{
+            { 1,  0,  0,  0},
+            { 0,  a,  0,  0},
+            { 0,  0,  1,  0},
+            { 0,  0,  0,  1}
+        }};
+
+    } else { // perspective.
+        cam->aspect_ratio       = aspect_ratio;
+
+        m4x4 cam_o = (x_rotation(g_debug_cam_orbital_pitch) *
+                      z_rotation(g_debug_cam_orbital_yaw));
+        v3 cam_translation = v3{0.0f, 0.0f, g_debug_cam_z};
+
+        m4x4 cam_c = camera_transform(get_column(cam_o, 0),
+                                      get_column(cam_o, 1),
+                                      get_column(cam_o, 2),
+                                      cam_o * cam_translation); // focus on origin.
+
+        cam->projection         = cam_c;
+    }
 
     return result;
 }
 
 
+#if 0
 internal void
 draw_rect(Bitmap *buffer, v2 min, v2 max, v4 color) {
     s32 minX = RoundR32ToS32(min.x);
@@ -342,6 +363,7 @@ draw_rect(Bitmap *buffer, v2 min, v2 max, v4 color) {
         }
     }
 }
+#endif
 
 #if 0
 internal void
@@ -714,6 +736,7 @@ draw_bitmap_fast(Bitmap *buffer, v2 origin, v2 axisX, v2 axisY, Bitmap *bmp, v4 
 }
 #endif
 
+#if 1
 internal void
 push_sort_entry(Render_Group *group, u8 *entity, v3 base) {
     group->sort_entry_begin -= sizeof(Sort_Entry);
@@ -723,7 +746,9 @@ push_sort_entry(Render_Group *group, u8 *entity, v3 base) {
     entry->render_entity = entity;
     entry->base = base;
 }
+#endif
 
+#if 0
 internal void
 sort_render_group(Render_Group *group) {
     TIMED_BLOCK();
@@ -749,6 +774,7 @@ sort_render_group(Render_Group *group) {
         }
     }
 }
+#endif
 
 internal void
 push_render_group(Render_Group *group, Render_Batch *batch) {
@@ -764,14 +790,18 @@ RenderGroupToOutput(Render_Group *render_group, Platform_API *platform, Render_B
     u8 *at = render_group->base;
 
     // add sort entries at the back of the render group.
+#if 1
     while (at < render_group->base + render_group->used) {
         Render_Entity_Header *header =(Render_Entity_Header *)at;
         push_sort_entry(render_group, at, header->base);
         at += header->size;
     }
+#endif
 
+#if 0
     // sort.
     sort_render_group(render_group);
+#endif
 
     // pass to platform to draw.
     push_render_group(render_group, batch);

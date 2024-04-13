@@ -19,16 +19,16 @@ PushSize_(Memory_Arena *arena, size_t size) {
 #define PushArray(arena, type, count)   (type *)PushSize_(arena, count * sizeof(type))
 
 internal void
-InitArena(Memory_Arena *arena, size_t size, u8 *base) {
+init_arena(Memory_Arena *arena, size_t size, u8 *base) {
     arena->size = size;
     arena->base = base;
     arena->used = 0;
 }
 
 internal void
-InitSubArena(Memory_Arena *subArena, Memory_Arena *motherArena, size_t size) {
+init_sub_arena(Memory_Arena *subArena, Memory_Arena *motherArena, size_t size) {
     Assert(motherArena->size >= motherArena->used + size);
-    InitArena(subArena, size, motherArena->base + motherArena->used);
+    init_arena(subArena, size, motherArena->base + motherArena->used);
     motherArena->used += size;
 }
 

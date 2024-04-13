@@ -214,32 +214,20 @@ gl_load_projection(Camera *camera) {
     glMatrixMode(GL_PROJECTION);
 
     if (camera->orthographic) {
-        r32 w = (r32)g_screen_buffer.width;
-        r32 h = (r32)g_screen_buffer.height;
-        r32 a =  2.0f / w;
-        r32 b = -2.0f / h;
+        gl_load_matrix(camera->projection);
 
-        m4x4 proj = {{
-            { a,  0,  0, -1},
-            { 0,  b,  0,  1},
-            { 0,  0,  1,  0},
-            { 0,  0,  0,  1}
-        }};
-
-        gl_load_matrix(proj);
-
-    } 
-    else {
+    } else {
         r32 f = camera->focal_length;
-        r32 a = f * (2.0f / camera->screen_dim.x);
-        r32 b = f * (2.0f / camera->screen_dim.y);
-        
+        r32 a = camera->width_over_height;
+
         m4x4 proj = {{
-            { a,  0,  0,  0},
-            { 0,  b,  0,  0},
-            { 0,  0,  1,  0},
-            { 0,  0,  0,  1}
+            { f,    0,  0,  0},
+            { 0,  a*f,  0,  0},
+            { 0,    0,  1,  0},
+            { 0,    0, -1,  0}
         }};
+
+        proj = proj * camera->projection;
 
         gl_load_matrix(proj);
     }
@@ -300,22 +288,19 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
                         piece->origin + piece->axis_x + piece->axis_y
                     };
 
-                    v3 C = group->camera.pos;
+#if 0
+                    // get translation
+                    v3 C = get_column(group->camera.transform, 3);
                     for (int idx = 0;
                          idx < ArrayCount(vertices);
                          ++idx) 
                     {
                         v3 V = vertices[idx];
-#if 0
-                        r32 inv_d = 1.0f / sqrt(square(C.x - V.x) +
-                                                square(C.y - V.y));
-                        vertices[idx].x *= inv_d;
-                        vertices[idx].y *= inv_d;
-#endif
                         r32 inv_z = 1.0f / (C.z - V.z);
                         vertices[idx].x *= inv_z;
                         vertices[idx].y *= inv_z;
                     }
+#endif
 
                     gl_draw_bitmap(hdc, vertices, bitmap, piece->color);
                 } break;

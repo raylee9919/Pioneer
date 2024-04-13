@@ -1,6 +1,6 @@
 @echo off
 
-set CCFLAGS=-Od -nologo -MTd -GR- -EHa- -Oi -W4 -wd4100 -wd4189 -wd4505 -wd4201 -FC -Z7 -D__DEBUG=1 -D_CRT_SECURE_NO_WARNINGS
+set CCFLAGS=-Od -nologo -MTd -GR- -EHa- -Oi -W4 -wd4100 -wd4189 -wd4505 -wd4201 -FC -Z7 -D__DEBUG=1 -D__MSVC -D_CRT_SECURE_NO_WARNINGS
 set CLFLAGS= -incremental:no -opt:ref User32.lib Gdi32.lib Winmm.lib opengl32.lib
 
 if not exist ..\build mkdir ..\build

@@ -6,6 +6,7 @@
     $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
     ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
+#define pi32    3.14159265359f
 
 //
 // Vector2
@@ -386,8 +387,8 @@ static m4x4
 translate(m4x4 m, v3 t) {
     m4x4 r = m;
     r.e[0][3] += t.x;
-    r.e[1][3] += t.x;
-    r.e[2][3] += t.x;
+    r.e[1][3] += t.y;
+    r.e[2][3] += t.z;
     return r;
 }
 

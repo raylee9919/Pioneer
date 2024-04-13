@@ -19,9 +19,11 @@ clear_to_zero(size_t size, void *data) {
     }
 }
 
-#include "platform.h"
 #include "intrinsics.h"
 #include "math.h"
+
+#include "platform.h"
+
 #include "asset.h"
 #include "random.h"
 
@@ -237,5 +239,5 @@ struct TransientState {
 
 
 #define GAME_MAIN(name) void name(GameMemory *gameMemory, GameState *gameState, \
-        GameInput *gameInput, GameScreenBuffer *gameScreenBuffer)
+        Game_Input *gameInput, GameScreenBuffer *gameScreenBuffer)
 typedef GAME_MAIN(GameMain_);

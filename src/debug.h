@@ -15,6 +15,11 @@
 #define DEBUG_LOG_FRAME_COUNT 120
 r32 inv_debug_log_frame_count = 1.0f / (r32)DEBUG_LOG_FRAME_COUNT;
 
+r32 g_debug_cam_orbital_pitch;
+r32 g_debug_cam_orbital_yaw;
+r32 g_debug_cam_z = 10.0f;
+v2  g_debug_cam_last_mouse_p;
+
 struct Debug_Record {
     u64 cycles;
     u32 hit;

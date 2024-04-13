@@ -9,8 +9,6 @@
 struct v2;
 struct Bitmap;
 
-#include "intrin.h"
-
 #define KB(value) (   value  * 1024ll)
 #define MB(value) (KB(value) * 1024ll)
 #define GB(value) (MB(value) * 1024ll)
@@ -25,9 +23,6 @@ struct Bitmap;
 //
 // Compilers
 //
-#define __MSVC      1
-#define __LLVM      0
-
 #if     __MSVC
   #include <intrin.h>
 #elif   __LLVM
@@ -39,6 +34,7 @@ struct Bitmap;
 #elif   __LLVM
 
 #endif
+
 
 extern "C" {
     typedef struct DebugReadFileResult {
@@ -56,19 +52,38 @@ extern "C" {
     typedef DEBUG_PLATFORM_READ_FILE(DEBUG_PLATFORM_READ_FILE_);
 
 
-    typedef struct GameKey {
+    typedef struct Game_Key {
         b32 is_set;
-    } GameKey;
+    } Game_Key;
 
-    typedef struct GameInput {
+    enum Mouse_Enum {
+        eMouse_Left,
+        eMouse_Middle,
+        eMouse_Right,
+
+        eMouse_Count
+    };
+
+    // these are following game coordinates.
+    typedef struct Mouse_Input {
+        v2  P;
+        b32 is_down[eMouse_Count];
+        b32 toggle[eMouse_Count];
+        v2  click_p[eMouse_Count];
+        s32 wheel_delta;
+    } Mouse_Input;
+
+    typedef struct Game_Input {
         r32 dt_per_frame;
-        GameKey move_up;
-        GameKey move_down;
-        GameKey move_left;
-        GameKey move_right;
+        Game_Key    move_up;
+        Game_Key    move_down;
+        Game_Key    move_left;
+        Game_Key    move_right;
 
-        GameKey toggle_debug;
-    } GameInput;
+        Game_Key    toggle_debug;
+
+        Mouse_Input mouse;
+    } Game_Input;
 
     struct PlatformWorkQueue;
     #define PLATFORM_WORK_QUEUE_CALLBACK(Name) void Name(PlatformWorkQueue *queue, void *data)

@@ -57,10 +57,12 @@ struct Sort_Entry {
 
 struct Camera {
     b32     orthographic;
-    m4x4    transform;
     r32     focal_length;
-    v2      screen_dim;
-    v3      pos;
+    union {
+        r32     width_over_height;
+        r32     aspect_ratio;
+    };
+    m4x4    projection;
 };
 
 struct Render_Group {

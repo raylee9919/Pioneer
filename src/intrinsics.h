@@ -6,6 +6,7 @@
     $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
     ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
+#include <intrin.h>
 #include <math.h>
 
 #if     __MSVC
