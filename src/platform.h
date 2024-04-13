@@ -79,6 +79,7 @@ extern "C" {
         Game_Key    move_down;
         Game_Key    move_left;
         Game_Key    move_right;
+        Game_Key    alt;
 
         Game_Key    toggle_debug;
 

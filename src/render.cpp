@@ -282,7 +282,7 @@ alloc_render_group(Memory_Arena *arena, b32 ortho, r32 aspect_ratio) {
         cam->aspect_ratio       = aspect_ratio;
 
         m4x4 cam_o = (x_rotation(g_debug_cam_orbital_pitch) *
-                      z_rotation(g_debug_cam_orbital_yaw));
+                      y_rotation(g_debug_cam_orbital_yaw));
         v3 cam_translation = v3{0.0f, 0.0f, g_debug_cam_z};
 
         m4x4 cam_c = camera_transform(get_column(cam_o, 0),

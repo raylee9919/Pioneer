@@ -134,6 +134,7 @@ win32_init_opengl(HWND window) {
     desiredPixelFormat.iPixelType       = PFD_TYPE_RGBA;
     desiredPixelFormat.cColorBits       = 32;
     desiredPixelFormat.cAlphaBits       = 8;
+    desiredPixelFormat.cDepthBits       = 24;
     desiredPixelFormat.iLayerType       = PFD_MAIN_PLANE;
 
     int suggestedPixelFormatIndex = ChoosePixelFormat(windowDC, &desiredPixelFormat);
@@ -146,6 +147,7 @@ win32_init_opengl(HWND window) {
     // associate with the thread.
     if (wglMakeCurrent(windowDC, openGLRC)) {
         GL_Info gl_info = gl_get_info();
+
 
         // v-sync.
         wgl_swap_interval = (Wgl_Swap_Interval *)wglGetProcAddress("wglSwapIntervalEXT");
@@ -791,6 +793,9 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
                             } break;
                             case 'D': {
                                 Win32ProcessKeyboard(&game_input.move_right, is_down);
+                            } break;
+                            case VK_MENU: { // alt
+                                Win32ProcessKeyboard(&game_input.alt, is_down);
                             } break;
 #ifdef __DEBUG
                             // tilde key.

@@ -245,6 +245,7 @@ GAME_MAIN(GameMain) {
             for (s32 Y = -4; Y <= 4; ++Y) {
                 if (X == -8 || X == 8 || Y == -4 || Y == 4) {
                     if (X != 0 && Y != 0) {
+                    // if (X == -8 && Y == -4) {
                         v3 dim = {1.0f, 1.0f, 1.0f};
                         Position pos1 = {chunk->chunkX, chunk->chunkY, chunk->chunkZ};
                         Position pos2 = {chunk->chunkX, chunk->chunkY, chunk->chunkZ - 1};
@@ -255,9 +256,10 @@ GAME_MAIN(GameMain) {
                         RecalcPos(&pos1, gameState->world->chunkDim);
                         RecalcPos(&pos2, gameState->world->chunkDim);
                         Entity *tree1 = PushEntity(&gameState->worldArena, chunkHashmap, EntityType_Tree, pos1);
-                        // Entity *tree2 = PushEntity(&gameState->worldArena, chunkHashmap, EntityType_Tree, pos2);
+                        // TODO: nervous asf... why isn't it showing up.
+                        Entity *tree2 = PushEntity(&gameState->worldArena, chunkHashmap, EntityType_Tree, pos2);
                         tree1->dim = dim;
-                        // tree2->dim = dim;
+                        tree2->dim = dim;
                     }
                 }
             }
@@ -395,20 +397,22 @@ GAME_MAIN(GameMain) {
     r32 angle = gameState->time;
 
 #if __DEBUG
-    Mouse_Input *mouse = &gameInput->mouse;
-    r32 c = 2.0f;
-    if (mouse->is_down[eMouse_Left]) {
-        if (mouse->toggle[eMouse_Left]) {
-            g_debug_cam_last_mouse_p = mouse->P;
+    if (gameInput->alt.is_set) {
+        Mouse_Input *mouse = &gameInput->mouse;
+        r32 c = 2.0f;
+        if (mouse->is_down[eMouse_Left]) {
+            if (mouse->toggle[eMouse_Left]) {
+                g_debug_cam_last_mouse_p = mouse->P;
+            }
+            g_debug_cam_orbital_yaw     += (g_debug_cam_last_mouse_p.x - mouse->P.x) * c;
+            g_debug_cam_orbital_pitch   -= (g_debug_cam_last_mouse_p.y - mouse->P.y) * c;
+            g_debug_cam_last_mouse_p    = mouse->P;
         }
-        g_debug_cam_orbital_yaw     += (g_debug_cam_last_mouse_p.x - mouse->P.x) * c;
-        g_debug_cam_orbital_pitch   -= (g_debug_cam_last_mouse_p.y - mouse->P.y) * c;
-        g_debug_cam_last_mouse_p    = mouse->P;
-    }
 
-    if (mouse->wheel_delta) {
-        c = 0.5f;
-        g_debug_cam_z -= c * mouse->wheel_delta;
+        if (mouse->wheel_delta) {
+            c = 0.5f;
+            g_debug_cam_z -= c * mouse->wheel_delta;
+        }
     }
 
 #endif
@@ -437,6 +441,9 @@ GAME_MAIN(GameMain) {
                             entity->pos.chunkZ * gameState->world->chunkDim.z + entity->pos.offset.z,
                     };
 
+                    const r32 tilt_angle_z = 0.16f * pi32;
+                    const r32 tilt_angle_y = 0.01f * pi32;
+
                     switch (entity->type) {
                         case EntityType_Player: {
                             s32 face = entity->face;
@@ -445,9 +452,9 @@ GAME_MAIN(GameMain) {
                             r32 card_h = 1.8f;
                             r32 card_w = card_h * bmp_height_over_width;
                             push_bitmap(render_group,
-                                        v3{base.x - card_w * 0.5f, base.y, 0.0f},
-                                        v3{card_w, 0.0f, 0.0f},
-                                        v3{0.0f, card_h, 0.0f},
+                                        v3{base.x - card_w * 0.5f, base.y, base.z},
+                                        v3{card_w, tan(tilt_angle_y) * card_w, 0.0f},
+                                        v3{0.0f, card_h, sin(tilt_angle_z) * card_h},
                                         gameAssets->playerBmp[face]);
 
 #if 0
@@ -591,9 +598,9 @@ GAME_MAIN(GameMain) {
                                 r32 card_h = 2.0f;
                                 r32 card_w = card_h * bmp_height_over_width;
                                 push_bitmap(render_group,
-                                            v3{base.x - card_w * 0.5f, base.y, 0.0f},
-                                            v3{card_w, 0.0f, 0.0f},
-                                            v3{0.0f, card_h, 0.0f},
+                                            v3{base.x - card_w * 0.5f, base.y, base.z},
+                                            v3{card_w, tan(tilt_angle_y) * card_w, 0.0f},
+                                            v3{0.0f, card_h, sin(tilt_angle_z) * card_h},
                                             bitmap);
                             }
                         } break;
@@ -605,9 +612,9 @@ GAME_MAIN(GameMain) {
                             r32 card_h = 1.8f;
                             r32 card_w = card_h * bmp_height_over_width;
                             push_bitmap(render_group,
-                                        v3{base.x - card_w * 0.5f, base.y, 0.0f},
-                                        v3{card_w, 0.0f, 0.0f},
-                                        v3{0.0f, card_h, 0.0f},
+                                        v3{base.x - card_w * 0.5f, base.y, base.z},
+                                        v3{card_w, tan(tilt_angle_y) * card_w, 0.0f},
+                                        v3{0.0f, card_h, sin(tilt_angle_z) * card_h},
                                         gameAssets->familiarBmp[face]);
                         } break;
 

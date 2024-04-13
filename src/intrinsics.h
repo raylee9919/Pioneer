@@ -70,6 +70,12 @@ sin(r32 x) {
 }
 
 internal r32
+tan(r32 x) {
+    r32 result = tanf(x);
+    return result;
+}
+
+internal r32
 sqrt(r32 x) {
     r32 result = sqrtf(x);
     return result;

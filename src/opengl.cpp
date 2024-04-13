@@ -218,15 +218,21 @@ gl_load_projection(Camera *camera) {
 
     } else {
         r32 f = camera->focal_length;
-        r32 a = camera->width_over_height;
+        r32 a = camera->width_over_height * f;
+
+        r32 N = 0.1f;
+        r32 F = 100.0f;
+        r32 b = (N + F) / (N - F);
+        r32 c = (2 * N * F) / (N - F);
 
         m4x4 proj = {{
-            { f,    0,  0,  0},
-            { 0,  a*f,  0,  0},
-            { 0,    0,  1,  0},
-            { 0,    0, -1,  0}
+            { f,  0,  0,  0},
+            { 0,  a,  0,  0},
+            { 0,  0,  b,  c},
+            { 0,  0, -1,  0}
         }};
 
+        // in terms of procedure, it goes backward.
         proj = proj * camera->projection;
 
         gl_load_matrix(proj);
@@ -238,12 +244,23 @@ internal void
 gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
     glViewport(0, 0, win_w, win_h);
 
-    glClearColor(0.2f, 0.3f, 0.2f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
 
-    glEnable(GL_TEXTURE_2D);
     glEnable(GL_BLEND);
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+
+    glEnable(GL_SCISSOR_TEST);
+
+    glEnable(GL_DEPTH_TEST);
+    glClearColor(0.2f, 0.3f, 0.2f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glClearDepth(1.0f);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glDepthFunc(GL_LEQUAL);
+
+    glEnable(GL_ALPHA_TEST);
+    glAlphaFunc(GL_GREATER, 0.0f);
+
+    glEnable(GL_TEXTURE_2D);
 
 
     for (Render_Group *group = (Render_Group *)batch->base;
