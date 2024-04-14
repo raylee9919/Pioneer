@@ -56,11 +56,12 @@ struct Position {
     v3 offset;
 };
 
-enum EntityType {
-    EntityType_Player,
-    EntityType_Familiar,
-    EntityType_Tree,
-    EntityType_Golem
+enum Entity_Type {
+    eEntity_Player,
+    eEntity_Familiar,
+    eEntity_Tree,
+    eEntity_Golem,
+    eEntity_Tile
 };
 
 enum EntityFlag {
@@ -68,7 +69,7 @@ enum EntityFlag {
 };
 
 struct Entity {
-    EntityType type;
+    Entity_Type type;
     v3 dim;
     Position pos;
     v3 velocity;
@@ -195,7 +196,7 @@ struct Game_Assets {
 
 
 struct GameState {
-    b32 isInit;
+    b32 is_init;
     r32 time;
 
     RandomSeries particleRandomSeries;

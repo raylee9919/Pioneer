@@ -14,9 +14,9 @@
 #include "game.h"
 #include "debug.h"
 #include "memory.cpp"
-#include "render.cpp"
+#include "render_group.cpp"
 
-#include "sim.h"
+#include "sim.cpp"
 
 
 // debug.
@@ -215,8 +215,7 @@ GAME_MAIN(GameMain) {
     // Init GameState
     //
     
-    if (!gameState->isInit)
-    {
+    if (!gameState->is_init) {
 
         gameState->particleRandomSeries = Seed(254);
 
@@ -226,38 +225,47 @@ GAME_MAIN(GameMain) {
         gameState->world = PushStruct(&gameState->worldArena, World);
         World *world = gameState->world;
         world->chunkDim = {17.0f, 9.0f, 3.0f};
-        Memory_Arena *worldArena = &gameState->worldArena;
-        ChunkHashmap *chunkHashmap = &gameState->world->chunkHashmap;
+        Memory_Arena *world_arena = &gameState->worldArena;
+        ChunkHashmap *chunk_hashmap = &gameState->world->chunkHashmap;
 
 
-        gameState->player = PushEntity(worldArena, chunkHashmap, EntityType_Player, {0, 0, 0});
+        gameState->player = push_entity(world_arena, chunk_hashmap, eEntity_Player, Position{});
 
-        PushEntity(worldArena, chunkHashmap, EntityType_Familiar, {0, 0, 0, v3{3.0f, 0.0f, 0.0f}});
+        push_entity(world_arena, chunk_hashmap, eEntity_Familiar, {0, 0, 0, v3{3.0f, 0.0f, 0.0f}});
 
 
 #if 0
-        PushEntity(worldArena, chunkHashmap, EntityType_Golem, {0, 0, 0, v3{3.0f, 3.0f, 0.0f}});
+        push_entity(worldArena, chunkHashmap, EntityType_Golem, {0, 0, 0, v3{3.0f, 3.0f, 0.0f}});
 #endif
 
-        Chunk *chunk = GetChunk(&gameState->worldArena, chunkHashmap, gameState->player->pos);
 #if 1
+        Chunk *chunk = get_chunk(&gameState->worldArena, chunk_hashmap, gameState->player->pos);
+        v3 dim = {1.0f, 1.0f, 1.0f};
+
         for (s32 X = -8; X <= 8; ++X) {
             for (s32 Y = -4; Y <= 4; ++Y) {
+                Position tile_pos = {chunk->chunkX, chunk->chunkY, chunk->chunkZ};
+                tile_pos.offset.x += dim.x * X;
+                tile_pos.offset.y += dim.y * Y;
+                recalc_pos(&tile_pos, gameState->world->chunkDim);
+                Entity *tile1 = push_entity(world_arena, chunk_hashmap,
+                                           eEntity_Tile, tile_pos);
+                Entity *tile2 = push_entity(world_arena, chunk_hashmap,
+                                           eEntity_Tile, tile_pos);
+                tile2->pos.chunkZ--;
                 if (X == -8 || X == 8 || Y == -4 || Y == 4) {
                     if (X != 0 && Y != 0) {
                     // if (X == -8 && Y == -4) {
-                        v3 dim = {1.0f, 1.0f, 1.0f};
                         Position pos1 = {chunk->chunkX, chunk->chunkY, chunk->chunkZ};
                         Position pos2 = {chunk->chunkX, chunk->chunkY, chunk->chunkZ - 1};
                         pos1.offset.x += dim.x * X;
                         pos1.offset.y += dim.y * Y;
                         pos2.offset.x += dim.x * X;
                         pos2.offset.y += dim.y * Y;
-                        RecalcPos(&pos1, gameState->world->chunkDim);
-                        RecalcPos(&pos2, gameState->world->chunkDim);
-                        Entity *tree1 = PushEntity(&gameState->worldArena, chunkHashmap, EntityType_Tree, pos1);
-                        // TODO: nervous asf... why isn't it showing up.
-                        Entity *tree2 = PushEntity(&gameState->worldArena, chunkHashmap, EntityType_Tree, pos2);
+                        recalc_pos(&pos1, gameState->world->chunkDim);
+                        recalc_pos(&pos2, gameState->world->chunkDim);
+                        Entity *tree1 = push_entity(world_arena, chunk_hashmap, eEntity_Tree, pos1);
+                        Entity *tree2 = push_entity(world_arena, chunk_hashmap, eEntity_Tree, pos2);
                         tree1->dim = dim;
                         tree2->dim = dim;
                     }
@@ -272,7 +280,7 @@ GAME_MAIN(GameMain) {
         init_debug(&g_debug_log, &gameState->debug_arena);
 #endif
 
-        gameState->isInit = true;
+        gameState->is_init = true;
     }
 
     TIMED_BLOCK();
@@ -381,13 +389,13 @@ GAME_MAIN(GameMain) {
     Position maxPos = camPos;
     minPos.offset -= 0.5f * camDim;
     maxPos.offset += 0.5f * camDim;
-    RecalcPos(&minPos, chunkDim);
-    RecalcPos(&maxPos, chunkDim);
+    recalc_pos(&minPos, chunkDim);
+    recalc_pos(&maxPos, chunkDim);
 
     //
     // Update entities
     //
-    UpdateEntities(gameState, dt, minPos, maxPos);
+    update_entities(gameState, dt, minPos, maxPos);
 
 
     //
@@ -428,7 +436,7 @@ GAME_MAIN(GameMain) {
             for (s32 X = minPos.chunkX;
                  X <= maxPos.chunkX;
                  ++X) {
-                Chunk *chunk = GetChunk(&gameState->worldArena,
+                Chunk *chunk = get_chunk(&gameState->worldArena,
                                         &gameState->world->chunkHashmap, {X, Y, Z});
                 for (Entity *entity = chunk->entities.head;
                      entity != 0;
@@ -445,7 +453,7 @@ GAME_MAIN(GameMain) {
                     const r32 tilt_angle_y = 0.01f * pi32;
 
                     switch (entity->type) {
-                        case EntityType_Player: {
+                        case eEntity_Player: {
                             s32 face = entity->face;
                             v2 bmp_dim = v2{(r32)gameAssets->playerBmp[face]->width, (r32)gameAssets->playerBmp[face]->height};
                             r32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
@@ -590,7 +598,7 @@ GAME_MAIN(GameMain) {
 
                         } break;
 
-                        case EntityType_Tree: {
+                        case eEntity_Tree: {
                             Bitmap *bitmap = GetBitmap(transState, GAI_Tree, transState->lowPriorityQueue, &gameMemory->platform);
                             if (bitmap) {
                                 v2 bmp_dim = v2{(r32)bitmap->width, (r32)bitmap->height};
@@ -605,7 +613,7 @@ GAME_MAIN(GameMain) {
                             }
                         } break;
 
-                        case EntityType_Familiar: {
+                        case eEntity_Familiar: {
                             s32 face = entity->face;
                             v2 bmp_dim = v2{(r32)gameAssets->familiarBmp[face]->width, (r32)gameAssets->familiarBmp[face]->height};
                             r32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
@@ -618,10 +626,16 @@ GAME_MAIN(GameMain) {
                                         gameAssets->familiarBmp[face]);
                         } break;
 
-                        case EntityType_Golem: {
+                        case eEntity_Golem: {
                             Bitmap *bitmap = GetBitmap(transState, GAI_Golem, transState->lowPriorityQueue, &gameMemory->platform);
                             if (bitmap) {
                             }
+                        } break;
+
+                        case eEntity_Tile: {
+                            r32 radius = entity->dim.x * 0.5f;
+                            r32 height = entity->dim.z;
+                            push_cube(render_group, base, radius, height);
                         } break;
 
                         INVALID_DEFAULT_CASE

@@ -7,7 +7,7 @@
    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 
-#include "render.h"
+#include "render_group.h"
 
 
 #define GL_SRGB8_ALPHA8                     0x8C43
@@ -144,7 +144,7 @@ gl_get_info() {
 }
 
 internal void
-gl_draw_rect(HDC hdc, v2 min, v2 max, v4 color) {
+gl_draw_rect(v2 min, v2 max, v4 color) {
     glColor4f(color.r, color.g, color.b, color.a);
     glBegin(GL_TRIANGLES);
 
@@ -160,42 +160,120 @@ gl_draw_rect(HDC hdc, v2 min, v2 max, v4 color) {
 }
 
 internal void
-gl_draw_bitmap(HDC hdc, v3 vertices[4], Bitmap *bitmap, v4 color) {
+gl_draw_bitmap(v3 V[4], Bitmap *bitmap, v4 color) {
     glBegin(GL_TRIANGLES);
 
     glColor4f(color.r, color.g, color.b, color.a);
     
     // upper triangle.
     glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(vertices[0].x,
-               vertices[0].y,
-               vertices[0].z);
+    glVertex3f(V[0].x,
+               V[0].y,
+               V[0].z);
 
     glTexCoord2f(1.0f, 0.0f);
-    glVertex3f(vertices[1].x,
-               vertices[1].y,
-               vertices[1].z);
+    glVertex3f(V[1].x,
+               V[1].y,
+               V[1].z);
 
     glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(vertices[3].x,
-               vertices[3].y,
-               vertices[3].z);
+    glVertex3f(V[3].x,
+               V[3].y,
+               V[3].z);
 
     // bottom triangle.
     glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(vertices[0].x,
-               vertices[0].y,
-               vertices[0].z);
+    glVertex3f(V[0].x,
+               V[0].y,
+               V[0].z);
 
     glTexCoord2f(0.0f, 1.0f);
-    glVertex3f(vertices[2].x,
-               vertices[2].y,
-               vertices[2].z);
+    glVertex3f(V[2].x,
+               V[2].y,
+               V[2].z);
 
     glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(vertices[3].x,
-               vertices[3].y,
-               vertices[3].z);
+    glVertex3f(V[3].x,
+               V[3].y,
+               V[3].z);
+
+    glEnd();
+}
+
+internal void
+gl_draw_cube(v3 V[8]) {
+    glBegin(GL_TRIANGLES);
+    
+    v4 tc = v4{0.5f, 0.5f, 0.5f, 1.0f};
+    v4 bc = v4{0.05f, 0.05f, 0.05f, 1.0f};
+
+    glColor4f(tc.r, tc.g, tc.b, tc.a);
+    glVertex3f(V[0].x, V[0].y, V[0].z);
+    glVertex3f(V[1].x, V[1].y, V[1].z);
+    glVertex3f(V[2].x, V[2].y, V[2].z);
+
+    glVertex3f(V[0].x, V[0].y, V[0].z);
+    glVertex3f(V[2].x, V[2].y, V[2].z);
+    glVertex3f(V[3].x, V[3].y, V[3].z);
+
+    glColor4f(bc.r, bc.g, bc.b, bc.a);
+    glVertex3f(V[4].x, V[4].y, V[4].z);
+    glVertex3f(V[5].x, V[5].y, V[5].z);
+    glVertex3f(V[6].x, V[6].y, V[6].z);
+
+    glVertex3f(V[4].x, V[4].y, V[4].z);
+    glVertex3f(V[6].x, V[6].y, V[6].z);
+    glVertex3f(V[7].x, V[7].y, V[7].z);
+
+
+    glColor4f(bc.r, bc.g, bc.b, bc.a);
+    glVertex3f(V[4].x, V[4].y, V[4].z);
+    glVertex3f(V[5].x, V[5].y, V[5].z);
+    glColor4f(tc.r, tc.g, tc.b, tc.a);
+    glVertex3f(V[1].x, V[1].y, V[1].z);
+
+    glColor4f(bc.r, bc.g, bc.b, bc.a);
+    glVertex3f(V[4].x, V[4].y, V[4].z);
+    glColor4f(tc.r, tc.g, tc.b, tc.a);
+    glVertex3f(V[1].x, V[1].y, V[1].z);
+    glVertex3f(V[0].x, V[0].y, V[0].z);
+
+    glColor4f(bc.r, bc.g, bc.b, bc.a);
+    glVertex3f(V[5].x, V[5].y, V[5].z);
+    glVertex3f(V[7].x, V[7].y, V[7].z);
+    glColor4f(tc.r, tc.g, tc.b, tc.a);
+    glVertex3f(V[3].x, V[3].y, V[3].z);
+
+    glColor4f(bc.r, bc.g, bc.b, bc.a);
+    glVertex3f(V[5].x, V[5].y, V[5].z);
+    glColor4f(tc.r, tc.g, tc.b, tc.a);
+    glVertex3f(V[3].x, V[3].y, V[3].z);
+    glVertex3f(V[1].x, V[1].y, V[1].z);
+
+    glColor4f(bc.r, bc.g, bc.b, bc.a);
+    glVertex3f(V[7].x, V[7].y, V[7].z);
+    glVertex3f(V[6].x, V[6].y, V[6].z);
+    glColor4f(tc.r, tc.g, tc.b, tc.a);
+    glVertex3f(V[3].x, V[3].y, V[3].z);
+
+    glColor4f(bc.r, bc.g, bc.b, bc.a);
+    glVertex3f(V[7].x, V[7].y, V[7].z);
+    glColor4f(tc.r, tc.g, tc.b, tc.a);
+    glVertex3f(V[2].x, V[2].y, V[2].z);
+    glVertex3f(V[3].x, V[3].y, V[3].z);
+
+    glColor4f(bc.r, bc.g, bc.b, bc.a);
+    glVertex3f(V[6].x, V[6].y, V[6].z);
+    glVertex3f(V[4].x, V[4].y, V[4].z);
+    glColor4f(tc.r, tc.g, tc.b, tc.a);
+    glVertex3f(V[0].x, V[0].y, V[0].z);
+
+    glColor4f(bc.r, bc.g, bc.b, bc.a);
+    glVertex3f(V[6].x, V[6].y, V[6].z);
+    glColor4f(tc.r, tc.g, tc.b, tc.a);
+    glVertex3f(V[0].x, V[0].y, V[0].z);
+    glVertex3f(V[2].x, V[2].y, V[2].z);
+    
 
     glEnd();
 }
@@ -278,7 +356,7 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
             Render_Entity_Header *entity =(Render_Entity_Header *)entry->render_entity;
 
             switch (entity->type) {
-                case RenderType_RenderEntityBitmap: {
+                case eRenderEntityBitmap: {
                     RenderEntityBitmap *piece = (RenderEntityBitmap *)entity;
                     local_persist s32 handle_idx = 1;
                     Bitmap *bitmap = piece->bitmap;
@@ -319,17 +397,43 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
                     }
 #endif
 
-                    gl_draw_bitmap(hdc, vertices, bitmap, piece->color);
+                    gl_draw_bitmap(vertices, bitmap, piece->color);
                 } break;
 
-                case RenderType_Render_Text: {
+                case eRender_Text: {
                     Render_Text *piece = (Render_Text *)entity;
                 } break;
 
-                case RenderType_RenderEntityRect: {
+                case eRenderEntityRect: {
                     RenderEntityRect *piece = (RenderEntityRect *)entity;
                     glDisable(GL_TEXTURE_2D);
-                    gl_draw_rect(hdc, piece->min, piece->max, piece->color);
+                    gl_draw_rect(piece->min, piece->max, piece->color);
+                    glEnable(GL_TEXTURE_2D);
+                } break;
+
+                case eRender_Cube: {
+                    glDisable(GL_TEXTURE_2D);
+                    Render_Cube *piece = (Render_Cube *)entity;
+                    v3 B = piece->base;
+                    r32 H = piece->height;
+                    r32 R = piece->radius;
+                    r32 min_x = B.x - R;
+                    r32 max_x = B.x + R;
+                    r32 min_y = B.y - R;
+                    r32 max_y = B.y + R;
+                    r32 min_z = B.z - H;
+                    r32 max_z = B.z;
+                    v3 vertices[8] = {
+                        v3{min_x, min_y, max_z},
+                        v3{max_x, min_y, max_z},
+                        v3{max_x, max_y, max_z},
+                        v3{min_x, max_y, max_z},
+                        v3{min_x, min_y, min_z},
+                        v3{max_x, min_y, min_z},
+                        v3{max_x, max_y, min_z},
+                        v3{min_x, max_y, min_z},
+                    };
+                    gl_draw_cube(vertices);
                     glEnable(GL_TEXTURE_2D);
                 } break;
 

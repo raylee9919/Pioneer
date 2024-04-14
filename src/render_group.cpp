@@ -6,13 +6,14 @@
     $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
     ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
-#include "render.h"
+#include "render_group.h"
 
 //
 // Push to Render Group
 //
-#define PushRenderEntity(GROUP, STRUCT) \
-  (STRUCT *)__push_render_entity(GROUP, sizeof(STRUCT), RenderType_##STRUCT)
+#define push_render_entity(GROUP, STRUCT) \
+  (STRUCT *)__push_render_entity(GROUP, sizeof(STRUCT), e##STRUCT)
+
 internal Render_Entity_Header *
 __push_render_entity(Render_Group *renderGroup, u32 size, RenderType type) {
     Assert(size + renderGroup->used <= renderGroup->capacity);
@@ -31,7 +32,7 @@ push_bitmap(Render_Group *render_group,
             v3 origin, v3 axis_x, v3 axis_y,
             Bitmap *bitmap, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f})
 {
-    RenderEntityBitmap *piece = PushRenderEntity(render_group, RenderEntityBitmap);
+    RenderEntityBitmap *piece = push_render_entity(render_group, RenderEntityBitmap);
     if (piece)
     {
         piece->origin       = origin;
@@ -90,6 +91,17 @@ push_text(Render_Group *render_group, v3 base,
         }
     }
     cen_y += game_assets->v_advance;
+}
+
+internal void
+push_cube(Render_Group *render_group,
+          v3 base, r32 radius, r32 height) {
+    Render_Cube *piece = push_render_entity(render_group, Render_Cube);
+    if (piece) {
+        piece->base     = base;
+        piece->radius   = radius;
+        piece->height   = height;
+    }
 }
 
 #if 0
@@ -248,7 +260,7 @@ draw_text(Bitmap *buffer, Render_Text *info) {
 internal void
 push_rect(Render_Group *renderGroup,
           v2 min, v2 max, v4 color) {
-    RenderEntityRect *piece = PushRenderEntity(renderGroup, RenderEntityRect);
+    RenderEntityRect *piece = push_render_entity(renderGroup, RenderEntityRect);
     if (piece) {
         piece->min = min;
         piece->max = max;

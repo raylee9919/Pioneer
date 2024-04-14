@@ -35,7 +35,7 @@ IsSameChunk(Chunk *chunk, Position pos) {
 }
 
 internal Chunk *
-GetChunk(Memory_Arena *arena, ChunkHashmap *hashmap, Position pos) {
+get_chunk(Memory_Arena *arena, ChunkHashmap *hashmap, Position pos) {
     Chunk *result = 0;
 
     u32 bucket = ChunkHash(hashmap, pos);
@@ -74,37 +74,41 @@ IsSet(Entity *entity, EntityFlag flag) {
 }
 
 internal Entity *
-PushEntity(Memory_Arena *arena, ChunkHashmap *hashmap, EntityType type, Position pos) {
+push_entity(Memory_Arena *arena, ChunkHashmap *hashmap,
+            Entity_Type type, Position pos) {
     Entity *entity = PushStruct(arena, Entity);
-    *entity = {};
-    entity->pos = pos;
-    entity->type = type;
+    entity->pos     = pos;
+    entity->type    = type;
 
     switch (type) {
-        case EntityType_Player: {
+        case eEntity_Player: {
             SetFlag(entity, EntityFlag_Collides);
             entity->dim = {0.7f, 0.5f, 1.0f};
             entity->u = 10.0f;
         } break;
 
-        case EntityType_Familiar: {
+        case eEntity_Familiar: {
             entity->dim = {0.7f, 0.5f, 1.0f};
             entity->u = 5.0f;
         } break;
 
-        case EntityType_Tree: {
+        case eEntity_Tree: {
             SetFlag(entity, EntityFlag_Collides);
         } break;
 
-        case EntityType_Golem: {
+        case eEntity_Golem: {
             entity->dim = {2.0f, 1.8f, 1.0f};
             SetFlag(entity, EntityFlag_Collides);
+        } break;
+
+        case eEntity_Tile: {
+            entity->dim = {0.8f, 0.8f, 0.5f};
         } break;
 
         INVALID_DEFAULT_CASE
     }
 
-    Chunk *chunk = GetChunk(arena, hashmap, pos);
+    Chunk *chunk = get_chunk(arena, hashmap, pos);
     EntityList *entities = &chunk->entities;
     if (!entities->head) {
         entities->head = entity;
@@ -117,7 +121,7 @@ PushEntity(Memory_Arena *arena, ChunkHashmap *hashmap, EntityType type, Position
 }
 
 internal void
-RecalcPos(Position *pos, v3 chunkDim) {
+recalc_pos(Position *pos, v3 chunkDim) {
     r32 boundX = chunkDim.x * 0.5f;
     r32 boundY = chunkDim.y * 0.5f;
     r32 boundZ = chunkDim.z * 0.5f;
@@ -156,8 +160,8 @@ RecalcPos(Position *pos, v3 chunkDim) {
 internal void
 MapEntityToChunk(Memory_Arena *arena, ChunkHashmap *hashmap, Entity *entity,
         Position oldPos, Position newPos) {
-    Chunk *oldChunk = GetChunk(arena, hashmap, oldPos);
-    Chunk *newChunk = GetChunk(arena, hashmap, newPos);
+    Chunk *oldChunk = get_chunk(arena, hashmap, oldPos);
+    Chunk *newChunk = get_chunk(arena, hashmap, newPos);
     EntityList *oldEntities = &oldChunk->entities;
     EntityList *newEntities = &newChunk->entities;
 
@@ -201,7 +205,7 @@ UpdateEntityPos(GameState *gameState, Entity *self, r32 dt, Position simMin, Pos
     self->accel -= 1.5f * self->velocity;
     self->velocity += dt * self->accel;
     newPos.offset += dt * self->velocity;
-    RecalcPos(&newPos, gameState->world->chunkDim);
+    recalc_pos(&newPos, gameState->world->chunkDim);
 
     // NOTE: Minkowski Collision
     r32 tRemain = dt;
@@ -219,7 +223,7 @@ UpdateEntityPos(GameState *gameState, Entity *self, r32 dt, Position simMin, Pos
                 for (s32 X = simMin.chunkX;
                         X <= simMax.chunkX;
                         ++X) {
-                    Chunk *chunk = GetChunk(&gameState->worldArena,
+                    Chunk *chunk = get_chunk(&gameState->worldArena,
                             &gameState->world->chunkHashmap, {X, Y, Z});
                     for (Entity *other = chunk->entities.head;
                             other != 0;
@@ -274,7 +278,7 @@ UpdateEntityPos(GameState *gameState, Entity *self, r32 dt, Position simMin, Pos
                                     }
                                     newPos = oldPos;
                                     newPos.offset += (vUsed + vRemain);
-                                    RecalcPos(&newPos, gameState->world->chunkDim);
+                                    recalc_pos(&newPos, gameState->world->chunkDim);
                                     self->velocity = vRemain;
                                 }
                             }
@@ -294,7 +298,7 @@ UpdateEntityPos(GameState *gameState, Entity *self, r32 dt, Position simMin, Pos
 }
 
 internal void
-UpdateEntities(GameState *gameState, r32 dt, Position simMin, Position simMax) {
+update_entities(GameState *gameState, r32 dt, Position simMin, Position simMax) {
     TIMED_BLOCK();
     for (s32 Z = simMin.chunkZ;
             Z <= simMax.chunkZ;
@@ -305,13 +309,13 @@ UpdateEntities(GameState *gameState, r32 dt, Position simMin, Position simMax) {
             for (s32 X = simMin.chunkX;
                     X <= simMax.chunkX;
                     ++X) {
-                Chunk *chunk = GetChunk(&gameState->worldArena,
-                        &gameState->world->chunkHashmap, {X, Y, Z});
+                Chunk *chunk = get_chunk(&gameState->worldArena,
+                                         &gameState->world->chunkHashmap, {X, Y, Z});
                 for (Entity *entity = chunk->entities.head;
                         entity != 0;
                         entity = entity->next) {
                     switch (entity->type) {
-                        case EntityType_Player: {
+                        case eEntity_Player: {
                             r32 epsilon = 0.01f;
                             if (entity->velocity.x > epsilon) {
                                 entity->face = 0;
@@ -322,7 +326,7 @@ UpdateEntities(GameState *gameState, r32 dt, Position simMin, Position simMax) {
                             UpdateEntityPos(gameState, entity, dt, simMin, simMax);
                         } break;
 
-                        case EntityType_Familiar: {
+                        case eEntity_Familiar: {
                             r32 epsilon = 0.01f;
                             if (entity->velocity.x > epsilon) {
                                 entity->face = 0;
@@ -337,10 +341,13 @@ UpdateEntities(GameState *gameState, r32 dt, Position simMin, Position simMax) {
                             UpdateEntityPos(gameState, entity, dt, simMin, simMax);
                         } break;
 
-                        case EntityType_Tree: {
+                        case eEntity_Tree: {
                         } break;
 
-                        case EntityType_Golem: {
+                        case eEntity_Golem: {
+                        } break;
+
+                        case eEntity_Tile: {
                         } break;
 
                         INVALID_DEFAULT_CASE
