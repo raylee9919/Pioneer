@@ -411,3 +411,39 @@ Caveat
     for the pixel first. Then when z == z, we will draw that. What that means is,
     I will never draw a pixel if it's not a final one that I will see so that I
     am smart enough to early out.
+
+
+
+
+                                Theme 8. Lighting
+
+  Ain't gonna simulate billions of photons in a scene. Pixar, Adobe, Maxwell, 
+  those can wait for hour to render super-realistic scenes. For games, it is 
+  not the case. It must be responsive.
+
+  Photons do not deem along a line! This is crucial. Degree of brightness you 
+  perceive is an amount of photons that hit your eye. Photon itself that goes 
+  along the line doesn't get stronger or weaker.
+
+  Given that,
+                               (Brightness = Count)
+  How many photons are gonna hit an eye away a mile from the post and an eye 
+  away two miles from the post each? Unless the lightsource is a perfect laser,
+  the amount will differ.
+
+  Consider an eye consists of a lens and a retina cells. The idea of a 
+  lens is to take a "cone" of light, instead of a "point" of light. That's why 
+  you use a lens. As the lens get further away from the light source, photons 
+  get spreaded in relatively larger area. "Inverse Square Law" is what it is. 
+  Again, a photon doesn't get weaker. It is about an integration of photons.
+
+  Direct view of a light is constant from any reasonable distance. The only way 
+  is to get so far away from it that your retina cells are no longer at a 
+  specific resolution to pick up the photons. The reason for that is the 
+  projection of the size of the light is exactly the inverse equation of the 
+  photon projection equation that spreading out the photons. They perfectly 
+  cancel.
+
+  In the real world, photons hits something in the air and scatter. This is 
+  called, "Participating Media". But it doesn't necessarily mean that those 
+  media will make the perceived light dimmer.

@@ -94,27 +94,22 @@ internal void *
 str_find(char *text, size_t t_len, char *pattern, size_t p_len) {
     void *result = 0;
 
-    if (t_len >= p_len)
-    {
+    if (t_len >= p_len) {
         u8 *t = (u8 *)text;
         u8 *p = (u8 *)pattern;
         for (u8 *t_base = t;
              t_base < t + t_len;
-             ++t_base)
-        {
+             ++t_base) {
             u8 *t_at = t_base;
             for (u8 *p_at = p;
                  p_at < p + p_len && *p_at == *t_at;
-                 ++p_at, ++t_at)
-            {
-                if (p_at == p + p_len - 1)
-                {
+                 ++p_at, ++t_at) {
+                if (p_at == p + p_len - 1) {
                     result = t_base;
                     break;
                 }
             }
-            if (result)
-            {
+            if (result) {
                 break;
             }
         }
@@ -145,14 +140,31 @@ win32_init_opengl(HWND window) {
     // finally, create context.
     HGLRC openGLRC = wglCreateContext(windowDC);
     // associate with the thread.
-    if (wglMakeCurrent(windowDC, openGLRC)) {
+    BOOL ok = wglMakeCurrent(windowDC, openGLRC);
+    if (ok) {
         GL_Info gl_info = gl_get_info();
 
+        wglSwapIntervalEXT          = (WGL_Swap_Interval *)wglGetProcAddress("wglSwapIntervalEXT");
+        glCreateShader              = (GL_Create_Shader *)wglGetProcAddress("glCreateShader");
+        glShaderSource              = (GL_Shader_Source *)wglGetProcAddress("glShaderSource");
+        glCompileShader             = (GL_Compile_Shader *)wglGetProcAddress("glCompileShader");
+        glCreateProgram             = (GL_Create_Program *)wglGetProcAddress("glCreateProgram");
+        glAttachShader              = (GL_Attach_Shader *)wglGetProcAddress("glAttachShader");
+        glLinkProgram               = (GL_Link_Program *)wglGetProcAddress("glLinkProgram");
+        glGetProgramiv              = (GL_Get_Programiv *)wglGetProcAddress("glGetProgramiv");
+        glGetShaderInfoLog          = (GL_Get_Shader_Info_Log *)wglGetProcAddress("glGetShaderInfoLog");
+        glValidateProgram           = (GL_Validate_Program *)wglGetProcAddress("glValidateProgram");
+        glGetProgramInfoLog         = (GL_Get_Program_Info_Log *)wglGetProcAddress("glGetProgramInfoLog");
+        glGenBuffers                = (GL_Gen_Buffers *)wglGetProcAddress("glGenBuffers");
+        glBindBuffer                = (GL_Bind_Buffer *)wglGetProcAddress("glBindBuffer");
+        glUniformMatrix4fv          = (GL_Uniform_Matrix4fv *)wglGetProcAddress("glUniformMatrix4fv");
+        glGetUniformLocation        = (GL_Get_Uniform_Location *)wglGetProcAddress("glGetUniformLocation");
+        glUseProgram                = (GL_Use_Program *)wglGetProcAddress("glUseProgram");
+        glUniform1i                 = (GL_Uniform1i *)wglGetProcAddress("glUniform1i");
 
         // v-sync.
-        wgl_swap_interval = (Wgl_Swap_Interval *)wglGetProcAddress("wglSwapIntervalEXT");
-        if (wgl_swap_interval) {
-            wgl_swap_interval(1);
+        if (wglSwapIntervalEXT) {
+            wglSwapIntervalEXT(1);
         }
 
         // texture sRGB.
@@ -166,6 +178,9 @@ win32_init_opengl(HWND window) {
         }
 
 
+        gl_init();
+
+
     } else {
         INVALID_CODE_PATH;
     }
@@ -174,13 +189,12 @@ win32_init_opengl(HWND window) {
 }
 
 internal void 
-Win32ToggleFullScreen(HWND window) {
+win32_toggle_fullscreen(HWND window) {
     DWORD style = GetWindowLong(window, GWL_STYLE);
     if (style & WS_OVERLAPPEDWINDOW) {
         MONITORINFO mi = { sizeof(mi) };
         if (GetWindowPlacement(window, &g_wpPrev) &&
-            GetMonitorInfo(MonitorFromWindow(window,
-                                             MONITOR_DEFAULTTOPRIMARY), &mi)) {
+            GetMonitorInfo(MonitorFromWindow(window, MONITOR_DEFAULTTOPRIMARY), &mi)) {
             SetWindowLong(window, GWL_STYLE,
                           style & ~WS_OVERLAPPEDWINDOW);
             SetWindowPos(window, HWND_TOP,
@@ -667,7 +681,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
                                 0, 0, hinst, 0);
     Assert(hwnd);
 
-    Win32ToggleFullScreen(hwnd);
+    win32_toggle_fullscreen(hwnd);
     win32_init_opengl(hwnd);
 
     Win32LoadXInput();
@@ -823,7 +837,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
                             }
                             if ((vk_code == VK_RETURN) && altWasDown) {
                                 if (msg.hwnd) {
-                                    Win32ToggleFullScreen(msg.hwnd);
+                                    win32_toggle_fullscreen(msg.hwnd);
                                 }
                             }
                         }

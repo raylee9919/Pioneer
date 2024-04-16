@@ -402,7 +402,6 @@ GAME_MAIN(GameMain) {
     // Render entities
     //
     gameState->time += 0.01f;
-    r32 angle = gameState->time;
 
 #if __DEBUG
     if (gameInput->alt.is_set) {
@@ -450,7 +449,7 @@ GAME_MAIN(GameMain) {
                     };
 
                     const r32 tilt_angle_z = 0.16f * pi32;
-                    const r32 tilt_angle_y = 0.01f * pi32;
+                    const r32 tilt_angle_y = 0.0f * pi32 * gameState->time;
 
                     switch (entity->type) {
                         case eEntity_Player: {
@@ -461,7 +460,7 @@ GAME_MAIN(GameMain) {
                             r32 card_w = card_h * bmp_height_over_width;
                             push_bitmap(render_group,
                                         v3{base.x - card_w * 0.5f, base.y, base.z},
-                                        v3{card_w, tan(tilt_angle_y) * card_w, 0.0f},
+                                        v3{card_w * cos(tilt_angle_y), card_w * sin(tilt_angle_y), 0.0f},
                                         v3{0.0f, card_h, sin(tilt_angle_z) * card_h},
                                         gameAssets->playerBmp[face]);
 
@@ -607,7 +606,7 @@ GAME_MAIN(GameMain) {
                                 r32 card_w = card_h * bmp_height_over_width;
                                 push_bitmap(render_group,
                                             v3{base.x - card_w * 0.5f, base.y, base.z},
-                                            v3{card_w, tan(tilt_angle_y) * card_w, 0.0f},
+                                            v3{card_w * cos(tilt_angle_y), card_w * sin(tilt_angle_y), 0.0f},
                                             v3{0.0f, card_h, sin(tilt_angle_z) * card_h},
                                             bitmap);
                             }
@@ -621,7 +620,7 @@ GAME_MAIN(GameMain) {
                             r32 card_w = card_h * bmp_height_over_width;
                             push_bitmap(render_group,
                                         v3{base.x - card_w * 0.5f, base.y, base.z},
-                                        v3{card_w, tan(tilt_angle_y) * card_w, 0.0f},
+                                        v3{card_w * cos(tilt_angle_y), card_w * sin(tilt_angle_y), 0.0f},
                                         v3{0.0f, card_h, sin(tilt_angle_z) * card_h},
                                         gameAssets->familiarBmp[face]);
                         } break;

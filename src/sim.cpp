@@ -102,7 +102,7 @@ push_entity(Memory_Arena *arena, ChunkHashmap *hashmap,
         } break;
 
         case eEntity_Tile: {
-            entity->dim = {0.8f, 0.8f, 0.5f};
+            entity->dim = {0.9f, 0.9f, 0.7f};
         } break;
 
         INVALID_DEFAULT_CASE

@@ -46,48 +46,48 @@ atomic_add_u64(u64 *value, u64 addend) {
 #endif
 
 inline s32 
-RoundR32ToS32(r32 value) {
-    s32 result = (s32)(value + 0.5);
+round_r32_to_s32(r32 x) {
+    s32 result = _mm_cvtss_si32(_mm_set_ss(x));
     return result;
 }
 
 inline u32 
-RoundR32ToU32(r32 value) {
-    u32 result = (u32)(value + 0.5);
+round_r32_to_u32(r32 x) {
+    s32 result = (u32)_mm_cvtss_si32(_mm_set_ss(x));
     return result;
 }
 
-internal r32
+inline r32
 cos(r32 x) {
     r32 result = cosf(x);
     return result;
 }
 
-internal r32
+inline r32
 sin(r32 x) {
     r32 result = sinf(x);
     return result;
 }
 
-internal r32
+inline r32
 tan(r32 x) {
     r32 result = tanf(x);
     return result;
 }
 
-internal r32
+inline r32
 sqrt(r32 x) {
-    r32 result = sqrtf(x);
+    r32 result = _mm_cvtss_f32(_mm_sqrt_ss(_mm_set_ss(x)));
     return result;
 }
 
-internal s32
+inline s32
 FloorR32ToS32(r32 A) {
     s32 result = (s32)A;
     return result;
 }
 
-internal s32
+inline s32
 CeilR32ToS32(r32 A) {
     s32 result = (s32)A + 1;
     return result;

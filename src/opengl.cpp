@@ -8,15 +8,59 @@
 
 
 #include "render_group.h"
+#include "opengl.h"
 
+typedef char GLchar;
 
 #define GL_SRGB8_ALPHA8                     0x8C43
 #define GL_FRAMEBUFFER_SRGB                 0x8DB9            
 #define GL_SHADING_LANGUAGE_VERSION         0x8B8C
+#define GL_VERTEX_SHADER                    0x8B31
+#define GL_FRAGMENT_SHADER                  0x8B30
+#define GL_VALIDATE_STATUS                  0x8B83
+#define GL_COMPILE_STATUS                   0x8B81
+#define GL_LINK_STATUS                      0x8B82
+#define GL_ARRAY_BUFFER                     0x8892
 
 
-typedef BOOL Wgl_Swap_Interval(int interval);
-Wgl_Swap_Interval *wgl_swap_interval;
+typedef BOOL        WGL_Swap_Interval(int interval);
+typedef GLuint      GL_Create_Shader(GLenum shaderType);
+typedef void        GL_Shader_Source(GLuint shader, GLsizei count, const GLchar **string, const GLint *length);
+typedef void        GL_Compile_Shader(GLuint shader);
+typedef GLuint      GL_Create_Program(void);
+typedef void        GL_Attach_Shader(GLuint program, GLuint shader);
+typedef void        GL_Link_Program(GLuint program);
+typedef void        GL_Get_Programiv(GLuint program, GLenum pname, GLint *params);
+typedef void        GL_Get_Shader_Info_Log(GLuint shader, GLsizei maxLength, GLsizei *length, GLchar *infoLog);
+typedef void        GL_Validate_Program(GLuint program);
+typedef void        GL_Get_Program_Info_Log(GLuint program, GLsizei maxLength, GLsizei *length, GLchar *infoLog);
+typedef void        GL_Gen_Buffers(GLsizei n, GLuint *buffers);
+typedef void        GL_Bind_Buffer(GLenum target, GLuint buffer);
+typedef void        GL_Uniform_Matrix4fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+typedef GLint       GL_Get_Uniform_Location(GLuint program, const GLchar *name);
+typedef void        GL_Use_Program(GLuint program);
+typedef void        GL_Uniform1i (GLint location, GLint v0);
+
+global_var WGL_Swap_Interval        *wglSwapIntervalEXT;
+global_var GL_Create_Shader         *glCreateShader;
+global_var GL_Shader_Source         *glShaderSource;
+global_var GL_Compile_Shader        *glCompileShader;
+global_var GL_Create_Program        *glCreateProgram;
+global_var GL_Attach_Shader         *glAttachShader;
+global_var GL_Link_Program          *glLinkProgram;
+global_var GL_Get_Programiv         *glGetProgramiv;
+global_var GL_Get_Shader_Info_Log   *glGetShaderInfoLog;
+global_var GL_Validate_Program      *glValidateProgram;
+global_var GL_Get_Program_Info_Log  *glGetProgramInfoLog;
+global_var GL_Gen_Buffers           *glGenBuffers;
+global_var GL_Bind_Buffer           *glBindBuffer;
+global_var GL_Uniform_Matrix4fv     *glUniformMatrix4fv;
+global_var GL_Get_Uniform_Location  *glGetUniformLocation;
+global_var GL_Use_Program           *glUseProgram;
+global_var GL_Uniform1i             *glUniform1i;
+
+
+global_var GL gl;
 
 
 //
@@ -83,62 +127,45 @@ gl_get_info() {
 #undef X
     size_t ext_str_len[GL_EXT_COUNT];
     for (s32 idx = 0;
-            idx < ArrayCount(ext_str_table);
-            ++idx)
-    {
+         idx < ArrayCount(ext_str_table);
+         ++idx) {
         ext_str_len[idx] = str_len(ext_str_table[idx]);
     }
 
 
     for (char *tk_begin = result.extensions;
-            *tk_begin;
-        )
-    {
-        if (is_whitespace(*tk_begin))
-        {
+         *tk_begin;
+        ) {
+        if (is_whitespace(*tk_begin)) {
             ++tk_begin;
-        }
-        else 
-        {
+        } else {
             char *tk_end = tk_begin;
-            while (!is_whitespace(*(tk_end + 1)))
-            {
+            while (!is_whitespace(*(tk_end + 1))) {
                 ++tk_end;
             }
 
             size_t t_len = (tk_end - tk_begin + 1);
 
             for (u32 idx = 0;
-                    idx < ArrayCount(ext_str_table);
-                    ++idx)
-            {
+                 idx < ArrayCount(ext_str_table);
+                 ++idx) {
                 char *ext_str = ext_str_table[idx];
                 size_t p_len = ext_str_len[idx];
-                if (t_len == p_len)
-                {
+                if (t_len == p_len) {
                     b32 match = str_match(tk_begin, ext_str, t_len);
-                    if (match)
-                    {
+                    if (match) {
                         result.has_ext[idx] = true;
                         break;
                     }
 
-                } 
-                else
-                {
+                } else {
                     continue;
                 }
             }
 
-
-
             tk_begin = tk_end + 1;
         }
     }
-
-
-
-    
 
     return result;
 }
@@ -167,35 +194,23 @@ gl_draw_bitmap(v3 V[4], Bitmap *bitmap, v4 color) {
     
     // upper triangle.
     glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(V[0].x,
-               V[0].y,
-               V[0].z);
+    glVertex3f(V[0].x, V[0].y, V[0].z);
 
     glTexCoord2f(1.0f, 0.0f);
-    glVertex3f(V[1].x,
-               V[1].y,
-               V[1].z);
+    glVertex3f(V[1].x, V[1].y, V[1].z);
 
     glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(V[3].x,
-               V[3].y,
-               V[3].z);
+    glVertex3f(V[3].x, V[3].y, V[3].z);
 
     // bottom triangle.
     glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(V[0].x,
-               V[0].y,
-               V[0].z);
+    glVertex3f(V[0].x, V[0].y, V[0].z);
 
     glTexCoord2f(0.0f, 1.0f);
-    glVertex3f(V[2].x,
-               V[2].y,
-               V[2].z);
+    glVertex3f(V[2].x, V[2].y, V[2].z);
 
     glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(V[3].x,
-               V[3].y,
-               V[3].z);
+    glVertex3f(V[3].x, V[3].y, V[3].z);
 
     glEnd();
 }
@@ -278,50 +293,113 @@ gl_draw_cube(v3 V[8]) {
     glEnd();
 }
 
+#if 1
 inline void
-gl_load_matrix(m4x4 M) {
-    M = transpose(M);
+gl_load_projection(Camera *cam) {
+    glMatrixMode(GL_PROJECTION);
+    m4x4 M = transpose(cam->projection);
     glLoadMatrixf(&M.e[0][0]);
+}
+#endif
+
+internal GLuint
+gl_create_program(const char *header,
+                  const char *vsrc,
+                  const char *fsrc) {
+    GLuint program = 0;
+
+    if (glCreateShader) {
+        GLuint vshader = glCreateShader(GL_VERTEX_SHADER);
+        const GLchar *vunit[] = {
+            header,
+            vsrc
+        };
+        glShaderSource(vshader, ArrayCount(vunit), (const GLchar **)vunit, 0);
+        glCompileShader(vshader);
+
+        GLuint fshader = glCreateShader(GL_FRAGMENT_SHADER);
+        const GLchar *funit[] = {
+            header,
+            fsrc
+        };
+        glShaderSource(fshader, ArrayCount(funit), (const GLchar **)funit, 0);
+        glCompileShader(fshader);
+
+        program = glCreateProgram();
+        glAttachShader(program, vshader);
+        glAttachShader(program, fshader);
+        glLinkProgram(program);
+
+        glValidateProgram(program);
+        GLint linked = false;
+        glGetProgramiv(program, GL_LINK_STATUS, &linked);
+        if (!linked) {
+            GLsizei stub;
+
+            GLchar vlog[1024];
+            glGetShaderInfoLog(vshader, sizeof(vlog), &stub, vlog);
+
+            GLchar flog[1024];
+            glGetShaderInfoLog(fshader, sizeof(flog), &stub, flog);
+
+            GLchar plog[1024];
+            glGetProgramInfoLog(program, sizeof(plog), &stub, plog);
+
+            Assert(!"compile/link error.");
+        }
+    } else {
+        // TODO: handling.
+    }
+    
+    return program;
 }
 
 internal void
-gl_load_projection(Camera *camera) {
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
+gl_init() {
+    //
+    // Shader
+    //
+    const char *header = R"FOO(
+            #version 130
+            )FOO";
 
-    glMatrixMode(GL_PROJECTION);
+    const char *vshader = R"FOO(
+            uniform mat4x4          transform;
+            in vec2                 in_uv;
+            in vec4                 in_color;
+            smooth out vec2         frag_uv;
+            smooth out vec4         frag_color;
 
-    if (camera->orthographic) {
-        gl_load_matrix(camera->projection);
 
-    } else {
-        r32 f = camera->focal_length;
-        r32 a = camera->width_over_height * f;
+            void main() {
+                vec4 input_vertex = gl_Vertex;
+                input_vertex.w = 1.0f;
+                gl_Position = transform * input_vertex;
 
-        r32 N = 0.1f;
-        r32 F = 100.0f;
-        r32 b = (N + F) / (N - F);
-        r32 c = (2 * N * F) / (N - F);
+                frag_uv = gl_MultiTexCoord0.xy;
+                frag_color = gl_Color;
+            }
+            )FOO";
 
-        m4x4 proj = {{
-            { f,  0,  0,  0},
-            { 0,  a,  0,  0},
-            { 0,  0,  b,  c},
-            { 0,  0, -1,  0}
-        }};
+    const char *fshader = R"FOO(
+            uniform sampler2D       texture_sampler;
+            out vec4                result_color;
+            smooth in vec2          frag_uv;
+            smooth in vec4          frag_color;
+            void main() {
+                vec4 texture_sample = texture(texture_sampler, frag_uv);
+                result_color = frag_color * texture_sample;
+            }
+            )FOO";
 
-        // in terms of procedure, it goes backward.
-        proj = proj * camera->projection;
-
-        gl_load_matrix(proj);
-    }
-
+    gl.program              = gl_create_program(header, vshader, fshader);
+    gl.transform_id         = glGetUniformLocation(gl.program, "transform");
+    gl.texture_sampler_id    = glGetUniformLocation(gl.program, "texture_sampler");
 }
 
 internal void
 gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
     glViewport(0, 0, win_w, win_h);
-
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
@@ -329,7 +407,7 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
     glEnable(GL_SCISSOR_TEST);
 
     glEnable(GL_DEPTH_TEST);
-    glClearColor(0.2f, 0.3f, 0.2f, 1.0f);
+    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glClearDepth(1.0f);
     glClear(GL_DEPTH_BUFFER_BIT);
@@ -341,17 +419,17 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
     glEnable(GL_TEXTURE_2D);
 
 
+
+
     for (Render_Group *group = (Render_Group *)batch->base;
          (u8 *)group < (u8 *)batch->base + batch->used;
-         ++group)
-    {
+         ++group) {
 
         gl_load_projection(&group->camera);
 
         for (Sort_Entry *entry = (Sort_Entry *)group->sort_entry_begin;
              (u8 *)entry < group->base + group->capacity;
-             ++entry)
-        {
+             ++entry) {
 
             Render_Entity_Header *entity =(Render_Entity_Header *)entry->render_entity;
 
@@ -362,8 +440,7 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
                     Bitmap *bitmap = piece->bitmap;
                     if (bitmap->handle) {
                         glBindTexture(GL_TEXTURE_2D, bitmap->handle);
-                    }
-                    else {
+                    } else {
                         bitmap->handle = handle_idx++;
                         glBindTexture(GL_TEXTURE_2D, bitmap->handle);
                         glTexImage2D(GL_TEXTURE_2D, 0, g_gl_texture_internal_format, bitmap->width, bitmap->height,
@@ -376,6 +453,11 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
                         glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
                     }
 
+                    glUseProgram(gl.program);
+                    m4x4 projection = group->camera.projection;
+                    glUniformMatrix4fv(gl.transform_id, 1, GL_TRUE, &projection.e[0][0]);
+                    glUniform1i(gl.texture_sampler_id, 0);
+
                     v3 vertices[] = {
                         piece->origin,
                         piece->origin + piece->axis_x,
@@ -383,21 +465,9 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
                         piece->origin + piece->axis_x + piece->axis_y
                     };
 
-#if 0
-                    // get translation
-                    v3 C = get_column(group->camera.transform, 3);
-                    for (int idx = 0;
-                         idx < ArrayCount(vertices);
-                         ++idx) 
-                    {
-                        v3 V = vertices[idx];
-                        r32 inv_z = 1.0f / (C.z - V.z);
-                        vertices[idx].x *= inv_z;
-                        vertices[idx].y *= inv_z;
-                    }
-#endif
-
                     gl_draw_bitmap(vertices, bitmap, piece->color);
+
+                    glUseProgram(0);
                 } break;
 
                 case eRender_Text: {
@@ -446,5 +516,3 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
     SwapBuffers(hdc);
     batch->used = 0;
 }
-    
-

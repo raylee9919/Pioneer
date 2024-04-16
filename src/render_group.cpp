@@ -302,7 +302,20 @@ alloc_render_group(Memory_Arena *arena, b32 ortho, r32 aspect_ratio) {
                                       get_column(cam_o, 2),
                                       cam_o * cam_translation); // focus on origin.
 
-        cam->projection         = cam_c;
+        r32 f = cam->focal_length;
+        r32 a = cam->width_over_height * f;
+        r32 N = 0.1f;
+        r32 F = 100.0f;
+        r32 b = (N + F) / (N - F);
+        r32 c = (2 * N * F) / (N - F);
+        m4x4 proj = {{
+            { f,  0,  0,  0},
+            { 0,  a,  0,  0},
+            { 0,  0,  b,  c},
+            { 0,  0, -1,  0}
+        }};
+
+        cam->projection = proj * cam_c;
     }
 
     return result;
