@@ -36,6 +36,27 @@ XINPUT_SET_STATE(xinput_set_state_stub) { return 1; }
 __XInputSetState *xinput_set_state = xinput_set_state_stub;
 
 
+#if 0
+// thx, Reymond Chen.
+// this function is called once for each "piece"
+internal BOOL CALLBACK
+MonitorEnumProc(HMONITOR hmon, HDC hdc,
+                LPRECT prc, LPARAM lParam) {
+    // compute the color depth of monitor "hmon"
+    int bits_pixel  = GetDeviceCaps(hdc, BITSPIXEL);
+    int planes      = GetDeviceCaps(hdc, PLANES);
+    int colorDepth = bits_pixel * planes; 
+    return TRUE;
+}
+internal void
+win32_get_monitor_bit_depth(HDC hdc) {
+    EnumDisplayMonitors(hdc, NULL, MonitorEnumProc, 0);
+}
+#endif
+
+
+
+
 internal void
 Win32LoadXInput() {
     HMODULE xinput_module = LoadLibraryA("xinput1_4.dll");
@@ -167,16 +188,12 @@ win32_init_opengl(HWND window) {
             wglSwapIntervalEXT(1);
         }
 
-        // texture sRGB.
-        if (gl_info.has_ext[GL_EXT_texture_sRGB]) {
+        // sRGB.
+        if (gl_info.has_ext[GL_EXT_texture_sRGB] && 
+            gl_info.has_ext[GL_EXT_framebuffer_sRGB]) {
             g_gl_texture_internal_format = GL_SRGB8_ALPHA8;
-        }
-
-        // framebuffer sRGB.
-        if (gl_info.has_ext[GL_EXT_framebuffer_sRGB]) {
             glEnable(GL_FRAMEBUFFER_SRGB);
         }
-
 
         gl_init();
 
@@ -674,13 +691,13 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     // Win32ResizeDIBSection(&g_screen_buffer, 960, 540);
     Win32ResizeDIBSection(&g_screen_buffer, 1920, 1080);
 
-    HWND hwnd = CreateWindowExA(
-                                0, wnd_class.lpszClassName, "Game",
+    HWND hwnd = CreateWindowExA(0, wnd_class.lpszClassName, "Game",
                                 WS_OVERLAPPEDWINDOW | WS_VISIBLE,
                                 CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
                                 0, 0, hinst, 0);
     Assert(hwnd);
 
+    // win32_get_monitor_bit_depth(dc);
     win32_toggle_fullscreen(hwnd);
     win32_init_opengl(hwnd);
 
@@ -909,6 +926,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
 
         HDC dc = GetDC(hwnd);
         Assert(dc != 0);
+
         gl_render_batch(dc, &game_memory.render_batch, wd.width, wd.height);
         // win32_update_screen(dc, wd.width, wd.height);
         ReleaseDC(hwnd, dc);

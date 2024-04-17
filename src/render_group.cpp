@@ -15,7 +15,7 @@
   (STRUCT *)__push_render_entity(GROUP, sizeof(STRUCT), e##STRUCT)
 
 internal Render_Entity_Header *
-__push_render_entity(Render_Group *renderGroup, u32 size, RenderType type) {
+__push_render_entity(Render_Group *renderGroup, u32 size, Render_Type type) {
     Assert(size + renderGroup->used <= renderGroup->capacity);
 
     Render_Entity_Header *header = (Render_Entity_Header *)(renderGroup->base + renderGroup->used);
@@ -30,14 +30,13 @@ __push_render_entity(Render_Group *renderGroup, u32 size, RenderType type) {
 internal void
 push_bitmap(Render_Group *render_group,
             v3 origin, v3 axis_x, v3 axis_y,
-            Bitmap *bitmap, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f})
-{
-    RenderEntityBitmap *piece = push_render_entity(render_group, RenderEntityBitmap);
-    if (piece)
-    {
-        piece->origin       = origin;
-        piece->axis_x       = axis_x;
-        piece->axis_y       = axis_y;
+            Bitmap *bitmap, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f}) {
+    Render_Bitmap *piece = push_render_entity(render_group, Render_Bitmap);
+    if (piece) {
+        piece->V[0]         = origin;
+        piece->V[1]         = origin + axis_x;
+        piece->V[2]         = origin + axis_x + axis_y;
+        piece->V[3]         = origin + axis_y;
         piece->bitmap       = bitmap;
         piece->color        = color;
     }

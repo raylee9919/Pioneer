@@ -6,17 +6,17 @@
     $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
     ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
-enum RenderType {
-    eRenderEntityBitmap,
+enum Render_Type {
+    eRender_Bitmap,
     eRenderEntityRect,
     eRender_Text,
     eRender_Cube
 };
 
 struct Render_Entity_Header {
-    RenderType type;
-    u32 size;
-    v3 base;
+    Render_Type type;
+    u32         size;
+    v3          base;
 };
 
 //
@@ -33,12 +33,9 @@ struct Render_Text {
     v4 color;
 };
 
-struct RenderEntityBitmap {
+struct Render_Bitmap {
     Render_Entity_Header header;
-    v3 base;
-    v3 origin;
-    v3 axis_x;
-    v3 axis_y;
+    v3 V[4];
     Bitmap *bitmap;
     v4 color;
 };

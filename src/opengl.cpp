@@ -21,7 +21,8 @@ typedef char GLchar;
 #define GL_COMPILE_STATUS                   0x8B81
 #define GL_LINK_STATUS                      0x8B82
 #define GL_ARRAY_BUFFER                     0x8892
-
+#define GL_MAJOR_VERSION                    0x821B
+#define GL_MINOR_VERSION                    0x821C
 
 typedef BOOL        WGL_Swap_Interval(int interval);
 typedef GLuint      GL_Create_Shader(GLenum shaderType);
@@ -40,6 +41,7 @@ typedef void        GL_Uniform_Matrix4fv(GLint location, GLsizei count, GLboolea
 typedef GLint       GL_Get_Uniform_Location(GLuint program, const GLchar *name);
 typedef void        GL_Use_Program(GLuint program);
 typedef void        GL_Uniform1i (GLint location, GLint v0);
+typedef void        GL_GetIntegerv (GLenum pname, GLint *data);
 
 global_var WGL_Swap_Interval        *wglSwapIntervalEXT;
 global_var GL_Create_Shader         *glCreateShader;
@@ -61,6 +63,7 @@ global_var GL_Uniform1i             *glUniform1i;
 
 
 global_var GL gl;
+global_var s32 g_texture_handle_idx = 1;
 
 
 //
@@ -78,36 +81,26 @@ is_whitespace(char c);
 internal b32
 str_match(char *text, char *pattern, size_t len);
 
-//
-// Struct
-//
-#define GL_EXTENSION_LIST           \
-    X(GL_EXT_texture_sRGB)          \
-    X(GL_EXT_framebuffer_sRGB)
-
-#define X(ext) ext,
-enum GL_Extensions {
-    GL_EXTENSION_LIST
-    GL_EXT_COUNT
-};
-#undef X
-
-struct GL_Info {
-    char *vendor;
-    char *renderer;
-    char *version;
-    char *shading_language_version;
-    char *extensions;
-
-    b32 has_ext[GL_EXT_COUNT];
-};
 
 
-//
-// Global
-//
 global_var GLint g_gl_texture_internal_format = GL_RGBA8;
 
+inline void
+gl_parse_version(GL_Info *info) {
+    info->version = (char *)glGetString(GL_VERSION);
+
+    char *at = info->version;
+    for(s32 i = 0; i < 2;) {
+        char c = *at++;
+        if (c >= '0' && c <= '9') {
+            if (i++ == 0) {
+                info->major = (c - '0');
+            } else {
+                info->minor = (c - '0');
+            }
+        }
+    }
+}
 
 internal GL_Info
 gl_get_info() {
@@ -115,10 +108,14 @@ gl_get_info() {
 
     result.vendor                   = (char *)glGetString(GL_VENDOR);
     result.renderer                 = (char *)glGetString(GL_RENDERER);
-    // TODO: availabe from gl2.
-    result.shading_language_version = "N/A";
-    result.version                  = (char *)glGetString(GL_VERSION);
     result.extensions               = (char *)glGetString(GL_EXTENSIONS);
+    gl_parse_version(&result);
+    // availabe from gl2.
+    if (result.major >= 2) {
+        result.shading_language_version = (char *)glGetString(GL_SHADING_LANGUAGE_VERSION);
+    } else {
+        result.shading_language_version = "N/A";
+    }
 
 #define X(ext) #ext,
     char *ext_str_table[] = {
@@ -171,48 +168,47 @@ gl_get_info() {
 }
 
 internal void
-gl_draw_rect(v2 min, v2 max, v4 color) {
-    glColor4f(color.r, color.g, color.b, color.a);
-    glBegin(GL_TRIANGLES);
+gl_draw_quad(v3 V[4], Bitmap *bitmap, v4 color) {
+    if (bitmap) {
+        glBegin(GL_TRIANGLES);
 
-    glVertex2f(min.x, min.y);
-    glVertex2f(max.x, min.y);
-    glVertex2f(max.x, max.y);
+        glColor4f(color.r, color.g, color.b, color.a);
 
-    glVertex2f(min.x, min.y);
-    glVertex2f(min.x, max.y);
-    glVertex2f(max.x, max.y);
+        // upper triangle.
+        glTexCoord2f(0.0f, 0.0f);
+        glVertex3f(V[0].x, V[0].y, V[0].z);
 
-    glEnd();
-}
+        glTexCoord2f(1.0f, 0.0f);
+        glVertex3f(V[1].x, V[1].y, V[1].z);
 
-internal void
-gl_draw_bitmap(v3 V[4], Bitmap *bitmap, v4 color) {
-    glBegin(GL_TRIANGLES);
+        glTexCoord2f(1.0f, 1.0f);
+        glVertex3f(V[2].x, V[2].y, V[2].z);
 
-    glColor4f(color.r, color.g, color.b, color.a);
-    
-    // upper triangle.
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(V[0].x, V[0].y, V[0].z);
+        // bottom triangle.
+        glTexCoord2f(0.0f, 0.0f);
+        glVertex3f(V[0].x, V[0].y, V[0].z);
 
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex3f(V[1].x, V[1].y, V[1].z);
+        glTexCoord2f(1.0f, 1.0f);
+        glVertex3f(V[2].x, V[2].y, V[2].z);
 
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(V[3].x, V[3].y, V[3].z);
+        glTexCoord2f(0.0f, 1.0f);
+        glVertex3f(V[3].x, V[3].y, V[3].z);
 
-    // bottom triangle.
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(V[0].x, V[0].y, V[0].z);
+        glEnd();
+    } else {
+        glColor4f(color.r, color.g, color.b, color.a);
+        glBegin(GL_TRIANGLES);
 
-    glTexCoord2f(0.0f, 1.0f);
-    glVertex3f(V[2].x, V[2].y, V[2].z);
+        glVertex3f(V[0].x, V[0].y, V[0].z);
+        glVertex3f(V[1].x, V[1].y, V[1].z);
+        glVertex3f(V[2].x, V[2].y, V[2].z);
 
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(V[3].x, V[3].y, V[3].z);
+        glVertex3f(V[0].x, V[0].y, V[0].z);
+        glVertex3f(V[2].x, V[2].y, V[2].z);
+        glVertex3f(V[3].x, V[3].y, V[3].z);
 
-    glEnd();
+        glEnd();
+    }
 }
 
 internal void
@@ -398,6 +394,24 @@ gl_init() {
 }
 
 internal void
+gl_bind_texture(Bitmap *bitmap) {
+    if (bitmap->handle) {
+        glBindTexture(GL_TEXTURE_2D, bitmap->handle);
+    } else {
+        bitmap->handle = g_texture_handle_idx++;
+        glBindTexture(GL_TEXTURE_2D, bitmap->handle);
+        glTexImage2D(GL_TEXTURE_2D, 0, g_gl_texture_internal_format, bitmap->width, bitmap->height,
+                     0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, (u8 *)bitmap->memory + bitmap->pitch * (bitmap->height - 1));
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+    }
+}
+
+internal void
 gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
     glViewport(0, 0, win_w, win_h);
 
@@ -416,7 +430,6 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
     glEnable(GL_ALPHA_TEST);
     glAlphaFunc(GL_GREATER, 0.0f);
 
-    glEnable(GL_TEXTURE_2D);
 
 
 
@@ -434,39 +447,21 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
             Render_Entity_Header *entity =(Render_Entity_Header *)entry->render_entity;
 
             switch (entity->type) {
-                case eRenderEntityBitmap: {
-                    RenderEntityBitmap *piece = (RenderEntityBitmap *)entity;
-                    local_persist s32 handle_idx = 1;
-                    Bitmap *bitmap = piece->bitmap;
-                    if (bitmap->handle) {
-                        glBindTexture(GL_TEXTURE_2D, bitmap->handle);
-                    } else {
-                        bitmap->handle = handle_idx++;
-                        glBindTexture(GL_TEXTURE_2D, bitmap->handle);
-                        glTexImage2D(GL_TEXTURE_2D, 0, g_gl_texture_internal_format, bitmap->width, bitmap->height,
-                                     0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, (u8 *)bitmap->memory + bitmap->pitch * (bitmap->height - 1));
+                case eRender_Bitmap: {
+                    Render_Bitmap *piece = (Render_Bitmap *)entity;
 
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-                        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-                    }
+                    glEnable(GL_TEXTURE_2D);
+                    Bitmap *bitmap = piece->bitmap;
+                    gl_bind_texture(bitmap);
 
                     glUseProgram(gl.program);
                     m4x4 projection = group->camera.projection;
                     glUniformMatrix4fv(gl.transform_id, 1, GL_TRUE, &projection.e[0][0]);
                     glUniform1i(gl.texture_sampler_id, 0);
 
-                    v3 vertices[] = {
-                        piece->origin,
-                        piece->origin + piece->axis_x,
-                        piece->origin + piece->axis_y,
-                        piece->origin + piece->axis_x + piece->axis_y
-                    };
+                    gl_draw_quad(piece->V, bitmap, piece->color);
 
-                    gl_draw_bitmap(vertices, bitmap, piece->color);
-
+                    glDisable(GL_TEXTURE_2D);
                     glUseProgram(0);
                 } break;
 
@@ -476,13 +471,9 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
 
                 case eRenderEntityRect: {
                     RenderEntityRect *piece = (RenderEntityRect *)entity;
-                    glDisable(GL_TEXTURE_2D);
-                    gl_draw_rect(piece->min, piece->max, piece->color);
-                    glEnable(GL_TEXTURE_2D);
                 } break;
 
                 case eRender_Cube: {
-                    glDisable(GL_TEXTURE_2D);
                     Render_Cube *piece = (Render_Cube *)entity;
                     v3 B = piece->base;
                     r32 H = piece->height;
@@ -504,7 +495,6 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
                         v3{min_x, max_y, min_z},
                     };
                     gl_draw_cube(vertices);
-                    glEnable(GL_TEXTURE_2D);
                 } break;
 
                 INVALID_DEFAULT_CASE
