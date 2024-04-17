@@ -173,7 +173,7 @@ RandBilateral(RandomSeries *series) {
 }
 
 inline r32
-RandRange(RandomSeries *series, r32 lo, r32 hi) {
+rand_range(RandomSeries *series, r32 lo, r32 hi) {
     r32 result = lerp(lo, hi, RandUnilateral(series));
     return result;
 }

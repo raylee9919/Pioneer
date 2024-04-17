@@ -23,48 +23,52 @@ typedef char GLchar;
 #define GL_ARRAY_BUFFER                     0x8892
 #define GL_MAJOR_VERSION                    0x821B
 #define GL_MINOR_VERSION                    0x821C
+#define GL_CLAMP_TO_EDGE                    0x812F
 
-typedef BOOL        WGL_Swap_Interval(int interval);
-typedef GLuint      GL_Create_Shader(GLenum shaderType);
-typedef void        GL_Shader_Source(GLuint shader, GLsizei count, const GLchar **string, const GLint *length);
-typedef void        GL_Compile_Shader(GLuint shader);
-typedef GLuint      GL_Create_Program(void);
-typedef void        GL_Attach_Shader(GLuint program, GLuint shader);
-typedef void        GL_Link_Program(GLuint program);
-typedef void        GL_Get_Programiv(GLuint program, GLenum pname, GLint *params);
-typedef void        GL_Get_Shader_Info_Log(GLuint shader, GLsizei maxLength, GLsizei *length, GLchar *infoLog);
-typedef void        GL_Validate_Program(GLuint program);
-typedef void        GL_Get_Program_Info_Log(GLuint program, GLsizei maxLength, GLsizei *length, GLchar *infoLog);
-typedef void        GL_Gen_Buffers(GLsizei n, GLuint *buffers);
-typedef void        GL_Bind_Buffer(GLenum target, GLuint buffer);
-typedef void        GL_Uniform_Matrix4fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
-typedef GLint       GL_Get_Uniform_Location(GLuint program, const GLchar *name);
-typedef void        GL_Use_Program(GLuint program);
-typedef void        GL_Uniform1i (GLint location, GLint v0);
-typedef void        GL_GetIntegerv (GLenum pname, GLint *data);
 
-global_var WGL_Swap_Interval        *wglSwapIntervalEXT;
-global_var GL_Create_Shader         *glCreateShader;
-global_var GL_Shader_Source         *glShaderSource;
-global_var GL_Compile_Shader        *glCompileShader;
-global_var GL_Create_Program        *glCreateProgram;
-global_var GL_Attach_Shader         *glAttachShader;
-global_var GL_Link_Program          *glLinkProgram;
-global_var GL_Get_Programiv         *glGetProgramiv;
-global_var GL_Get_Shader_Info_Log   *glGetShaderInfoLog;
-global_var GL_Validate_Program      *glValidateProgram;
-global_var GL_Get_Program_Info_Log  *glGetProgramInfoLog;
-global_var GL_Gen_Buffers           *glGenBuffers;
-global_var GL_Bind_Buffer           *glBindBuffer;
-global_var GL_Uniform_Matrix4fv     *glUniformMatrix4fv;
-global_var GL_Get_Uniform_Location  *glGetUniformLocation;
-global_var GL_Use_Program           *glUseProgram;
-global_var GL_Uniform1i             *glUniform1i;
+typedef BOOL        Type_wglSwapIntervalEXT(int interval);
+typedef GLuint      Type_glCreateShader(GLenum shaderType);
+typedef void        Type_glShaderSource(GLuint shader, GLsizei count, const GLchar **string, const GLint *length);
+typedef void        Type_glCompileShader(GLuint shader);
+typedef GLuint      Type_glCreateProgram(void);
+typedef void        Type_glAttachShader(GLuint program, GLuint shader);
+typedef void        Type_glLinkProgram(GLuint program);
+typedef void        Type_glGetProgramiv(GLuint program, GLenum pname, GLint *params);
+typedef void        Type_glGetShaderInfoLog(GLuint shader, GLsizei maxLength, GLsizei *length, GLchar *infoLog);
+typedef void        Type_glValidateProgram(GLuint program);
+typedef void        Type_glGetProgramInfoLog(GLuint program, GLsizei maxLength, GLsizei *length, GLchar *infoLog);
+typedef void        Type_glGenBuffers(GLsizei n, GLuint *buffers);
+typedef void        Type_glBindBuffer(GLenum target, GLuint buffer);
+typedef void        Type_glUniformMatrix4fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+typedef GLint       Type_glGetUniformLocation(GLuint program, const GLchar *name);
+typedef void        Type_glUseProgram(GLuint program);
+typedef void        Type_glUniform1i (GLint location, GLint v0);
+typedef void        Type_glGetIntegerv (GLenum pname, GLint *data);
+
+#define GL_DECLARE_GLOBAL_FUNCTION(Name) global_var Type_##Name *Name
+GL_DECLARE_GLOBAL_FUNCTION(wglSwapIntervalEXT);
+GL_DECLARE_GLOBAL_FUNCTION(glCreateShader);
+GL_DECLARE_GLOBAL_FUNCTION(glShaderSource);
+GL_DECLARE_GLOBAL_FUNCTION(glCompileShader);
+GL_DECLARE_GLOBAL_FUNCTION(glCreateProgram);
+GL_DECLARE_GLOBAL_FUNCTION(glAttachShader);
+GL_DECLARE_GLOBAL_FUNCTION(glLinkProgram);
+GL_DECLARE_GLOBAL_FUNCTION(glGetProgramiv);
+GL_DECLARE_GLOBAL_FUNCTION(glGetShaderInfoLog);
+GL_DECLARE_GLOBAL_FUNCTION(glValidateProgram);
+GL_DECLARE_GLOBAL_FUNCTION(glGetProgramInfoLog);
+GL_DECLARE_GLOBAL_FUNCTION(glGenBuffers);
+GL_DECLARE_GLOBAL_FUNCTION(glBindBuffer);
+GL_DECLARE_GLOBAL_FUNCTION(glUniformMatrix4fv);
+GL_DECLARE_GLOBAL_FUNCTION(glGetUniformLocation);
+GL_DECLARE_GLOBAL_FUNCTION(glUseProgram);
+GL_DECLARE_GLOBAL_FUNCTION(glUniform1i);
 
 
 global_var GL gl;
+global_var GL_Info gl_info;
 global_var s32 g_texture_handle_idx = 1;
-
+global_var u32 g_white_bitmap[64][64];
 
 //
 // Forward Declaration
@@ -86,35 +90,33 @@ str_match(char *text, char *pattern, size_t len);
 global_var GLint g_gl_texture_internal_format = GL_RGBA8;
 
 inline void
-gl_parse_version(GL_Info *info) {
-    info->version = (char *)glGetString(GL_VERSION);
+gl_parse_version() {
+    gl_info.version = (char *)glGetString(GL_VERSION);
 
-    char *at = info->version;
+    char *at = gl_info.version;
     for(s32 i = 0; i < 2;) {
         char c = *at++;
         if (c >= '0' && c <= '9') {
             if (i++ == 0) {
-                info->major = (c - '0');
+                gl_info.major = (c - '0');
             } else {
-                info->minor = (c - '0');
+                gl_info.minor = (c - '0');
             }
         }
     }
 }
 
-internal GL_Info
+internal void
 gl_get_info() {
-    GL_Info result = {};
 
-    result.vendor                   = (char *)glGetString(GL_VENDOR);
-    result.renderer                 = (char *)glGetString(GL_RENDERER);
-    result.extensions               = (char *)glGetString(GL_EXTENSIONS);
-    gl_parse_version(&result);
-    // availabe from gl2.
-    if (result.major >= 2) {
-        result.shading_language_version = (char *)glGetString(GL_SHADING_LANGUAGE_VERSION);
+    gl_info.vendor                   = (char *)glGetString(GL_VENDOR);
+    gl_info.renderer                 = (char *)glGetString(GL_RENDERER);
+    gl_info.extensions               = (char *)glGetString(GL_EXTENSIONS);
+    gl_parse_version();
+    if (gl_info.major >= 2) {
+        gl_info.shading_language_version = (char *)glGetString(GL_SHADING_LANGUAGE_VERSION);
     } else {
-        result.shading_language_version = "N/A";
+        gl_info.shading_language_version = "N/A";
     }
 
 #define X(ext) #ext,
@@ -130,9 +132,8 @@ gl_get_info() {
     }
 
 
-    for (char *tk_begin = result.extensions;
-         *tk_begin;
-        ) {
+    for (char *tk_begin = gl_info.extensions;
+         *tk_begin;) {
         if (is_whitespace(*tk_begin)) {
             ++tk_begin;
         } else {
@@ -151,7 +152,7 @@ gl_get_info() {
                 if (t_len == p_len) {
                     b32 match = str_match(tk_begin, ext_str, t_len);
                     if (match) {
-                        result.has_ext[idx] = true;
+                        gl_info.has_ext[idx] = true;
                         break;
                     }
 
@@ -164,14 +165,12 @@ gl_get_info() {
         }
     }
 
-    return result;
 }
 
 internal void
 gl_draw_quad(v3 V[4], Bitmap *bitmap, v4 color) {
     if (bitmap) {
         glBegin(GL_TRIANGLES);
-
         glColor4f(color.r, color.g, color.b, color.a);
 
         // upper triangle.
@@ -196,8 +195,8 @@ gl_draw_quad(v3 V[4], Bitmap *bitmap, v4 color) {
 
         glEnd();
     } else {
-        glColor4f(color.r, color.g, color.b, color.a);
         glBegin(GL_TRIANGLES);
+        glColor4f(color.r, color.g, color.b, color.a);
 
         glVertex3f(V[0].x, V[0].y, V[0].z);
         glVertex3f(V[1].x, V[1].y, V[1].z);
@@ -212,84 +211,28 @@ gl_draw_quad(v3 V[4], Bitmap *bitmap, v4 color) {
 }
 
 internal void
-gl_draw_cube(v3 V[8]) {
+gl_draw_cube(v3 V[8], v4 color) {
     glBegin(GL_TRIANGLES);
-    
-    v4 tc = v4{0.5f, 0.5f, 0.5f, 1.0f};
-    v4 bc = v4{0.05f, 0.05f, 0.05f, 1.0f};
+    glColor4f(color.r, color.g, color.b, color.a);
 
-    glColor4f(tc.r, tc.g, tc.b, tc.a);
-    glVertex3f(V[0].x, V[0].y, V[0].z);
-    glVertex3f(V[1].x, V[1].y, V[1].z);
-    glVertex3f(V[2].x, V[2].y, V[2].z);
+    v3 facet1[4] = {V[0], V[1], V[2], V[3]};
+    v3 facet2[4] = {V[4], V[5], V[6], V[7]};
+    v3 facet3[4] = {V[4], V[5], V[1], V[0]};
+    v3 facet4[4] = {V[5], V[7], V[3], V[1]};
+    v3 facet5[4] = {V[7], V[6], V[3], V[2]};
+    v3 facet6[4] = {V[6], V[4], V[0], V[2]};
 
-    glVertex3f(V[0].x, V[0].y, V[0].z);
-    glVertex3f(V[2].x, V[2].y, V[2].z);
-    glVertex3f(V[3].x, V[3].y, V[3].z);
-
-    glColor4f(bc.r, bc.g, bc.b, bc.a);
-    glVertex3f(V[4].x, V[4].y, V[4].z);
-    glVertex3f(V[5].x, V[5].y, V[5].z);
-    glVertex3f(V[6].x, V[6].y, V[6].z);
-
-    glVertex3f(V[4].x, V[4].y, V[4].z);
-    glVertex3f(V[6].x, V[6].y, V[6].z);
-    glVertex3f(V[7].x, V[7].y, V[7].z);
-
-
-    glColor4f(bc.r, bc.g, bc.b, bc.a);
-    glVertex3f(V[4].x, V[4].y, V[4].z);
-    glVertex3f(V[5].x, V[5].y, V[5].z);
-    glColor4f(tc.r, tc.g, tc.b, tc.a);
-    glVertex3f(V[1].x, V[1].y, V[1].z);
-
-    glColor4f(bc.r, bc.g, bc.b, bc.a);
-    glVertex3f(V[4].x, V[4].y, V[4].z);
-    glColor4f(tc.r, tc.g, tc.b, tc.a);
-    glVertex3f(V[1].x, V[1].y, V[1].z);
-    glVertex3f(V[0].x, V[0].y, V[0].z);
-
-    glColor4f(bc.r, bc.g, bc.b, bc.a);
-    glVertex3f(V[5].x, V[5].y, V[5].z);
-    glVertex3f(V[7].x, V[7].y, V[7].z);
-    glColor4f(tc.r, tc.g, tc.b, tc.a);
-    glVertex3f(V[3].x, V[3].y, V[3].z);
-
-    glColor4f(bc.r, bc.g, bc.b, bc.a);
-    glVertex3f(V[5].x, V[5].y, V[5].z);
-    glColor4f(tc.r, tc.g, tc.b, tc.a);
-    glVertex3f(V[3].x, V[3].y, V[3].z);
-    glVertex3f(V[1].x, V[1].y, V[1].z);
-
-    glColor4f(bc.r, bc.g, bc.b, bc.a);
-    glVertex3f(V[7].x, V[7].y, V[7].z);
-    glVertex3f(V[6].x, V[6].y, V[6].z);
-    glColor4f(tc.r, tc.g, tc.b, tc.a);
-    glVertex3f(V[3].x, V[3].y, V[3].z);
-
-    glColor4f(bc.r, bc.g, bc.b, bc.a);
-    glVertex3f(V[7].x, V[7].y, V[7].z);
-    glColor4f(tc.r, tc.g, tc.b, tc.a);
-    glVertex3f(V[2].x, V[2].y, V[2].z);
-    glVertex3f(V[3].x, V[3].y, V[3].z);
-
-    glColor4f(bc.r, bc.g, bc.b, bc.a);
-    glVertex3f(V[6].x, V[6].y, V[6].z);
-    glVertex3f(V[4].x, V[4].y, V[4].z);
-    glColor4f(tc.r, tc.g, tc.b, tc.a);
-    glVertex3f(V[0].x, V[0].y, V[0].z);
-
-    glColor4f(bc.r, bc.g, bc.b, bc.a);
-    glVertex3f(V[6].x, V[6].y, V[6].z);
-    glColor4f(tc.r, tc.g, tc.b, tc.a);
-    glVertex3f(V[0].x, V[0].y, V[0].z);
-    glVertex3f(V[2].x, V[2].y, V[2].z);
-    
+    gl_draw_quad(facet1, 0, color);
+    gl_draw_quad(facet2, 0, color);
+    gl_draw_quad(facet3, 0, color);
+    gl_draw_quad(facet4, 0, color);
+    gl_draw_quad(facet5, 0, color);
+    gl_draw_quad(facet6, 0, color);
 
     glEnd();
 }
 
-#if 1
+#if 0
 inline void
 gl_load_projection(Camera *cam) {
     glMatrixMode(GL_PROJECTION);
@@ -352,9 +295,6 @@ gl_create_program(const char *header,
 
 internal void
 gl_init() {
-    //
-    // Shader
-    //
     const char *header = R"FOO(
             #version 130
             )FOO";
@@ -366,14 +306,19 @@ gl_init() {
             smooth out vec2         frag_uv;
             smooth out vec4         frag_color;
 
-
             void main() {
+                vec3 light_pos = vec3(0.0f, 0.0f, 1.0f);
+                float light_strength = 1.0f;
+                float d = distance(light_pos, gl_Vertex.xyz);
+                float light_result = light_strength / pow(d, 2);
+
                 vec4 input_vertex = gl_Vertex;
                 input_vertex.w = 1.0f;
                 gl_Position = transform * input_vertex;
 
                 frag_uv = gl_MultiTexCoord0.xy;
                 frag_color = gl_Color;
+                frag_color.xyz *= light_result;
             }
             )FOO";
 
@@ -390,27 +335,42 @@ gl_init() {
 
     gl.program              = gl_create_program(header, vshader, fshader);
     gl.transform_id         = glGetUniformLocation(gl.program, "transform");
-    gl.texture_sampler_id    = glGetUniformLocation(gl.program, "texture_sampler");
+    gl.texture_sampler_id   = glGetUniformLocation(gl.program, "texture_sampler");
+
+    gl.white_bitmap.width   = 64;
+    gl.white_bitmap.height  = 64;
+    gl.white_bitmap.pitch   = -64;
+    gl.white_bitmap.handle  = 0;
+    gl.white_bitmap.size    = 4 * 64 * 64;
+    gl.white_bitmap.memory  = g_white_bitmap;
+
+    u32 *at = &g_white_bitmap[0][0];
+    for (u32 i = 0; i < 64 * 64; ++i) {
+        *at++ = 0xffffffff;
+    }
 }
 
 internal void
 gl_bind_texture(Bitmap *bitmap) {
-    if (bitmap->handle) {
-        glBindTexture(GL_TEXTURE_2D, bitmap->handle);
-    } else {
-        bitmap->handle = g_texture_handle_idx++;
-        glBindTexture(GL_TEXTURE_2D, bitmap->handle);
-        glTexImage2D(GL_TEXTURE_2D, 0, g_gl_texture_internal_format, bitmap->width, bitmap->height,
-                     0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, (u8 *)bitmap->memory + bitmap->pitch * (bitmap->height - 1));
+    if (bitmap) {
+        if (bitmap->handle) {
+            glBindTexture(GL_TEXTURE_2D, bitmap->handle);
+        } else {
+            bitmap->handle = g_texture_handle_idx++;
+            glBindTexture(GL_TEXTURE_2D, bitmap->handle);
+            glTexImage2D(GL_TEXTURE_2D, 0, g_gl_texture_internal_format, bitmap->width, bitmap->height,
+                         0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, (u8 *)bitmap->memory + bitmap->pitch * (bitmap->height - 1));
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+        }
     }
 }
 
+// TODO: remove sort entries.
 internal void
 gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
     glViewport(0, 0, win_w, win_h);
@@ -438,8 +398,6 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
          (u8 *)group < (u8 *)batch->base + batch->used;
          ++group) {
 
-        gl_load_projection(&group->camera);
-
         for (Sort_Entry *entry = (Sort_Entry *)group->sort_entry_begin;
              (u8 *)entry < group->base + group->capacity;
              ++entry) {
@@ -450,18 +408,15 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
                 case eRender_Bitmap: {
                     Render_Bitmap *piece = (Render_Bitmap *)entity;
 
-                    glEnable(GL_TEXTURE_2D);
-                    Bitmap *bitmap = piece->bitmap;
-                    gl_bind_texture(bitmap);
+                    gl_bind_texture(piece->bitmap);
 
                     glUseProgram(gl.program);
                     m4x4 projection = group->camera.projection;
                     glUniformMatrix4fv(gl.transform_id, 1, GL_TRUE, &projection.e[0][0]);
                     glUniform1i(gl.texture_sampler_id, 0);
 
-                    gl_draw_quad(piece->V, bitmap, piece->color);
+                    gl_draw_quad(piece->V, piece->bitmap, piece->color);
 
-                    glDisable(GL_TEXTURE_2D);
                     glUseProgram(0);
                 } break;
 
@@ -469,15 +424,20 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
                     Render_Text *piece = (Render_Text *)entity;
                 } break;
 
-                case eRenderEntityRect: {
-                    RenderEntityRect *piece = (RenderEntityRect *)entity;
-                } break;
-
                 case eRender_Cube: {
                     Render_Cube *piece = (Render_Cube *)entity;
-                    v3 B = piece->base;
+
+                    gl_bind_texture(&gl.white_bitmap);
+
+                    glUseProgram(gl.program);
+                    m4x4 projection = group->camera.projection;
+                    glUniformMatrix4fv(gl.transform_id, 1, GL_TRUE, &projection.e[0][0]);
+                    glUniform1i(gl.texture_sampler_id, 0);
+
+                    v3  B = piece->base;
                     r32 H = piece->height;
                     r32 R = piece->radius;
+#if 1
                     r32 min_x = B.x - R;
                     r32 max_x = B.x + R;
                     r32 min_y = B.y - R;
@@ -494,7 +454,9 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
                         v3{max_x, max_y, min_z},
                         v3{min_x, max_y, min_z},
                     };
-                    gl_draw_cube(vertices);
+#endif
+                    gl_draw_cube(vertices, piece->color);
+                    glUseProgram(0);
                 } break;
 
                 INVALID_DEFAULT_CASE

@@ -163,25 +163,26 @@ win32_init_opengl(HWND window) {
     // associate with the thread.
     BOOL ok = wglMakeCurrent(windowDC, openGLRC);
     if (ok) {
-        GL_Info gl_info = gl_get_info();
+        gl_get_info();
 
-        wglSwapIntervalEXT          = (WGL_Swap_Interval *)wglGetProcAddress("wglSwapIntervalEXT");
-        glCreateShader              = (GL_Create_Shader *)wglGetProcAddress("glCreateShader");
-        glShaderSource              = (GL_Shader_Source *)wglGetProcAddress("glShaderSource");
-        glCompileShader             = (GL_Compile_Shader *)wglGetProcAddress("glCompileShader");
-        glCreateProgram             = (GL_Create_Program *)wglGetProcAddress("glCreateProgram");
-        glAttachShader              = (GL_Attach_Shader *)wglGetProcAddress("glAttachShader");
-        glLinkProgram               = (GL_Link_Program *)wglGetProcAddress("glLinkProgram");
-        glGetProgramiv              = (GL_Get_Programiv *)wglGetProcAddress("glGetProgramiv");
-        glGetShaderInfoLog          = (GL_Get_Shader_Info_Log *)wglGetProcAddress("glGetShaderInfoLog");
-        glValidateProgram           = (GL_Validate_Program *)wglGetProcAddress("glValidateProgram");
-        glGetProgramInfoLog         = (GL_Get_Program_Info_Log *)wglGetProcAddress("glGetProgramInfoLog");
-        glGenBuffers                = (GL_Gen_Buffers *)wglGetProcAddress("glGenBuffers");
-        glBindBuffer                = (GL_Bind_Buffer *)wglGetProcAddress("glBindBuffer");
-        glUniformMatrix4fv          = (GL_Uniform_Matrix4fv *)wglGetProcAddress("glUniformMatrix4fv");
-        glGetUniformLocation        = (GL_Get_Uniform_Location *)wglGetProcAddress("glGetUniformLocation");
-        glUseProgram                = (GL_Use_Program *)wglGetProcAddress("glUseProgram");
-        glUniform1i                 = (GL_Uniform1i *)wglGetProcAddress("glUniform1i");
+#define WGL_GET_PROC_ADDRESS(Name) Name = (Type_##Name *)wglGetProcAddress(#Name)
+       WGL_GET_PROC_ADDRESS(wglSwapIntervalEXT);
+       WGL_GET_PROC_ADDRESS(glCreateShader);
+       WGL_GET_PROC_ADDRESS(glShaderSource);
+       WGL_GET_PROC_ADDRESS(glCompileShader);
+       WGL_GET_PROC_ADDRESS(glCreateProgram);
+       WGL_GET_PROC_ADDRESS(glAttachShader);
+       WGL_GET_PROC_ADDRESS(glLinkProgram);
+       WGL_GET_PROC_ADDRESS(glGetProgramiv);
+       WGL_GET_PROC_ADDRESS(glGetShaderInfoLog);
+       WGL_GET_PROC_ADDRESS(glValidateProgram);
+       WGL_GET_PROC_ADDRESS(glGetProgramInfoLog);
+       WGL_GET_PROC_ADDRESS(glGenBuffers);
+       WGL_GET_PROC_ADDRESS(glBindBuffer);
+       WGL_GET_PROC_ADDRESS(glUniformMatrix4fv);
+       WGL_GET_PROC_ADDRESS(glGetUniformLocation);
+       WGL_GET_PROC_ADDRESS(glUseProgram);
+       WGL_GET_PROC_ADDRESS(glUniform1i);
 
         // v-sync.
         if (wglSwapIntervalEXT) {

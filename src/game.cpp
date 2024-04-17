@@ -210,11 +210,6 @@ extern "C"
 GAME_MAIN(GameMain) {
 
 
-    ///////////////////////////////////////////////////////////////////////////
-    //
-    // Init GameState
-    //
-    
     if (!gameState->is_init) {
 
         gameState->particleRandomSeries = Seed(254);
@@ -634,7 +629,8 @@ GAME_MAIN(GameMain) {
                         case eEntity_Tile: {
                             r32 radius = entity->dim.x * 0.5f;
                             r32 height = entity->dim.z;
-                            push_cube(render_group, base, radius, height);
+                            push_cube(render_group, base, radius, height,
+                                      v4{0.02f, 0.05f, 0.02f, 1.0f});
                         } break;
 
                         INVALID_DEFAULT_CASE
@@ -724,9 +720,11 @@ display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets
             r32 height = max_height * record->cycles * inv_max_cycles;
             v2 min = v2{x + width * frame, 100.0f + max_height * record_idx - height};
             v2 max = min + v2{width * 0.5f, height};
+#if 0
             push_rect(render_group,
                       min, max,
                       v4{1.0f, 1.0f, 0.5f, 1.0f});
+#endif
         }
 #endif
 

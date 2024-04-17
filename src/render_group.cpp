@@ -94,12 +94,13 @@ push_text(Render_Group *render_group, v3 base,
 
 internal void
 push_cube(Render_Group *render_group,
-          v3 base, r32 radius, r32 height) {
+          v3 base, r32 radius, r32 height, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f}) {
     Render_Cube *piece = push_render_entity(render_group, Render_Cube);
     if (piece) {
         piece->base     = base;
         piece->radius   = radius;
         piece->height   = height;
+        piece->color    = color;
     }
 }
 
@@ -255,17 +256,6 @@ draw_text(Bitmap *buffer, Render_Text *info) {
     cen_y += info->game_assets->v_advance;
 }
 #endif
-
-internal void
-push_rect(Render_Group *renderGroup,
-          v2 min, v2 max, v4 color) {
-    RenderEntityRect *piece = push_render_entity(renderGroup, RenderEntityRect);
-    if (piece) {
-        piece->min = min;
-        piece->max = max;
-        piece->color = color;
-    }
-}
 
 internal Render_Group *
 alloc_render_group(Memory_Arena *arena, b32 ortho, r32 aspect_ratio) {

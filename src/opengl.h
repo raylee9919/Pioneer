@@ -31,7 +31,9 @@ struct GL_Info {
 
 
 struct GL {
-    s32 program;
-    s32 transform_id;
-    s32 texture_sampler_id;
+    s32     program;
+    s32     transform_id;
+    s32     texture_sampler_id;
+
+    Bitmap  white_bitmap;
 };

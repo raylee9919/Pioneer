@@ -8,7 +8,6 @@
 
 enum Render_Type {
     eRender_Bitmap,
-    eRenderEntityRect,
     eRender_Text,
     eRender_Cube
 };
@@ -40,18 +39,12 @@ struct Render_Bitmap {
     v4 color;
 };
 
-struct RenderEntityRect {
-    Render_Entity_Header header;
-    v2 min;
-    v2 max;
-    v4 color;
-};
-
 struct Render_Cube {
     Render_Entity_Header header;
-    v3  base;
-    r32 radius;
-    r32 height;
+    v3      base;
+    r32     radius;
+    r32     height;
+    v4      color;
 };
 
 
