@@ -50,7 +50,7 @@ get_chunk(Memory_Arena *arena, ChunkHashmap *hashmap, Position pos) {
     }
 
     if (!result) {
-        result = PushStruct(arena, Chunk);
+        result = push_struct(arena, Chunk);
         result->next = list->head;
         result->chunkX = pos.chunkX;
         result->chunkY = pos.chunkY;
@@ -76,7 +76,7 @@ IsSet(Entity *entity, EntityFlag flag) {
 internal Entity *
 push_entity(Memory_Arena *arena, ChunkHashmap *hashmap,
             Entity_Type type, Position pos) {
-    Entity *entity = PushStruct(arena, Entity);
+    Entity *entity = push_struct(arena, Entity);
     entity->pos     = pos;
     entity->type    = type;
 

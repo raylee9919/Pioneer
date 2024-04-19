@@ -7,16 +7,16 @@
    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 internal void *
-PushSize_(Memory_Arena *arena, size_t size) {
+push_size_(Memory_Arena *arena, size_t size) {
     Assert((arena->used + size) <= arena->size);
     void *result = arena->base + arena->used;
     arena->used += size;
 
     return result;
 }
-#define PushSize(arena, size)           PushSize_(arena, size)
-#define PushStruct(arena, type)         (type *)PushSize_(arena, sizeof(type))
-#define PushArray(arena, type, count)   (type *)PushSize_(arena, count * sizeof(type))
+#define push_size(arena, size)           push_size_(arena, size)
+#define push_struct(arena, type)         (type *)push_size_(arena, sizeof(type))
+#define push_array(arena, type, count)   (type *)push_size_(arena, count * sizeof(type))
 
 internal void
 init_arena(Memory_Arena *arena, size_t size, u8 *base) {

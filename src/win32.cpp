@@ -17,6 +17,40 @@
 #include "win32.h"
 
 
+#define WGL_GET_PROC_ADDRESS(Name) Name = (Type_##Name *)wglGetProcAddress(#Name)
+
+#define WGL_CONTEXT_MAJOR_VERSION_ARB               0x2091
+#define WGL_CONTEXT_MINOR_VERSION_ARB               0x2092
+#define WGL_CONTEXT_LAYER_PLANE_ARB                 0x2093
+#define WGL_CONTEXT_FLAGS_ARB                       0x2094
+#define WGL_CONTEXT_PROFILE_MASK_ARB                0x9126
+
+#define WGL_CONTEXT_DEBUG_BIT_ARB                   0x0001
+#define WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB      0x0002
+#define WGL_CONTEXT_CORE_PROFILE_BIT_ARB            0x00000001
+#define WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB   0x00000002
+
+#define ERROR_INVALID_VERSION_ARB                   0x2095
+#define ERROR_INVALID_PROFILE_ARB                   0x2096
+
+const int wgl_attrib_list[] = {
+    WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
+    WGL_CONTEXT_MINOR_VERSION_ARB, 0,
+    WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
+#if __DEBUG
+        | WGL_CONTEXT_DEBUG_BIT_ARB
+#endif
+        ,
+    //WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+    WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+    0,
+};
+
+
+typedef HGLRC Type_wglCreateContextAttribsARB(HDC hDC, HGLRC hShareContext, const int *attribList);
+global_var Type_wglCreateContextAttribsARB *wglCreateContextAttribsARB;
+
+
 global_var bool                 g_running = true;
 global_var Win32ScreenBuffer    g_screen_buffer;
 global_var LARGE_INTEGER        g_counter_hz;
@@ -140,9 +174,7 @@ str_find(char *text, size_t t_len, char *pattern, size_t p_len) {
 }
 
 internal void
-win32_init_opengl(HWND window) {
-    HDC windowDC = GetDC(window);
-
+win32_set_pixel_format(HDC dc) {
     PIXELFORMATDESCRIPTOR desiredPixelFormat = {};
     desiredPixelFormat.nSize            = sizeof(desiredPixelFormat);
     desiredPixelFormat.nVersion         = 1;
@@ -153,36 +185,103 @@ win32_init_opengl(HWND window) {
     desiredPixelFormat.cDepthBits       = 24;
     desiredPixelFormat.iLayerType       = PFD_MAIN_PLANE;
 
-    int suggestedPixelFormatIndex = ChoosePixelFormat(windowDC, &desiredPixelFormat);
+    int suggestedPixelFormatIndex = ChoosePixelFormat(dc, &desiredPixelFormat);
     PIXELFORMATDESCRIPTOR suggestedPixelFormat;
-    DescribePixelFormat(windowDC, suggestedPixelFormatIndex, sizeof(suggestedPixelFormat), &suggestedPixelFormat);
-    SetPixelFormat(windowDC, suggestedPixelFormatIndex, &suggestedPixelFormat);
+    DescribePixelFormat(dc, suggestedPixelFormatIndex, sizeof(suggestedPixelFormat), &suggestedPixelFormat);
+    SetPixelFormat(dc, suggestedPixelFormatIndex, &suggestedPixelFormat);
+}
 
-    // finally, create context.
-    HGLRC openGLRC = wglCreateContext(windowDC);
+internal void
+win32_load_gl_extensions() {
+    WNDCLASSA wclass = {};
+    wclass.lpfnWndProc     = DefWindowProcA;
+    wclass.hInstance       = GetModuleHandleA(0);
+    wclass.lpszClassName   = "WGL_Loader";
+
+    if (RegisterClassA(&wclass)) {
+        HWND win = CreateWindowExA(0,
+                                   wclass.lpszClassName,
+                                   "Handmade Hero",
+                                   0,
+                                   CW_USEDEFAULT,
+                                   CW_USEDEFAULT,
+                                   CW_USEDEFAULT,
+                                   CW_USEDEFAULT,
+                                   0,
+                                   0,
+                                   wclass.hInstance,
+                                   0);
+        HDC dc = GetDC(win);
+        win32_set_pixel_format(dc);
+
+        HGLRC glrc = wglCreateContext(dc);
+        if (wglMakeCurrent(dc, glrc)) {
+
+
+            WGL_GET_PROC_ADDRESS(wglCreateContextAttribsARB);
+            WGL_GET_PROC_ADDRESS(wglSwapIntervalEXT);
+
+            WGL_GET_PROC_ADDRESS(glCreateShader);
+            WGL_GET_PROC_ADDRESS(glShaderSource);
+            WGL_GET_PROC_ADDRESS(glCompileShader);
+            WGL_GET_PROC_ADDRESS(glCreateProgram);
+            WGL_GET_PROC_ADDRESS(glAttachShader);
+            WGL_GET_PROC_ADDRESS(glLinkProgram);
+            WGL_GET_PROC_ADDRESS(glGetProgramiv);
+            WGL_GET_PROC_ADDRESS(glGetShaderInfoLog);
+            WGL_GET_PROC_ADDRESS(glValidateProgram);
+            WGL_GET_PROC_ADDRESS(glGetProgramInfoLog);
+            WGL_GET_PROC_ADDRESS(glGenBuffers);
+            WGL_GET_PROC_ADDRESS(glBindBuffer);
+            WGL_GET_PROC_ADDRESS(glUniformMatrix4fv);
+            WGL_GET_PROC_ADDRESS(glGetUniformLocation);
+            WGL_GET_PROC_ADDRESS(glUseProgram);
+            WGL_GET_PROC_ADDRESS(glUniform1i);
+            WGL_GET_PROC_ADDRESS(glBufferData);
+            WGL_GET_PROC_ADDRESS(glVertexAttribPointer);
+            WGL_GET_PROC_ADDRESS(glGetAttribLocation);
+            WGL_GET_PROC_ADDRESS(glEnableVertexAttribArray);
+            WGL_GET_PROC_ADDRESS(glGenVertexArrays);
+            WGL_GET_PROC_ADDRESS(glBindVertexArray);
+            WGL_GET_PROC_ADDRESS(glBindAttribLocation);
+            WGL_GET_PROC_ADDRESS(glDebugMessageCallbackARB);
+            WGL_GET_PROC_ADDRESS(glDisableVertexAttribArray);
+
+            wglMakeCurrent(0, 0);
+        }
+
+        wglDeleteContext(glrc);
+        ReleaseDC(win, dc);
+        DestroyWindow(win);
+    }
+}
+
+
+internal void
+win32_init_opengl(HDC dc) {
+
+    win32_load_gl_extensions();
+    win32_set_pixel_format(dc);
+
+    // create context.
+    gl_info.modern = true;
+    HGLRC glrc = 0;
+    if (wglCreateContextAttribsARB) {
+        glrc = wglCreateContextAttribsARB(dc, 0, wgl_attrib_list);
+    }
+    if (!glrc) {
+        glrc = wglCreateContext(dc);
+        gl_info.modern = false;
+    }
+
     // associate with the thread.
-    BOOL ok = wglMakeCurrent(windowDC, openGLRC);
-    if (ok) {
+    if (wglMakeCurrent(dc, glrc)) {
+
         gl_get_info();
 
-#define WGL_GET_PROC_ADDRESS(Name) Name = (Type_##Name *)wglGetProcAddress(#Name)
-       WGL_GET_PROC_ADDRESS(wglSwapIntervalEXT);
-       WGL_GET_PROC_ADDRESS(glCreateShader);
-       WGL_GET_PROC_ADDRESS(glShaderSource);
-       WGL_GET_PROC_ADDRESS(glCompileShader);
-       WGL_GET_PROC_ADDRESS(glCreateProgram);
-       WGL_GET_PROC_ADDRESS(glAttachShader);
-       WGL_GET_PROC_ADDRESS(glLinkProgram);
-       WGL_GET_PROC_ADDRESS(glGetProgramiv);
-       WGL_GET_PROC_ADDRESS(glGetShaderInfoLog);
-       WGL_GET_PROC_ADDRESS(glValidateProgram);
-       WGL_GET_PROC_ADDRESS(glGetProgramInfoLog);
-       WGL_GET_PROC_ADDRESS(glGenBuffers);
-       WGL_GET_PROC_ADDRESS(glBindBuffer);
-       WGL_GET_PROC_ADDRESS(glUniformMatrix4fv);
-       WGL_GET_PROC_ADDRESS(glGetUniformLocation);
-       WGL_GET_PROC_ADDRESS(glUseProgram);
-       WGL_GET_PROC_ADDRESS(glUniform1i);
+        if (wglCreateContextAttribsARB) {
+            glrc = wglCreateContextAttribsARB(dc, 0, wgl_attrib_list);
+        }
 
         // v-sync.
         if (wglSwapIntervalEXT) {
@@ -198,12 +297,7 @@ win32_init_opengl(HWND window) {
 
         gl_init();
 
-
-    } else {
-        INVALID_CODE_PATH;
     }
-
-    ReleaseDC(window, windowDC);
 }
 
 internal void 
@@ -698,9 +792,8 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
                                 0, 0, hinst, 0);
     Assert(hwnd);
 
-    // win32_get_monitor_bit_depth(dc);
     win32_toggle_fullscreen(hwnd);
-    win32_init_opengl(hwnd);
+    win32_init_opengl(GetDC(hwnd));
 
     Win32LoadXInput();
 
@@ -926,9 +1019,8 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
         }
 
         HDC dc = GetDC(hwnd);
-        Assert(dc != 0);
-
-        gl_render_batch(dc, &game_memory.render_batch, wd.width, wd.height);
+        gl_render_batch(&game_memory.render_batch, wd.width, wd.height);
+        SwapBuffers(dc);
         // win32_update_screen(dc, wd.width, wd.height);
         ReleaseDC(hwnd, dc);
 

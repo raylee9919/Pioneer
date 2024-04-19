@@ -34,9 +34,7 @@ struct Render_Text {
 
 struct Render_Bitmap {
     Render_Entity_Header header;
-    v3 V[4];
     Bitmap *bitmap;
-    v4 color;
 };
 
 struct Render_Cube {
@@ -56,18 +54,26 @@ struct Sort_Entry {
 struct Camera {
     b32     orthographic;
     r32     focal_length;
-    union {
-        r32     width_over_height;
-        r32     aspect_ratio;
-    };
+    r32     w_over_h;
     m4x4    projection;
 };
 
+struct Textured_Vertex {
+    v4      p;
+    v2      uv;
+    v4      color;
+    v3      normal;
+};
+
 struct Render_Group {
-    size_t capacity;
-    size_t used;
-    u8 *base;
-    u8 *sort_entry_begin;
-    Camera camera;
+    size_t          capacity;
+    size_t          used;
+    u8              *base;
+    u8              *sort_entry_begin;
+    Camera          camera;
+
+    Textured_Vertex *vertices;
+    size_t          vertex_count;
+    size_t          varray_size;
 };
 

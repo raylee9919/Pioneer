@@ -10,7 +10,9 @@
 #include "render_group.h"
 #include "opengl.h"
 
-typedef char GLchar;
+typedef char    GLchar;
+typedef size_t  GLsizeiptr;
+typedef void (APIENTRY  *GLDEBUGPROCARB)(GLenum source,GLenum type,GLuint id,GLenum severity,GLsizei length,const GLchar *message,const void *userParam);
 
 #define GL_SRGB8_ALPHA8                     0x8C43
 #define GL_FRAMEBUFFER_SRGB                 0x8DB9            
@@ -24,6 +26,16 @@ typedef char GLchar;
 #define GL_MAJOR_VERSION                    0x821B
 #define GL_MINOR_VERSION                    0x821C
 #define GL_CLAMP_TO_EDGE                    0x812F
+#define GL_STREAM_DRAW                      0x88E0
+#define GL_STREAM_READ                      0x88E1
+#define GL_STREAM_COPY                      0x88E2
+#define GL_STATIC_DRAW                      0x88E4
+#define GL_STATIC_READ                      0x88E5
+#define GL_STATIC_COPY                      0x88E6
+#define GL_DYNAMIC_DRAW                     0x88E8
+#define GL_DYNAMIC_READ                     0x88E9
+#define GL_DYNAMIC_COPY                     0x88EA
+#define GL_DEBUG_OUTPUT_SYNCHRONOUS         0x8242
 
 
 typedef BOOL        Type_wglSwapIntervalEXT(int interval);
@@ -44,6 +56,15 @@ typedef GLint       Type_glGetUniformLocation(GLuint program, const GLchar *name
 typedef void        Type_glUseProgram(GLuint program);
 typedef void        Type_glUniform1i (GLint location, GLint v0);
 typedef void        Type_glGetIntegerv (GLenum pname, GLint *data);
+typedef void        Type_glBufferData(GLenum target, GLsizeiptr size, const void *data, GLenum usage);
+typedef void        Type_glVertexAttribPointer(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer);
+typedef GLint       Type_glGetAttribLocation (GLuint program, const GLchar *name);
+typedef void        Type_glEnableVertexAttribArray (GLuint index);
+typedef void        Type_glGenVertexArrays (GLsizei n, GLuint *arrays);
+typedef void        Type_glBindVertexArray (GLuint array);
+typedef void        Type_glBindAttribLocation (GLuint program, GLuint index, const GLchar *name);
+typedef void        Type_glDebugMessageCallbackARB (GLDEBUGPROCARB callback, const void *userParam);
+typedef void        Type_glDisableVertexAttribArray (GLuint index);
 
 #define GL_DECLARE_GLOBAL_FUNCTION(Name) global_var Type_##Name *Name
 GL_DECLARE_GLOBAL_FUNCTION(wglSwapIntervalEXT);
@@ -63,12 +84,20 @@ GL_DECLARE_GLOBAL_FUNCTION(glUniformMatrix4fv);
 GL_DECLARE_GLOBAL_FUNCTION(glGetUniformLocation);
 GL_DECLARE_GLOBAL_FUNCTION(glUseProgram);
 GL_DECLARE_GLOBAL_FUNCTION(glUniform1i);
+GL_DECLARE_GLOBAL_FUNCTION(glBufferData);
+GL_DECLARE_GLOBAL_FUNCTION(glVertexAttribPointer);
+GL_DECLARE_GLOBAL_FUNCTION(glGetAttribLocation);
+GL_DECLARE_GLOBAL_FUNCTION(glEnableVertexAttribArray);
+GL_DECLARE_GLOBAL_FUNCTION(glGenVertexArrays);
+GL_DECLARE_GLOBAL_FUNCTION(glBindVertexArray);
+GL_DECLARE_GLOBAL_FUNCTION(glBindAttribLocation);
+GL_DECLARE_GLOBAL_FUNCTION(glDebugMessageCallbackARB);
+GL_DECLARE_GLOBAL_FUNCTION(glDisableVertexAttribArray);
 
 
 global_var GL gl;
 global_var GL_Info gl_info;
 global_var s32 g_texture_handle_idx = 1;
-global_var u32 g_white_bitmap[64][64];
 
 //
 // Forward Declaration
@@ -107,13 +136,18 @@ gl_parse_version() {
 }
 
 internal void
-gl_get_info() {
+gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam) {
+    char *error = (char *)message;
+    Assert(0);
+}
 
+internal void
+gl_get_info() {
     gl_info.vendor                   = (char *)glGetString(GL_VENDOR);
     gl_info.renderer                 = (char *)glGetString(GL_RENDERER);
     gl_info.extensions               = (char *)glGetString(GL_EXTENSIONS);
     gl_parse_version();
-    if (gl_info.major >= 2) {
+    if (gl_info.modern) {
         gl_info.shading_language_version = (char *)glGetString(GL_SHADING_LANGUAGE_VERSION);
     } else {
         gl_info.shading_language_version = "N/A";
@@ -132,36 +166,38 @@ gl_get_info() {
     }
 
 
-    for (char *tk_begin = gl_info.extensions;
-         *tk_begin;) {
-        if (is_whitespace(*tk_begin)) {
-            ++tk_begin;
-        } else {
-            char *tk_end = tk_begin;
-            while (!is_whitespace(*(tk_end + 1))) {
-                ++tk_end;
-            }
-
-            size_t t_len = (tk_end - tk_begin + 1);
-
-            for (u32 idx = 0;
-                 idx < ArrayCount(ext_str_table);
-                 ++idx) {
-                char *ext_str = ext_str_table[idx];
-                size_t p_len = ext_str_len[idx];
-                if (t_len == p_len) {
-                    b32 match = str_match(tk_begin, ext_str, t_len);
-                    if (match) {
-                        gl_info.has_ext[idx] = true;
-                        break;
-                    }
-
-                } else {
-                    continue;
+    if (!gl_info.modern) {
+        for (char *tk_begin = gl_info.extensions;
+             *tk_begin;) {
+            if (is_whitespace(*tk_begin)) {
+                ++tk_begin;
+            } else {
+                char *tk_end = tk_begin;
+                while (!is_whitespace(*(tk_end + 1))) {
+                    ++tk_end;
                 }
-            }
 
-            tk_begin = tk_end + 1;
+                size_t t_len = (tk_end - tk_begin + 1);
+
+                for (u32 idx = 0;
+                     idx < ArrayCount(ext_str_table);
+                     ++idx) {
+                    char *ext_str = ext_str_table[idx];
+                    size_t p_len = ext_str_len[idx];
+                    if (t_len == p_len) {
+                        b32 match = str_match(tk_begin, ext_str, t_len);
+                        if (match) {
+                            gl_info.has_ext[idx] = true;
+                            break;
+                        }
+
+                    } else {
+                        continue;
+                    }
+                }
+
+                tk_begin = tk_end + 1;
+            }
         }
     }
 
@@ -295,41 +331,58 @@ gl_create_program(const char *header,
 
 internal void
 gl_init() {
+#if 0
+    if (glDebugMessageCallbackARB) {
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        glDebugMessageCallbackARB(gl_debug_callback, 0);
+    } else {
+        Assert("!no extension");
+    }
+#endif
+
+    //
+    // @Shader
+    //
     const char *header = R"FOO(
-            #version 130
+            #version 330 core
             )FOO";
 
     const char *vshader = R"FOO(
             uniform mat4x4          transform;
-            in vec2                 in_uv;
-            in vec4                 in_color;
-            smooth out vec2         frag_uv;
-            smooth out vec4         frag_color;
+
+            in vec4 vP;
+            in vec2 vUV;
+            in vec4 vC;
+            in vec3 vN;
+
+            smooth out vec4         fP;
+            smooth out vec2         fUV;
+            smooth out vec4         fC;
+            smooth out vec3         worldP;
 
             void main() {
-                vec3 light_pos = vec3(0.0f, 0.0f, 1.0f);
-                float light_strength = 1.0f;
-                float d = distance(light_pos, gl_Vertex.xyz);
-                float light_result = light_strength / pow(d, 2);
+                fP = vC;
+                fC = vC;
+                fUV = vUV;
+                worldP = vP.xyz;
 
-                vec4 input_vertex = gl_Vertex;
-                input_vertex.w = 1.0f;
-                gl_Position = transform * input_vertex;
 
-                frag_uv = gl_MultiTexCoord0.xy;
-                frag_color = gl_Color;
-                frag_color.xyz *= light_result;
+                gl_Position = transform * vP;
             }
             )FOO";
 
     const char *fshader = R"FOO(
             uniform sampler2D       texture_sampler;
-            out vec4                result_color;
-            smooth in vec2          frag_uv;
-            smooth in vec4          frag_color;
+
+            smooth in vec4          fP;
+            smooth in vec2          fUV;
+            smooth in vec4          fC;
+            smooth in vec3          worldP;
+
+            out vec4                C;
+
             void main() {
-                vec4 texture_sample = texture(texture_sampler, frag_uv);
-                result_color = frag_color * texture_sample;
+                C = texture(texture_sampler, fUV) * fC;
             }
             )FOO";
 
@@ -337,17 +390,30 @@ gl_init() {
     gl.transform_id         = glGetUniformLocation(gl.program, "transform");
     gl.texture_sampler_id   = glGetUniformLocation(gl.program, "texture_sampler");
 
+    // TODO: this is annoying, error-prone.
+    glBindAttribLocation(gl.program, 0, "vP");
+    glBindAttribLocation(gl.program, 1, "vUV");
+    glBindAttribLocation(gl.program, 2, "vC");
+    glBindAttribLocation(gl.program, 3, "vN");
+
     gl.white_bitmap.width   = 64;
     gl.white_bitmap.height  = 64;
     gl.white_bitmap.pitch   = -64;
     gl.white_bitmap.handle  = 0;
     gl.white_bitmap.size    = 4 * 64 * 64;
-    gl.white_bitmap.memory  = g_white_bitmap;
-
-    u32 *at = &g_white_bitmap[0][0];
-    for (u32 i = 0; i < 64 * 64; ++i) {
-        *at++ = 0xffffffff;
+    gl.white_bitmap.memory  = &gl.white;
+    for (u32 *at = (u32 *)gl.white;
+         at <= &gl.white[64][64];
+         ++at) {
+        *at = 0xff;
     }
+
+    // dummy.
+    glGenVertexArrays(1, &gl.vao);
+    glBindVertexArray(gl.vao);
+
+    glGenBuffers(1, &gl.vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
 }
 
 internal void
@@ -365,14 +431,14 @@ gl_bind_texture(Bitmap *bitmap) {
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
         }
     }
 }
 
+// @Batch
 // TODO: remove sort entries.
 internal void
-gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
+gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h) {
     glViewport(0, 0, win_w, win_h);
 
     glEnable(GL_BLEND);
@@ -381,23 +447,20 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
     glEnable(GL_SCISSOR_TEST);
 
     glEnable(GL_DEPTH_TEST);
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    glClearColor(0.01f, 0.01f, 0.01f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glClearDepth(1.0f);
     glClear(GL_DEPTH_BUFFER_BIT);
     glDepthFunc(GL_LEQUAL);
 
-    glEnable(GL_ALPHA_TEST);
-    glAlphaFunc(GL_GREATER, 0.0f);
-
-
-
-
-
     for (Render_Group *group = (Render_Group *)batch->base;
          (u8 *)group < (u8 *)batch->base + batch->used;
          ++group) {
 
+
+
+#if 1
+        u32 vidx = 0;
         for (Sort_Entry *entry = (Sort_Entry *)group->sort_entry_begin;
              (u8 *)entry < group->base + group->capacity;
              ++entry) {
@@ -408,16 +471,36 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
                 case eRender_Bitmap: {
                     Render_Bitmap *piece = (Render_Bitmap *)entity;
 
-                    gl_bind_texture(piece->bitmap);
-
                     glUseProgram(gl.program);
-                    m4x4 projection = group->camera.projection;
-                    glUniformMatrix4fv(gl.transform_id, 1, GL_TRUE, &projection.e[0][0]);
+                    glUniformMatrix4fv(gl.transform_id, 1, GL_TRUE, &group->camera.projection.e[0][0]);
                     glUniform1i(gl.texture_sampler_id, 0);
 
-                    gl_draw_quad(piece->V, piece->bitmap, piece->color);
+                    glBufferData(GL_ARRAY_BUFFER,
+                                 group->vertex_count * sizeof(Textured_Vertex),
+                                 group->vertices,
+                                 GL_DYNAMIC_DRAW);
+
+                    glEnableVertexAttribArray(0);
+                    glEnableVertexAttribArray(1);
+                    glEnableVertexAttribArray(2);
+                    glEnableVertexAttribArray(3);
+
+                    glVertexAttribPointer(0, 4, GL_FLOAT,           false, sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, p)));
+                    glVertexAttribPointer(1, 2, GL_FLOAT,           false, sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, uv)));
+                    glVertexAttribPointer(2, 4, GL_FLOAT,           true,  sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, color)));
+                    glVertexAttribPointer(3, 3, GL_FLOAT,           false, sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, normal)));
+
+                    gl_bind_texture(piece->bitmap);
+
+                    glDrawArrays(GL_TRIANGLES, vidx, 6);
+                    vidx += 6;
 
                     glUseProgram(0);
+
+                    glDisableVertexAttribArray(0);
+                    glDisableVertexAttribArray(1);
+                    glDisableVertexAttribArray(2);
+                    glDisableVertexAttribArray(3);
                 } break;
 
                 case eRender_Text: {
@@ -427,17 +510,12 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
                 case eRender_Cube: {
                     Render_Cube *piece = (Render_Cube *)entity;
 
+#if 0
                     gl_bind_texture(&gl.white_bitmap);
-
-                    glUseProgram(gl.program);
-                    m4x4 projection = group->camera.projection;
-                    glUniformMatrix4fv(gl.transform_id, 1, GL_TRUE, &projection.e[0][0]);
-                    glUniform1i(gl.texture_sampler_id, 0);
 
                     v3  B = piece->base;
                     r32 H = piece->height;
                     r32 R = piece->radius;
-#if 1
                     r32 min_x = B.x - R;
                     r32 max_x = B.x + R;
                     r32 min_y = B.y - R;
@@ -454,17 +532,17 @@ gl_render_batch(HDC hdc, Render_Batch *batch, u32 win_w, u32 win_h) {
                         v3{max_x, max_y, min_z},
                         v3{min_x, max_y, min_z},
                     };
-#endif
                     gl_draw_cube(vertices, piece->color);
-                    glUseProgram(0);
+#endif
                 } break;
 
                 INVALID_DEFAULT_CASE
             }
 
         }
+
+#endif
     }
             
-    SwapBuffers(hdc);
     batch->used = 0;
 }

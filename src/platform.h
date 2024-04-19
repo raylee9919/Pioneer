@@ -19,6 +19,9 @@ struct Bitmap;
 #define INVALID_DEFAULT_CASE default: { INVALID_CODE_PATH } break;
 
 
+#define offset_of(Type, Member) (size_t)&(((Type *)0)->Member)
+
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // Compilers

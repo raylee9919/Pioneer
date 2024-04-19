@@ -28,17 +28,44 @@ __push_render_entity(Render_Group *renderGroup, u32 size, Render_Type type) {
 }
 
 internal void
-push_bitmap(Render_Group *render_group,
+push_vertex(Render_Group *group, v4 P, v2 uv, v4 color, v3 normal) {
+    Assert(group->vertex_count + 1 <= group->varray_size);
+    Textured_Vertex vertex = Textured_Vertex{P, uv, color, normal};
+    group->vertices[group->vertex_count++] = vertex;
+}
+
+internal void
+push_bitmap(Render_Group *group,
             v3 origin, v3 axis_x, v3 axis_y,
             Bitmap *bitmap, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f}) {
-    Render_Bitmap *piece = push_render_entity(render_group, Render_Bitmap);
+    Render_Bitmap *piece = push_render_entity(group, Render_Bitmap);
+
+    // TODO:
+    v3 normal = v3{0.0f, 0.0f, 1.0f};
+
+    v4 V[4];
+    V[0].xyz    = origin;
+    V[0].w      = 1.0f;
+
+    V[1].xyz    = origin + axis_x;
+    V[1].w      = 1.0f;
+
+    V[2].xyz    = origin + axis_x + axis_y;
+    V[2].w      = 1.0f;
+
+    V[3].xyz    = origin + axis_y;
+    V[3].w      = 1.0f;
+
+    push_vertex(group, V[0], v2{0, 0}, color, normal);
+    push_vertex(group, V[1], v2{1, 0}, color, normal);
+    push_vertex(group, V[2], v2{1, 1}, color, normal);
+
+    push_vertex(group, V[0], v2{0, 0}, color, normal);
+    push_vertex(group, V[2], v2{1, 1}, color, normal);
+    push_vertex(group, V[3], v2{0, 1}, color, normal);
+
     if (piece) {
-        piece->V[0]         = origin;
-        piece->V[1]         = origin + axis_x;
-        piece->V[2]         = origin + axis_x + axis_y;
-        piece->V[3]         = origin + axis_y;
         piece->bitmap       = bitmap;
-        piece->color        = color;
     }
 }
 
@@ -259,12 +286,16 @@ draw_text(Bitmap *buffer, Render_Text *info) {
 
 internal Render_Group *
 alloc_render_group(Memory_Arena *arena, b32 ortho, r32 aspect_ratio) {
-    Render_Group *result = PushStruct(arena, Render_Group);
+    Render_Group *result = push_struct(arena, Render_Group);
     *result = {};
     result->capacity            = MB(4);
-    result->base                = (u8 *)PushSize(arena, result->capacity);
+    result->base                = (u8 *)push_size(arena, result->capacity);
     result->used                = 0;
     result->sort_entry_begin    = result->base + result->capacity;
+#define VARRAY_SIZE 65536
+    result->vertices            = push_array(arena, Textured_Vertex, VARRAY_SIZE);
+    result->vertex_count        = 0;
+    result->varray_size         = VARRAY_SIZE;
 
     Camera *cam = &result->camera;
     cam->orthographic       = ortho;
@@ -280,7 +311,7 @@ alloc_render_group(Memory_Arena *arena, b32 ortho, r32 aspect_ratio) {
         }};
 
     } else { // perspective.
-        cam->aspect_ratio       = aspect_ratio;
+        cam->w_over_h       = aspect_ratio;
 
         m4x4 cam_o = (x_rotation(g_debug_cam_orbital_pitch) *
                       y_rotation(g_debug_cam_orbital_yaw));
@@ -292,7 +323,7 @@ alloc_render_group(Memory_Arena *arena, b32 ortho, r32 aspect_ratio) {
                                       cam_o * cam_translation); // focus on origin.
 
         r32 f = cam->focal_length;
-        r32 a = cam->width_over_height * f;
+        r32 a = cam->w_over_h * f;
         r32 N = 0.1f;
         r32 F = 100.0f;
         r32 b = (N + F) / (N - F);

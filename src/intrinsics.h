@@ -7,7 +7,6 @@
     ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 #include <intrin.h>
-#include <math.h>
 
 #if     __MSVC
 inline u32
@@ -45,6 +44,37 @@ atomic_add_u64(u64 *value, u64 addend) {
 
 #endif
 
+//
+// @Trigonometry
+//
+inline r32
+cos(r32 x) {
+    r32 result = _mm_cvtss_f32(_mm_cos_ps(_mm_set1_ps(x)));
+    return result;
+}
+
+inline r32
+sin(r32 x) {
+    r32 result = _mm_cvtss_f32(_mm_sin_ps(_mm_set1_ps(x)));
+    return result;
+}
+
+
+inline r32
+tan(r32 x) {
+    r32 result = _mm_cvtss_f32(_mm_tan_ps(_mm_set1_ps(x)));
+    return result;
+}
+
+//
+// @Convert
+//
+inline r32
+sqrt(r32 x) {
+    r32 result = _mm_cvtss_f32(_mm_sqrt_ss(_mm_set_ss(x)));
+    return result;
+}
+
 inline s32 
 round_r32_to_s32(r32 x) {
     s32 result = _mm_cvtss_si32(_mm_set_ss(x));
@@ -54,30 +84,6 @@ round_r32_to_s32(r32 x) {
 inline u32 
 round_r32_to_u32(r32 x) {
     s32 result = (u32)_mm_cvtss_si32(_mm_set_ss(x));
-    return result;
-}
-
-inline r32
-cos(r32 x) {
-    r32 result = cosf(x);
-    return result;
-}
-
-inline r32
-sin(r32 x) {
-    r32 result = sinf(x);
-    return result;
-}
-
-inline r32
-tan(r32 x) {
-    r32 result = tanf(x);
-    return result;
-}
-
-inline r32
-sqrt(r32 x) {
-    r32 result = _mm_cvtss_f32(_mm_sqrt_ss(_mm_set_ss(x)));
     return result;
 }
 
@@ -93,6 +99,9 @@ CeilR32ToS32(r32 A) {
     return result;
 }
 
+//
+// @
+//
 struct Bit_Scan_Result {
     b32 found;
     u32 index;
@@ -102,7 +111,7 @@ inline Bit_Scan_Result
 find_least_significant_set_bit(u32 value) {
     Bit_Scan_Result result = {};
 
-#if COMPILER_MSVC
+#if __MSVC
     result.found = _BitScanForward((unsigned long *)&result.index, value);
 #else
     for (u32 test = 0;

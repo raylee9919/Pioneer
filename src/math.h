@@ -242,6 +242,10 @@ struct v4 {
             r32 a;
         };
         r32 e[4];
+        struct {
+            v3  xyz;
+            r32 w;
+        };
     };
 };
 

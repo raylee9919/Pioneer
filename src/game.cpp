@@ -45,7 +45,7 @@ load_font(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, Game_Assets
     for (u32 count = 0; count < kern_count; ++count) {
         Asset_Kerning *asset_kern = (Asset_Kerning *)at;
 
-        Kerning *kern = PushStruct(arena, Kerning);
+        Kerning *kern = push_struct(arena, Kerning);
         *kern = {};
         kern->first = asset_kern->first;
         kern->second = asset_kern->second;
@@ -71,7 +71,7 @@ load_font(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, Game_Assets
 
 internal Bitmap *
 load_bmp(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char *filename) {
-    Bitmap *result = PushStruct(arena, Bitmap);
+    Bitmap *result = push_struct(arena, Bitmap);
     *result = {};
     
     DebugReadFileResult read = read_file(filename);
@@ -166,7 +166,7 @@ GetBitmap(TransientState *transState, Asset_ID assetID,
                                         Asset_State_Queued, Asset_State_Unloaded)) {
             WorkMemory_Arena *workSlot = BeginWorkMemory(transState);
             if (workSlot) {
-                Load_Asset_Work_Data *workData = PushStruct(&workSlot->memoryArena, Load_Asset_Work_Data);
+                Load_Asset_Work_Data *workData = push_struct(&workSlot->memoryArena, Load_Asset_Work_Data);
                 workData->gameAssets = &transState->gameAssets;
                 workData->assetArena = &transState->assetArena;
                 workData->assetID = assetID;
@@ -217,7 +217,7 @@ GAME_MAIN(GameMain) {
         init_arena(&gameState->worldArena,
                   gameMemory->permanent_memory_size - sizeof(GameState),
                   (u8 *)gameMemory->permanent_memory + sizeof(GameState));
-        gameState->world = PushStruct(&gameState->worldArena, World);
+        gameState->world = push_struct(&gameState->worldArena, World);
         World *world = gameState->world;
         world->chunkDim = {17.0f, 9.0f, 3.0f};
         Memory_Arena *world_arena = &gameState->worldArena;
@@ -419,6 +419,9 @@ GAME_MAIN(GameMain) {
 
 #endif
 
+    //
+    // @Draw
+    //
     Game_Assets *gameAssets = &transState->gameAssets;
 
     for (s32 Z = minPos.chunkZ;
@@ -444,7 +447,7 @@ GAME_MAIN(GameMain) {
                     };
 
                     const r32 tilt_angle_z = 0.16f * pi32;
-                    const r32 tilt_angle_y = 0.0f * pi32 * gameState->time;
+                    const r32 tilt_angle_y = 0.01f * pi32;
 
                     switch (entity->type) {
                         case eEntity_Player: {
@@ -672,8 +675,8 @@ init_debug(Debug_Log *debug_log, Memory_Arena *arena) {
     // COUNTER must be the last one in the game code translation unit.
     u32 width = __COUNTER__;
     debug_log->record_width = width;
-    debug_log->debug_records = PushArray(arena, Debug_Record, DEBUG_LOG_FRAME_COUNT * width);
-    debug_log->debug_infos = PushArray(arena, Debug_Info, width);
+    debug_log->debug_records = push_array(arena, Debug_Record, DEBUG_LOG_FRAME_COUNT * width);
+    debug_log->debug_infos = push_array(arena, Debug_Info, width);
     debug_log->next_frame = 0;
 
     for (u32 idx = 0;
@@ -693,13 +696,13 @@ display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets
             ++record_idx) {
         Debug_Info *info = g_debug_log.debug_infos + record_idx;
         size_t size = 1024;
-        char *buf = PushArray(arena, char, size);
+        char *buf = push_array(arena, char, size);
         // TODO: remove CRT.
         _snprintf(buf, size,
-                    "%20s(%4d): %10I64uavg_cyc",
-                    info->function,
-                    info->line,
-                    info->avg_cycles);
+                  "%20s(%4d): %10I64uavg_cyc",
+                  info->function,
+                  info->line,
+                  info->avg_cycles);
         push_text(render_group, v3{0.0f, 0.0f, 0.0f}, buf, game_assets);
 
 #if 1

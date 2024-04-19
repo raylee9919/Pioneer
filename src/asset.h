@@ -32,12 +32,12 @@ struct BMP_Info_Header {
 };
 
 struct Bitmap {
-    s32 width;
-    s32 height;
-    s32 pitch;
-    s32 handle;
-    size_t size;
-    void *memory;
+    s32     width;
+    s32     height;
+    s32     pitch;
+    s32     handle;
+    size_t  size;
+    void    *memory;
 };
 
 enum Asset_ID {
