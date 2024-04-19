@@ -7,9 +7,8 @@
     ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 enum Render_Type {
-    eRender_Bitmap,
+    eRender_Quad,
     eRender_Text,
-    eRender_Cube
 };
 
 struct Render_Entity_Header {
@@ -32,23 +31,9 @@ struct Render_Text {
     v4 color;
 };
 
-struct Render_Bitmap {
+struct Render_Quad {
     Render_Entity_Header header;
     Bitmap *bitmap;
-};
-
-struct Render_Cube {
-    Render_Entity_Header header;
-    v3      base;
-    r32     radius;
-    r32     height;
-    v4      color;
-};
-
-
-struct Sort_Entry {
-    v3 base;
-    void *render_entity;
 };
 
 struct Camera {
@@ -59,7 +44,7 @@ struct Camera {
 };
 
 struct Textured_Vertex {
-    v4      p;
+    v3      p;
     v2      uv;
     v4      color;
     v3      normal;
@@ -69,7 +54,6 @@ struct Render_Group {
     size_t          capacity;
     size_t          used;
     u8              *base;
-    u8              *sort_entry_begin;
     Camera          camera;
 
     Textured_Vertex *vertices;

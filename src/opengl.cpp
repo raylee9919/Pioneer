@@ -329,116 +329,43 @@ gl_create_program(const char *header,
     return program;
 }
 
+
 internal void
-gl_init() {
-#if 0
-    if (glDebugMessageCallbackARB) {
-        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-        glDebugMessageCallbackARB(gl_debug_callback, 0);
+gl_alloc_texture(Bitmap *bitmap)
+{
+    glGenTextures(1, &bitmap->handle);
+    glBindTexture(GL_TEXTURE_2D, bitmap->handle);
+    glTexImage2D(GL_TEXTURE_2D, 0, g_gl_texture_internal_format, bitmap->width, bitmap->height,
+                 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, (u8 *)bitmap->memory + bitmap->pitch * (bitmap->height - 1));
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+}
+
+internal void
+gl_bind_texture(Bitmap *bitmap)
+{
+    if (!bitmap) {
+        bitmap = &gl.white_bitmap;
     } else {
-        Assert("!no extension");
-    }
-#endif
 
-    //
-    // @Shader
-    //
-    const char *header = R"FOO(
-            #version 330 core
-            )FOO";
-
-    const char *vshader = R"FOO(
-            uniform mat4x4          transform;
-
-            in vec4 vP;
-            in vec2 vUV;
-            in vec4 vC;
-            in vec3 vN;
-
-            smooth out vec4         fP;
-            smooth out vec2         fUV;
-            smooth out vec4         fC;
-            smooth out vec3         worldP;
-
-            void main() {
-                fP = vC;
-                fC = vC;
-                fUV = vUV;
-                worldP = vP.xyz;
-
-
-                gl_Position = transform * vP;
-            }
-            )FOO";
-
-    const char *fshader = R"FOO(
-            uniform sampler2D       texture_sampler;
-
-            smooth in vec4          fP;
-            smooth in vec2          fUV;
-            smooth in vec4          fC;
-            smooth in vec3          worldP;
-
-            out vec4                C;
-
-            void main() {
-                C = texture(texture_sampler, fUV) * fC;
-            }
-            )FOO";
-
-    gl.program              = gl_create_program(header, vshader, fshader);
-    gl.transform_id         = glGetUniformLocation(gl.program, "transform");
-    gl.texture_sampler_id   = glGetUniformLocation(gl.program, "texture_sampler");
-
-    // TODO: this is annoying, error-prone.
-    glBindAttribLocation(gl.program, 0, "vP");
-    glBindAttribLocation(gl.program, 1, "vUV");
-    glBindAttribLocation(gl.program, 2, "vC");
-    glBindAttribLocation(gl.program, 3, "vN");
-
-    gl.white_bitmap.width   = 64;
-    gl.white_bitmap.height  = 64;
-    gl.white_bitmap.pitch   = -64;
-    gl.white_bitmap.handle  = 0;
-    gl.white_bitmap.size    = 4 * 64 * 64;
-    gl.white_bitmap.memory  = &gl.white;
-    for (u32 *at = (u32 *)gl.white;
-         at <= &gl.white[64][64];
-         ++at) {
-        *at = 0xff;
     }
 
-    // dummy.
-    glGenVertexArrays(1, &gl.vao);
-    glBindVertexArray(gl.vao);
-
-    glGenBuffers(1, &gl.vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
-}
-
-internal void
-gl_bind_texture(Bitmap *bitmap) {
-    if (bitmap) {
-        if (bitmap->handle) {
-            glBindTexture(GL_TEXTURE_2D, bitmap->handle);
-        } else {
-            bitmap->handle = g_texture_handle_idx++;
-            glBindTexture(GL_TEXTURE_2D, bitmap->handle);
-            glTexImage2D(GL_TEXTURE_2D, 0, g_gl_texture_internal_format, bitmap->width, bitmap->height,
-                         0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, (u8 *)bitmap->memory + bitmap->pitch * (bitmap->height - 1));
-
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        }
+    if (bitmap->handle) {
+        glBindTexture(GL_TEXTURE_2D, bitmap->handle);
+    } else {
+        gl_alloc_texture(bitmap);
+        glBindTexture(GL_TEXTURE_2D, bitmap->handle);
     }
 }
 
-// @Batch
+// @batch
 // TODO: remove sort entries.
 internal void
-gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h) {
+gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
+{
     glViewport(0, 0, win_w, win_h);
 
     glEnable(GL_BLEND);
@@ -457,83 +384,45 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h) {
          (u8 *)group < (u8 *)batch->base + batch->used;
          ++group) {
 
-
-
 #if 1
-        u32 vidx = 0;
-        for (Sort_Entry *entry = (Sort_Entry *)group->sort_entry_begin;
-             (u8 *)entry < group->base + group->capacity;
-             ++entry) {
+        glUseProgram(gl.program);
+        glUniformMatrix4fv(gl.transform_id, 1, GL_TRUE, &group->camera.projection.e[0][0]);
 
-            Render_Entity_Header *entity =(Render_Entity_Header *)entry->render_entity;
+        glBufferData(GL_ARRAY_BUFFER,
+                     group->vertex_count * sizeof(Textured_Vertex),
+                     group->vertices,
+                     GL_STREAM_DRAW);
+
+        glEnableVertexAttribArray(0);
+        glEnableVertexAttribArray(1);
+        glEnableVertexAttribArray(2);
+        glEnableVertexAttribArray(3);
+
+        glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, p)));
+        glVertexAttribPointer(1, 2, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, uv)));
+        glVertexAttribPointer(2, 4, GL_FLOAT, true,  sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, color)));
+        glVertexAttribPointer(3, 3, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, normal)));
+
+        u32 vidx = 0;
+        for (u8 *at = group->base;
+             at < group->base + group->used;)
+        {
+            Render_Entity_Header *entity =(Render_Entity_Header *)at;
 
             switch (entity->type) {
-                case eRender_Bitmap: {
-                    Render_Bitmap *piece = (Render_Bitmap *)entity;
+                case eRender_Quad: {
+                    Render_Quad *piece = (Render_Quad *)entity;
+                    at += sizeof(Render_Quad);
 
-                    glUseProgram(gl.program);
-                    glUniformMatrix4fv(gl.transform_id, 1, GL_TRUE, &group->camera.projection.e[0][0]);
-                    glUniform1i(gl.texture_sampler_id, 0);
-
-                    glBufferData(GL_ARRAY_BUFFER,
-                                 group->vertex_count * sizeof(Textured_Vertex),
-                                 group->vertices,
-                                 GL_DYNAMIC_DRAW);
-
-                    glEnableVertexAttribArray(0);
-                    glEnableVertexAttribArray(1);
-                    glEnableVertexAttribArray(2);
-                    glEnableVertexAttribArray(3);
-
-                    glVertexAttribPointer(0, 4, GL_FLOAT,           false, sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, p)));
-                    glVertexAttribPointer(1, 2, GL_FLOAT,           false, sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, uv)));
-                    glVertexAttribPointer(2, 4, GL_FLOAT,           true,  sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, color)));
-                    glVertexAttribPointer(3, 3, GL_FLOAT,           false, sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, normal)));
 
                     gl_bind_texture(piece->bitmap);
-
-                    glDrawArrays(GL_TRIANGLES, vidx, 6);
-                    vidx += 6;
-
-                    glUseProgram(0);
-
-                    glDisableVertexAttribArray(0);
-                    glDisableVertexAttribArray(1);
-                    glDisableVertexAttribArray(2);
-                    glDisableVertexAttribArray(3);
+                    glDrawArrays(GL_TRIANGLE_STRIP, vidx, 4);
+                    vidx += 4;
                 } break;
 
                 case eRender_Text: {
                     Render_Text *piece = (Render_Text *)entity;
-                } break;
-
-                case eRender_Cube: {
-                    Render_Cube *piece = (Render_Cube *)entity;
-
-#if 0
-                    gl_bind_texture(&gl.white_bitmap);
-
-                    v3  B = piece->base;
-                    r32 H = piece->height;
-                    r32 R = piece->radius;
-                    r32 min_x = B.x - R;
-                    r32 max_x = B.x + R;
-                    r32 min_y = B.y - R;
-                    r32 max_y = B.y + R;
-                    r32 min_z = B.z - H;
-                    r32 max_z = B.z;
-                    v3 vertices[8] = {
-                        v3{min_x, min_y, max_z},
-                        v3{max_x, min_y, max_z},
-                        v3{max_x, max_y, max_z},
-                        v3{min_x, max_y, max_z},
-                        v3{min_x, min_y, min_z},
-                        v3{max_x, min_y, min_z},
-                        v3{max_x, max_y, min_z},
-                        v3{min_x, max_y, min_z},
-                    };
-                    gl_draw_cube(vertices, piece->color);
-#endif
+                    at += sizeof(Render_Text);
                 } break;
 
                 INVALID_DEFAULT_CASE
@@ -541,8 +430,106 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h) {
 
         }
 
+
+        glUseProgram(0);
+
+        glDisableVertexAttribArray(0);
+        glDisableVertexAttribArray(1);
+        glDisableVertexAttribArray(2);
+        glDisableVertexAttribArray(3);
+
 #endif
     }
             
     batch->used = 0;
+}
+
+internal void
+gl_init()
+{
+#if 0
+    if (glDebugMessageCallbackARB) {
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        glDebugMessageCallbackARB(gl_debug_callback, 0);
+    } else {
+        Assert("!no extension");
+    }
+#endif
+
+    //
+    // @shader
+    //
+    const char *header = R"FOO(
+            #version 330 core
+            )FOO";
+
+    const char *vshader = R"FOO(
+            uniform mat4x4 transform;
+
+            layout (location = 0) in vec3 vP;
+            layout (location = 1) in vec2 vUV;
+            layout (location = 2) in vec4 vC;
+            layout (location = 3) in vec3 vN;
+
+            smooth out vec3 fP;
+            smooth out vec2 fUV;
+            smooth out vec4 fC;
+
+            void main()
+            {
+                fP = vP;
+                fC = vC;
+                fUV = vUV;
+
+
+                gl_Position = transform * vec4(vP, 1.0f);
+            }
+            )FOO";
+
+    const char *fshader = R"FOO(
+            uniform sampler2D texture_sampler;
+
+            smooth in vec3 fP;
+            smooth in vec2 fUV;
+            smooth in vec4 fC;
+
+            out vec4 C;
+
+            void main()
+            {
+                C = texture(texture_sampler, fUV) * fC;
+
+                vec3 lightP = vec3(0.0f, 0.0f, 0.4f);
+                float d = distance(lightP, fP);
+                C.xyz *= (1.0f / (d * d));
+
+                if (C.a == 0.0f) {
+                    discard;
+                }
+            }
+            )FOO";
+
+    gl.program              = gl_create_program(header, vshader, fshader);
+    gl.transform_id         = glGetUniformLocation(gl.program, "transform");
+    gl.texture_sampler_id   = glGetUniformLocation(gl.program, "texture_sampler");
+
+    gl.white_bitmap.width   = 4;
+    gl.white_bitmap.height  = 4;
+    gl.white_bitmap.pitch   = -16;
+    gl.white_bitmap.handle  = 0;
+    gl.white_bitmap.size    = 64;
+    gl.white_bitmap.memory  = &gl.white[3][0];
+    for (u32 *at = (u32 *)gl.white;
+         at <= &gl.white[3][3];
+         ++at) {
+        *at = 0xffffffff;
+    }
+    gl_alloc_texture(&gl.white_bitmap);
+
+    // dummy.
+    glGenVertexArrays(1, &gl.vao);
+    glBindVertexArray(gl.vao);
+
+    glGenBuffers(1, &gl.vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
 }

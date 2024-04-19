@@ -18,16 +18,16 @@ enum GL_Extensions {
 #undef X
 
 struct GL_Info {
-    b32 modern;
-    char *vendor;
-    char *renderer;
-    char *version;
-    char *shading_language_version;
-    char *extensions;
-    s32 major;
-    s32 minor;
+    b32     modern;
+    char    *vendor;
+    char    *renderer;
+    char    *version;
+    char    *shading_language_version;
+    char    *extensions;
+    s32     major;
+    s32     minor;
 
-    b32 has_ext[GL_EXT_COUNT];
+    b32     has_ext[GL_EXT_COUNT];
 };
 
 
@@ -36,10 +36,9 @@ struct GL {
 
     s32     transform_id;
     s32     texture_sampler_id;
-
     GLuint  vao;
     GLuint  vbo;
 
     Bitmap  white_bitmap;
-    u32     white[64][64];
+    u32     white[4][4];
 };

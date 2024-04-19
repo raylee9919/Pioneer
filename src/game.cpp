@@ -207,9 +207,8 @@ GetBitmap(TransientState *transState, Asset_ID assetID,
 
 
 extern "C"
-GAME_MAIN(GameMain) {
-
-
+GAME_MAIN(GameMain)
+{
     if (!gameState->is_init) {
 
         gameState->particleRandomSeries = Seed(254);
@@ -245,9 +244,11 @@ GAME_MAIN(GameMain) {
                 recalc_pos(&tile_pos, gameState->world->chunkDim);
                 Entity *tile1 = push_entity(world_arena, chunk_hashmap,
                                            eEntity_Tile, tile_pos);
+#if 1
                 Entity *tile2 = push_entity(world_arena, chunk_hashmap,
                                            eEntity_Tile, tile_pos);
                 tile2->pos.chunkZ--;
+#endif
                 if (X == -8 || X == 8 || Y == -4 || Y == 4) {
                     if (X != 0 && Y != 0) {
                     // if (X == -8 && Y == -4) {
@@ -420,7 +421,7 @@ GAME_MAIN(GameMain) {
 #endif
 
     //
-    // @Draw
+    // @draw
     //
     Game_Assets *gameAssets = &transState->gameAssets;
 
@@ -456,7 +457,7 @@ GAME_MAIN(GameMain) {
                             r32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
                             r32 card_h = 1.8f;
                             r32 card_w = card_h * bmp_height_over_width;
-                            push_bitmap(render_group,
+                            push_quad(render_group,
                                         v3{base.x - card_w * 0.5f, base.y, base.z},
                                         v3{card_w * cos(tilt_angle_y), card_w * sin(tilt_angle_y), 0.0f},
                                         v3{0.0f, card_h, sin(tilt_angle_z) * card_h},
@@ -584,7 +585,7 @@ GAME_MAIN(GameMain) {
                                 r32 scale = 0.3f;
                                 Bitmap *bitmap = GetBitmap(transState, GAI_Particle, transState->lowPriorityQueue, &gameMemory->platform);
                                 if (bitmap) {
-                                    push_bitmap(renderGroup, base,
+                                    push_quad(renderGroup, base,
                                                 particleCen - 0.5f * particleDim,
                                                 v2{particleDim.x * scale, 0}, v2{0, particleDim.y * scale},
                                                 bitmap, v4{1.0f, 1.0f, 1.0f, particle->alpha});
@@ -602,7 +603,7 @@ GAME_MAIN(GameMain) {
                                 r32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
                                 r32 card_h = 2.0f;
                                 r32 card_w = card_h * bmp_height_over_width;
-                                push_bitmap(render_group,
+                                push_quad(render_group,
                                             v3{base.x - card_w * 0.5f, base.y, base.z},
                                             v3{card_w * cos(tilt_angle_y), card_w * sin(tilt_angle_y), 0.0f},
                                             v3{0.0f, card_h, sin(tilt_angle_z) * card_h},
@@ -616,7 +617,7 @@ GAME_MAIN(GameMain) {
                             r32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
                             r32 card_h = 1.8f;
                             r32 card_w = card_h * bmp_height_over_width;
-                            push_bitmap(render_group,
+                            push_quad(render_group,
                                         v3{base.x - card_w * 0.5f, base.y, base.z},
                                         v3{card_w * cos(tilt_angle_y), card_w * sin(tilt_angle_y), 0.0f},
                                         v3{0.0f, card_h, sin(tilt_angle_z) * card_h},
@@ -633,7 +634,7 @@ GAME_MAIN(GameMain) {
                             r32 radius = entity->dim.x * 0.5f;
                             r32 height = entity->dim.z;
                             push_cube(render_group, base, radius, height,
-                                      v4{0.02f, 0.05f, 0.02f, 1.0f});
+                                      v4{0.2f, 0.3f, 0.1f, 1.0f});
                         } break;
 
                         INVALID_DEFAULT_CASE
@@ -644,7 +645,7 @@ GAME_MAIN(GameMain) {
         }
     }
 
-    RenderGroupToOutput(render_group, &gameMemory->platform, &gameMemory->render_batch);
+    render_group_to_output_batch(render_group, &gameMemory->render_batch);
 
     EndTemporaryMemory(&renderMemory);
 
@@ -663,7 +664,7 @@ GAME_MAIN(GameMain) {
     }
     end_debug_log(&g_debug_log);
 
-    RenderGroupToOutput(debug_render_group, &gameMemory->platform, &gameMemory->render_batch);
+    render_group_to_output_batch(debug_render_group, &gameMemory->render_batch);
     EndTemporaryMemory(&debug_render_memory);
 #endif
 }

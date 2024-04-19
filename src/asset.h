@@ -35,7 +35,7 @@ struct Bitmap {
     s32     width;
     s32     height;
     s32     pitch;
-    s32     handle;
+    u32     handle;
     size_t  size;
     void    *memory;
 };
