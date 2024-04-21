@@ -7,8 +7,9 @@
    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 inline u32
-ChunkHash(ChunkHashmap *chunkHashmap, Position pos) {
-    // TODO: Better hash function... maybe...
+ChunkHash(ChunkHashmap *chunkHashmap, Position pos)
+{
+    // TODO: Better hash function.
     u32 bucket = (pos.chunkX * 16 + pos.chunkY * 9 + pos.chunkZ * 4) &
         (ArrayCount(chunkHashmap->chunks) - 1);
     Assert(bucket < sizeof(chunkHashmap->chunks));
@@ -17,7 +18,8 @@ ChunkHash(ChunkHashmap *chunkHashmap, Position pos) {
 }
 
 inline b32
-IsSameChunk(Position A, Position B) {
+IsSameChunk(Position A, Position B)
+{
     b32 result = 
         A.chunkX == B.chunkX &&
         A.chunkY == B.chunkY &&
@@ -26,7 +28,8 @@ IsSameChunk(Position A, Position B) {
 }
 
 inline b32
-IsSameChunk(Chunk *chunk, Position pos) {
+IsSameChunk(Chunk *chunk, Position pos)
+{
     b32 result = 
         chunk->chunkX == pos.chunkX &&
         chunk->chunkY == pos.chunkY &&
@@ -35,7 +38,8 @@ IsSameChunk(Chunk *chunk, Position pos) {
 }
 
 internal Chunk *
-get_chunk(Memory_Arena *arena, ChunkHashmap *hashmap, Position pos) {
+get_chunk(Memory_Arena *arena, ChunkHashmap *hashmap, Position pos) 
+{
     Chunk *result = 0;
 
     u32 bucket = ChunkHash(hashmap, pos);
@@ -63,19 +67,22 @@ get_chunk(Memory_Arena *arena, ChunkHashmap *hashmap, Position pos) {
 }
 
 inline void
-SetFlag(Entity *entity, EntityFlag flag) {
+SetFlag(Entity *entity, EntityFlag flag) 
+{
     entity->flags |= flag;
 }
 
 inline b32
-IsSet(Entity *entity, EntityFlag flag) {
+IsSet(Entity *entity, EntityFlag flag) 
+{
     b32 result = (entity->flags & flag);
     return result;
 }
 
 internal Entity *
 push_entity(Memory_Arena *arena, ChunkHashmap *hashmap,
-            Entity_Type type, Position pos) {
+            Entity_Type type, Position pos) 
+{
     Entity *entity = push_struct(arena, Entity);
     entity->pos     = pos;
     entity->type    = type;
@@ -121,10 +128,11 @@ push_entity(Memory_Arena *arena, ChunkHashmap *hashmap,
 }
 
 internal void
-recalc_pos(Position *pos, v3 chunkDim) {
-    r32 boundX = chunkDim.x * 0.5f;
-    r32 boundY = chunkDim.y * 0.5f;
-    r32 boundZ = chunkDim.z * 0.5f;
+recalc_pos(Position *pos, v3 chunkDim) 
+{
+    f32 boundX = chunkDim.x * 0.5f;
+    f32 boundY = chunkDim.y * 0.5f;
+    f32 boundZ = chunkDim.z * 0.5f;
 
     while (pos->offset.x < -boundX || pos->offset.x >= boundX) {
         if (pos->offset.x < -boundX) {
@@ -159,7 +167,8 @@ recalc_pos(Position *pos, v3 chunkDim) {
 
 internal void
 MapEntityToChunk(Memory_Arena *arena, ChunkHashmap *hashmap, Entity *entity,
-        Position oldPos, Position newPos) {
+                 Position oldPos, Position newPos) 
+{
     Chunk *oldChunk = get_chunk(arena, hashmap, oldPos);
     Chunk *newChunk = get_chunk(arena, hashmap, newPos);
     EntityList *oldEntities = &oldChunk->entities;
@@ -187,18 +196,20 @@ MapEntityToChunk(Memory_Arena *arena, ChunkHashmap *hashmap, Entity *entity,
 }
 
 internal v3
-Subtract(Position A, Position B, v3 chunkDim) {
+Subtract(Position A, Position B, v3 chunkDim) 
+{
     v3 diff = {};
-    diff.x = (r32)(A.chunkX - B.chunkX) * chunkDim.x;
-    diff.y = (r32)(A.chunkY - B.chunkY) * chunkDim.y;
-    diff.z = (r32)(A.chunkZ - B.chunkZ) * chunkDim.z;
+    diff.x = (f32)(A.chunkX - B.chunkX) * chunkDim.x;
+    diff.y = (f32)(A.chunkY - B.chunkY) * chunkDim.y;
+    diff.z = (f32)(A.chunkZ - B.chunkZ) * chunkDim.z;
     diff += (A.offset - B.offset);
 
     return diff;
 }
 
 internal void
-UpdateEntityPos(GameState *gameState, Entity *self, r32 dt, Position simMin, Position simMax) {
+UpdateEntityPos(GameState *gameState, Entity *self, f32 dt, Position simMin, Position simMax)
+{
     Position oldPos = self->pos;
     Position newPos = self->pos;
     self->accel *= self->u;
@@ -208,8 +219,8 @@ UpdateEntityPos(GameState *gameState, Entity *self, r32 dt, Position simMin, Pos
     recalc_pos(&newPos, gameState->world->chunkDim);
 
     // NOTE: Minkowski Collision
-    r32 tRemain = dt;
-    r32 epsilon = 0.001f;
+    f32 tRemain = dt;
+    f32 eps = 0.001f;
     v3 vTotal = self->velocity;
     for (s32 count = 0;
             count < 4 && tRemain > 0.0f;
@@ -239,11 +250,11 @@ UpdateEntityPos(GameState *gameState, Entity *self, r32 dt, Position simMin, Pos
                                 v3 max = 0.5f * boxDim;
                                 v3 oldRelP = Subtract(oldPos, other->pos, gameState->world->chunkDim);
                                 v3 newRelP = Subtract(newPos, other->pos, gameState->world->chunkDim);
-                                r32 tUsed = 0.0f;
+                                f32 tUsed = 0.0f;
                                 u32 axis = 0;
                                 if (IsPointInRect(newRelP, box)) {
                                     if (vTotal.x != 0) {
-                                        r32 t = (min.x - oldRelP.x) / vTotal.x;
+                                        f32 t = (min.x - oldRelP.x) / vTotal.x;
                                         if (t >= 0 && t <= tRemain) {
                                             tUsed = t;
                                             axis = 0;
@@ -255,7 +266,7 @@ UpdateEntityPos(GameState *gameState, Entity *self, r32 dt, Position simMin, Pos
                                         }
                                     }
                                     if (vTotal.y != 0) {
-                                        r32 t = (min.y - oldRelP.y) / vTotal.y;
+                                        f32 t = (min.y - oldRelP.y) / vTotal.y;
                                         if (t >= 0 && t <= tRemain) {
                                             tUsed = t;
                                             axis = 1;
@@ -267,7 +278,7 @@ UpdateEntityPos(GameState *gameState, Entity *self, r32 dt, Position simMin, Pos
                                         }
                                     }
 
-                                    tUsed -= epsilon;
+                                    tUsed -= eps;
                                     v3 vUsed = tUsed * vTotal;
                                     tRemain -= tUsed;
                                     v3 vRemain = tRemain * vTotal;
@@ -298,25 +309,20 @@ UpdateEntityPos(GameState *gameState, Entity *self, r32 dt, Position simMin, Pos
 }
 
 internal void
-update_entities(GameState *gameState, r32 dt, Position simMin, Position simMax) {
+update_entities(GameState *gameState, f32 dt, Position simMin, Position simMax) 
+{
     TIMED_BLOCK();
-    for (s32 Z = simMin.chunkZ;
-            Z <= simMax.chunkZ;
-            ++Z) {
-        for (s32 Y = simMin.chunkY;
-                Y <= simMax.chunkY;
-                ++Y) {
-            for (s32 X = simMin.chunkX;
-                    X <= simMax.chunkX;
-                    ++X) {
+    for (s32 Z = simMin.chunkZ; Z <= simMax.chunkZ; ++Z) {
+        for (s32 Y = simMin.chunkY; Y <= simMax.chunkY; ++Y) {
+            for (s32 X = simMin.chunkX; X <= simMax.chunkX; ++X) {
                 Chunk *chunk = get_chunk(&gameState->worldArena,
                                          &gameState->world->chunkHashmap, {X, Y, Z});
                 for (Entity *entity = chunk->entities.head;
-                        entity != 0;
-                        entity = entity->next) {
+                     entity != 0;
+                     entity = entity->next) {
                     switch (entity->type) {
                         case eEntity_Player: {
-                            r32 epsilon = 0.01f;
+                            f32 epsilon = 0.01f;
                             if (entity->velocity.x > epsilon) {
                                 entity->face = 0;
                             }
@@ -327,7 +333,7 @@ update_entities(GameState *gameState, r32 dt, Position simMin, Position simMax) 
                         } break;
 
                         case eEntity_Familiar: {
-                            r32 epsilon = 0.01f;
+                            f32 epsilon = 0.01f;
                             if (entity->velocity.x > epsilon) {
                                 entity->face = 0;
                             }
@@ -335,8 +341,8 @@ update_entities(GameState *gameState, r32 dt, Position simMin, Position simMax) 
                                 entity->face = 1;
                             }
                             v3 V = Subtract(gameState->player->pos, entity->pos, gameState->world->chunkDim);
-                            r32 dist = Len(V);
-                            V *= (1.0f / Len(V));
+                            f32 dist = len(V);
+                            V *= (1.0f / len(V));
                             entity->accel = (dist > 2.5f) ? V : v3{};
                             UpdateEntityPos(gameState, entity, dt, simMin, simMax);
                         } break;

@@ -36,6 +36,8 @@ struct GL {
 
     s32     transform_id;
     s32     texture_sampler_id;
+    s32     cam_pos_id;
+
     GLuint  vao;
     GLuint  vbo;
 

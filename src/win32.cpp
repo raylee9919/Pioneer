@@ -246,6 +246,7 @@ win32_load_gl_extensions() {
             WGL_GET_PROC_ADDRESS(glBindAttribLocation);
             WGL_GET_PROC_ADDRESS(glDebugMessageCallbackARB);
             WGL_GET_PROC_ADDRESS(glDisableVertexAttribArray);
+            WGL_GET_PROC_ADDRESS(glUniform3fv);
 
             wglMakeCurrent(0, 0);
         }
@@ -384,15 +385,15 @@ Win32GetClock() {
     return result;
 }
 
-internal inline r32
+internal inline f32
 Win32GetElapsedSec(LARGE_INTEGER begin, LARGE_INTEGER end) {
-    r32 result = (r32)(end.QuadPart - begin.QuadPart) / (r32)g_counter_hz.QuadPart;
+    f32 result = (f32)(end.QuadPart - begin.QuadPart) / (f32)g_counter_hz.QuadPart;
     return result;
 }
 
-internal inline r32
+internal inline f32
 Win32GetElapsedMs(LARGE_INTEGER begin, LARGE_INTEGER end) {
-    r32 result = Win32GetElapsedSec(begin, end) * 1000.0f;
+    f32 result = Win32GetElapsedSec(begin, end) * 1000.0f;
     return result;
 }
 
@@ -420,14 +421,14 @@ Win32ConcatNString(char *dst,
 internal void
 Win32XInputHandleDeadzone(XINPUT_STATE *state) {
 #define XINPUT_DEAD_ZONE 2500
-    r32 lx = state->Gamepad.sThumbLX;
-    r32 ly = state->Gamepad.sThumbLY;
+    f32 lx = state->Gamepad.sThumbLX;
+    f32 ly = state->Gamepad.sThumbLY;
     if (sqrt(lx * lx + ly * ly) < XINPUT_DEAD_ZONE) {
         state->Gamepad.sThumbLX = 0;
         state->Gamepad.sThumbLY = 0;
     }
-    r32 rx = state->Gamepad.sThumbRX;
-    r32 ry = state->Gamepad.sThumbRY;
+    f32 rx = state->Gamepad.sThumbRX;
+    f32 ry = state->Gamepad.sThumbRY;
     if (sqrt(rx * rx + ry * ry) < XINPUT_DEAD_ZONE) {
         state->Gamepad.sThumbRX = 0;
         state->Gamepad.sThumbRY = 0;
@@ -559,12 +560,12 @@ Win32ProcessKeyboard(Game_Key *game_key, b32 is_down) {
 
 internal void
 win32_get_mouse_pos_to_game_coordinate(HWND hwnd, Win32WindowDimension wd, Game_Input *game_input) {
-    r32 aspect_h_over_w = safe_ratio((r32)wd.height, (r32)wd.width);
+    f32 aspect_h_over_w = safe_ratio((f32)wd.height, (f32)wd.width);
     POINT mouse_p;
     GetCursorPos(&mouse_p);
     ScreenToClient(hwnd, &mouse_p);
-    game_input->mouse.P.x = safe_ratio( 2.0f * (r32)mouse_p.x, (r32)wd.width) - 1.0f;
-    game_input->mouse.P.y = safe_ratio(-2.0f * (r32)mouse_p.y * aspect_h_over_w, (r32)wd.height) + aspect_h_over_w;
+    game_input->mouse.P.x = safe_ratio( 2.0f * (f32)mouse_p.x, (f32)wd.width) - 1.0f;
+    game_input->mouse.P.y = safe_ratio(-2.0f * (f32)mouse_p.y * aspect_h_over_w, (f32)wd.height) + aspect_h_over_w;
 }
 
 internal void
@@ -799,7 +800,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
 
     int monitor_hz = GetDeviceCaps(GetDC(hwnd), VREFRESH);
     int desired_hz = monitor_hz / 2;
-    r32 desired_mspf = 1000.0f / (r32)desired_hz;
+    f32 desired_mspf = 1000.0f / (f32)desired_hz;
 
 
 #if __DEBUG
@@ -1025,7 +1026,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
         ReleaseDC(hwnd, dc);
 
         LARGE_INTEGER counter_end = Win32GetClock();
-        r32 actual_mspf = Win32GetElapsedMs(counter_begin, counter_end);
+        f32 actual_mspf = Win32GetElapsedMs(counter_begin, counter_end);
 
         if(actual_mspf < desired_mspf) {
             DWORD ms_to_sleep = (DWORD)(desired_mspf - actual_mspf);
@@ -1035,7 +1036,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
             // TODO: Missed framerate handling
         }
 #if 0
-        r32 fps = 1000.0f / actual_mspf;
+        f32 fps = 1000.0f / actual_mspf;
         char profile[256];
         sprintf_s(profile, "elapsed_ms: %02f, fps: %02f\n", actual_mspf, fps);
         OutputDebugStringA(profile);

@@ -36,6 +36,9 @@ typedef void (APIENTRY  *GLDEBUGPROCARB)(GLenum source,GLenum type,GLuint id,GLe
 #define GL_DYNAMIC_READ                     0x88E9
 #define GL_DYNAMIC_COPY                     0x88EA
 #define GL_DEBUG_OUTPUT_SYNCHRONOUS         0x8242
+#define GL_DEBUG_SEVERITY_HIGH              0x9146
+#define GL_DEBUG_SEVERITY_MEDIUM            0x9147
+#define GL_DEBUG_SEVERITY_LOW               0x9148
 
 
 typedef BOOL        Type_wglSwapIntervalEXT(int interval);
@@ -65,6 +68,7 @@ typedef void        Type_glBindVertexArray (GLuint array);
 typedef void        Type_glBindAttribLocation (GLuint program, GLuint index, const GLchar *name);
 typedef void        Type_glDebugMessageCallbackARB (GLDEBUGPROCARB callback, const void *userParam);
 typedef void        Type_glDisableVertexAttribArray (GLuint index);
+typedef void        Type_glUniform3fv (GLint location, GLsizei count, const GLfloat *value);
 
 #define GL_DECLARE_GLOBAL_FUNCTION(Name) global_var Type_##Name *Name
 GL_DECLARE_GLOBAL_FUNCTION(wglSwapIntervalEXT);
@@ -93,6 +97,7 @@ GL_DECLARE_GLOBAL_FUNCTION(glBindVertexArray);
 GL_DECLARE_GLOBAL_FUNCTION(glBindAttribLocation);
 GL_DECLARE_GLOBAL_FUNCTION(glDebugMessageCallbackARB);
 GL_DECLARE_GLOBAL_FUNCTION(glDisableVertexAttribArray);
+GL_DECLARE_GLOBAL_FUNCTION(glUniform3fv);
 
 
 global_var GL gl;
@@ -119,7 +124,8 @@ str_match(char *text, char *pattern, size_t len);
 global_var GLint g_gl_texture_internal_format = GL_RGBA8;
 
 inline void
-gl_parse_version() {
+gl_parse_version()
+{
     gl_info.version = (char *)glGetString(GL_VERSION);
 
     char *at = gl_info.version;
@@ -128,7 +134,8 @@ gl_parse_version() {
         if (c >= '0' && c <= '9') {
             if (i++ == 0) {
                 gl_info.major = (c - '0');
-            } else {
+            } 
+            else {
                 gl_info.minor = (c - '0');
             }
         }
@@ -136,13 +143,27 @@ gl_parse_version() {
 }
 
 internal void
-gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam) {
+gl_debug_callback(GLenum source, GLenum type, GLuint id,
+                  GLenum severity, GLsizei length, const GLchar *message,
+                  const void *userParam)
+{
     char *error = (char *)message;
-    Assert(0);
+    switch (severity) {
+        case GL_DEBUG_SEVERITY_LOW: {
+
+        } break;
+        case GL_DEBUG_SEVERITY_MEDIUM: {
+            Assert(0);
+        } break;
+        case GL_DEBUG_SEVERITY_HIGH: {
+            Assert(0);
+        } break;
+    }
 }
 
 internal void
-gl_get_info() {
+gl_get_info()
+{
     gl_info.vendor                   = (char *)glGetString(GL_VENDOR);
     gl_info.renderer                 = (char *)glGetString(GL_RENDERER);
     gl_info.extensions               = (char *)glGetString(GL_EXTENSIONS);
@@ -161,7 +182,8 @@ gl_get_info() {
     size_t ext_str_len[GL_EXT_COUNT];
     for (s32 idx = 0;
          idx < ArrayCount(ext_str_table);
-         ++idx) {
+         ++idx) 
+    {
         ext_str_len[idx] = str_len(ext_str_table[idx]);
     }
 
@@ -171,7 +193,8 @@ gl_get_info() {
              *tk_begin;) {
             if (is_whitespace(*tk_begin)) {
                 ++tk_begin;
-            } else {
+            } 
+            else {
                 char *tk_end = tk_begin;
                 while (!is_whitespace(*(tk_end + 1))) {
                     ++tk_end;
@@ -190,8 +213,8 @@ gl_get_info() {
                             gl_info.has_ext[idx] = true;
                             break;
                         }
-
-                    } else {
+                    } 
+                    else {
                         continue;
                     }
                 }
@@ -204,7 +227,8 @@ gl_get_info() {
 }
 
 internal void
-gl_draw_quad(v3 V[4], Bitmap *bitmap, v4 color) {
+gl_draw_quad(v3 V[4], Bitmap *bitmap, v4 color) 
+{
     if (bitmap) {
         glBegin(GL_TRIANGLES);
         glColor4f(color.r, color.g, color.b, color.a);
@@ -247,7 +271,8 @@ gl_draw_quad(v3 V[4], Bitmap *bitmap, v4 color) {
 }
 
 internal void
-gl_draw_cube(v3 V[8], v4 color) {
+gl_draw_cube(v3 V[8], v4 color)
+{
     glBegin(GL_TRIANGLES);
     glColor4f(color.r, color.g, color.b, color.a);
 
@@ -268,19 +293,11 @@ gl_draw_cube(v3 V[8], v4 color) {
     glEnd();
 }
 
-#if 0
-inline void
-gl_load_projection(Camera *cam) {
-    glMatrixMode(GL_PROJECTION);
-    m4x4 M = transpose(cam->projection);
-    glLoadMatrixf(&M.e[0][0]);
-}
-#endif
-
 internal GLuint
 gl_create_program(const char *header,
                   const char *vsrc,
-                  const char *fsrc) {
+                  const char *fsrc)
+{
     GLuint program = 0;
 
     if (glCreateShader) {
@@ -382,11 +399,13 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
     for (Render_Group *group = (Render_Group *)batch->base;
          (u8 *)group < (u8 *)batch->base + batch->used;
-         ++group) {
+         ++group)
+    {
 
 #if 1
         glUseProgram(gl.program);
         glUniformMatrix4fv(gl.transform_id, 1, GL_TRUE, &group->camera.projection.e[0][0]);
+        glUniform3fv(gl.cam_pos_id, 1, (GLfloat *)&group->camera.world_pos);
 
         glBufferData(GL_ARRAY_BUFFER,
                      group->vertex_count * sizeof(Textured_Vertex),
@@ -447,12 +466,13 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 internal void
 gl_init()
 {
-#if 0
+#if 1
     if (glDebugMessageCallbackARB) {
         glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
         glDebugMessageCallbackARB(gl_debug_callback, 0);
-    } else {
-        Assert("!no extension");
+    } 
+    else {
+        Assert("!glDebugMessageCallbackARB not found.");
     }
 #endif
 
@@ -474,24 +494,27 @@ gl_init()
             smooth out vec3 fP;
             smooth out vec2 fUV;
             smooth out vec4 fC;
+            smooth out vec3 fN;
 
             void main()
             {
-                fP = vP;
-                fC = vC;
+                fP  = vP;
                 fUV = vUV;
-
+                fC  = vC;
+                fN  = vN;
 
                 gl_Position = transform * vec4(vP, 1.0f);
             }
             )FOO";
 
     const char *fshader = R"FOO(
-            uniform sampler2D texture_sampler;
+            uniform sampler2D   texture_sampler;
+            uniform vec3        cam_pos;
 
             smooth in vec3 fP;
             smooth in vec2 fUV;
             smooth in vec4 fC;
+            smooth in vec3 fN;
 
             out vec4 C;
 
@@ -499,19 +522,43 @@ gl_init()
             {
                 C = texture(texture_sampler, fUV) * fC;
 
-                vec3 lightP = vec3(0.0f, 0.0f, 0.4f);
-                float d = distance(lightP, fP);
-                C.xyz *= (1.0f / (d * d));
+                float light_strength    = 5.0f;
+                vec3 light_pos          = vec3(0.0f, 0.0f, 2.0f);
+                vec3 light_sum          = vec3(0.1f, 0.1f, 0.1f);
+                vec3 to_light           = normalize(light_pos - fP);
+                vec3 from_cam           = normalize(fP - cam_pos);
 
-                if (C.a == 0.0f) {
+                // distance falloff
+                float d = distance(light_pos, fP);
+                light_strength /= (d * d);
+
+                // diffuse
+                float diffuse_c  = 0.0f;
+                float cos_falloff = clamp(dot(fN, to_light), 0.0f, 1.0f);
+                float diffuse_light = diffuse_c * cos_falloff * light_strength;
+
+                // specular
+                float specular_c = 1.0f;
+                vec3 ref = normalize(from_cam - 2 * dot(fN, from_cam) * fN);
+                float cos_ref = clamp(dot(ref, to_light), 0.0f, 1.0f);
+                float specular_light = specular_c * cos_ref * light_strength;
+
+                light_sum += diffuse_light + specular_light;
+
+                C.xyz *= light_sum;
+
+                if (C.a == 0.0f) 
+                {
                     discard;
                 }
             }
             )FOO";
+#undef f32
 
     gl.program              = gl_create_program(header, vshader, fshader);
     gl.transform_id         = glGetUniformLocation(gl.program, "transform");
     gl.texture_sampler_id   = glGetUniformLocation(gl.program, "texture_sampler");
+    gl.cam_pos_id           = glGetUniformLocation(gl.program, "cam_pos");
 
     gl.white_bitmap.width   = 4;
     gl.white_bitmap.height  = 4;
@@ -521,7 +568,8 @@ gl_init()
     gl.white_bitmap.memory  = &gl.white[3][0];
     for (u32 *at = (u32 *)gl.white;
          at <= &gl.white[3][3];
-         ++at) {
+         ++at) 
+    {
         *at = 0xffffffff;
     }
     gl_alloc_texture(&gl.white_bitmap);

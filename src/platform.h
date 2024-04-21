@@ -77,7 +77,7 @@ extern "C" {
     } Mouse_Input;
 
     typedef struct Game_Input {
-        r32 dt_per_frame;
+        f32 dt_per_frame;
         Game_Key    move_up;
         Game_Key    move_down;
         Game_Key    move_left;

@@ -114,10 +114,10 @@ write_bmp(const char *filename, FILE *out_file) {
             {
                 u32 c = *src;
 
-                r32 r = (r32)((c & r_mask) >> r_shift_down);
-                r32 g = (r32)((c & g_mask) >> g_shift_down);
-                r32 b = (r32)((c & b_mask) >> b_shift_down);
-                r32 a = (r32)((c & a_mask) >> a_shift_down);
+                f32 r = (f32)((c & r_mask) >> r_shift_down);
+                f32 g = (f32)((c & g_mask) >> g_shift_down);
+                f32 b = (f32)((c & b_mask) >> b_shift_down);
+                f32 a = (f32)((c & a_mask) >> a_shift_down);
 
                 // reformat bitmap file's RGBa to microsoft's stupid aRGB format
                 // even though bmp is created by themselves.
@@ -270,7 +270,7 @@ bake_glyph(HDC hdc, u32 codepoint, void *bits, s32 bi_width, s32 bi_height, TEXT
     s32 init_ok = stbtt_InitFont(&font, read_buf, 0);
     if (init_ok) {
         int width, height;
-        r32 scale = stbtt_ScaleForPixelHeight(&font, (r32)font_height);
+        f32 scale = stbtt_ScaleForPixelHeight(&font, (f32)font_height);
         u8 *mono_bitmap = stbtt_GetCodepointBitmap(&font, 0, scale,
                 codepoint, &width, &height, 0, 0);
         u8 *src_at = mono_bitmap;

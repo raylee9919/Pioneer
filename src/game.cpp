@@ -19,7 +19,6 @@
 #include "sim.cpp"
 
 
-// debug.
 internal void
 init_debug(Debug_Log *debug_log, Memory_Arena *arena);
 
@@ -31,7 +30,8 @@ end_debug_log(Debug_Log *debug_log);
 
 
 internal void
-load_font(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, Game_Assets *game_assets) {
+load_font(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, Game_Assets *game_assets)
+{
     DebugReadFileResult read = read_file(ASSET_FILE_NAME);
     u8 *at = (u8 *)read.contents;
     u8 *end = at + read.content_size;
@@ -70,7 +70,8 @@ load_font(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, Game_Assets
 }
 
 internal Bitmap *
-load_bmp(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char *filename) {
+load_bmp(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char *filename)
+{
     Bitmap *result = push_struct(arena, Bitmap);
     *result = {};
     
@@ -108,7 +109,7 @@ load_bmp(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char *
         s32 b_shift = (s32)b_scan.index;
         s32 a_shift = (s32)a_scan.index;
 
-        r32 inv_255f = 1.0f / 255.0f;
+        f32 inv_255f = 1.0f / 255.0f;
         
         u32 *at = pixels;
         for(s32 y = 0;
@@ -121,12 +122,12 @@ load_bmp(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char *
             {
                 u32 c = *at;
 
-                r32 r = (r32)((c & r_mask) >> r_shift);
-                r32 g = (r32)((c & g_mask) >> g_shift);
-                r32 b = (r32)((c & b_mask) >> b_shift);
-                r32 a = (r32)((c & a_mask) >> a_shift);
+                f32 r = (f32)((c & r_mask) >> r_shift);
+                f32 g = (f32)((c & g_mask) >> g_shift);
+                f32 b = (f32)((c & b_mask) >> b_shift);
+                f32 a = (f32)((c & a_mask) >> a_shift);
 
-                r32 ra = a * inv_255f;
+                f32 ra = a * inv_255f;
 #if 1
                 r *= ra;
                 g *= ra;
@@ -143,22 +144,19 @@ load_bmp(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char *
 
     return result;
 }
-struct Load_Asset_Work_Data {
-    Game_Assets *gameAssets;
-    Memory_Arena *assetArena;
-    Asset_ID assetID;
-    const char *fileName;
-    WorkMemory_Arena *workSlot;
-};
-PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work) {
+
+PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work)
+{
     Load_Asset_Work_Data *workData = (Load_Asset_Work_Data *)data;
     workData->gameAssets->bitmaps[workData->assetID] = load_bmp(workData->assetArena, workData->gameAssets->debug_platform_read_file, workData->fileName);
     workData->gameAssets->bitmapStates[workData->assetID] = Asset_State_Loaded;
     EndWorkMemory(workData->workSlot);
 }
+
 internal Bitmap *
 GetBitmap(TransientState *transState, Asset_ID assetID,
-        PlatformWorkQueue *queue, Platform_API *platform) {
+          PlatformWorkQueue *queue, Platform_API *platform)
+{
     Bitmap *result = transState->gameAssets.bitmaps[assetID];
 
     if (!result) {
@@ -333,8 +331,8 @@ GAME_MAIN(GameMain)
     draw_buffer.pitch    = gameScreenBuffer->pitch;
     draw_buffer.memory   = gameScreenBuffer->memory;
 
-    r32 aspect_ratio = safe_ratio((r32)draw_buffer.width,
-                                  (r32)draw_buffer.height);
+    f32 aspect_ratio = safe_ratio((f32)draw_buffer.width,
+                                  (f32)draw_buffer.height);
 
     TemporaryMemory renderMemory = BeginTemporaryMemory(&transState->transientArena);
 
@@ -345,7 +343,7 @@ GAME_MAIN(GameMain)
                                                     aspect_ratio);
 
     v3 chunkDim = gameState->world->chunkDim;
-    r32 dt = gameInput->dt_per_frame;
+    f32 dt = gameInput->dt_per_frame;
 
     //
     // Process Input
@@ -402,7 +400,7 @@ GAME_MAIN(GameMain)
 #if __DEBUG
     if (gameInput->alt.is_set) {
         Mouse_Input *mouse = &gameInput->mouse;
-        r32 c = 2.0f;
+        f32 c = 2.0f;
         if (mouse->is_down[eMouse_Left]) {
             if (mouse->toggle[eMouse_Left]) {
                 g_debug_cam_last_mouse_p = mouse->P;
@@ -447,16 +445,16 @@ GAME_MAIN(GameMain)
                             entity->pos.chunkZ * gameState->world->chunkDim.z + entity->pos.offset.z,
                     };
 
-                    const r32 tilt_angle_z = 0.16f * pi32;
-                    const r32 tilt_angle_y = 0.01f * pi32;
+                    const f32 tilt_angle_z = 0.16f * pi32;
+                    const f32 tilt_angle_y = 0.01f * pi32;
 
                     switch (entity->type) {
                         case eEntity_Player: {
                             s32 face = entity->face;
-                            v2 bmp_dim = v2{(r32)gameAssets->playerBmp[face]->width, (r32)gameAssets->playerBmp[face]->height};
-                            r32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
-                            r32 card_h = 1.8f;
-                            r32 card_w = card_h * bmp_height_over_width;
+                            v2 bmp_dim = v2{(f32)gameAssets->playerBmp[face]->width, (f32)gameAssets->playerBmp[face]->height};
+                            f32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
+                            f32 card_h = 1.8f;
+                            f32 card_w = card_h * bmp_height_over_width;
                             push_quad(render_group,
                                         v3{base.x - card_w * 0.5f, base.y, base.z},
                                         v3{card_w * cos(tilt_angle_y), card_w * sin(tilt_angle_y), 0.0f},
@@ -470,11 +468,11 @@ GAME_MAIN(GameMain)
                             //
                             v2 O = v2{cen.x, cen.y + 0.5f * bmpDim.y};
                             v2 particleDim = ppm * v2{0.5f, 0.5f}; 
-                            r32 restitutionC = 0.8f;
-                            r32 gridSide = 0.2f;
-                            r32 gridSideInPixel = gridSide * ppm;
+                            f32 restitutionC = 0.8f;
+                            f32 gridSide = 0.2f;
+                            f32 gridSideInPixel = gridSide * ppm;
                             v2 gridO = v2{O.x - (GRID_X / 2.0f) * gridSideInPixel, O.y};
-                            r32 invMax = 1.0f / 15.0f;
+                            f32 invMax = 1.0f / 15.0f;
 
 
 #if 0
@@ -486,8 +484,8 @@ GAME_MAIN(GameMain)
                                      gridX < GRID_X;
                                      ++gridX) {
                                     PushRect(renderGroup,
-                                             v2{gridO.x + (r32)gridX * gridSideInPixel, gridO.y - (r32)(gridY + 1) * gridSideInPixel},
-                                             v2{gridO.x + (r32)(gridX + 1) * gridSideInPixel, gridO.y - (r32)gridY * gridSideInPixel},
+                                             v2{gridO.x + (f32)gridX * gridSideInPixel, gridO.y - (f32)(gridY + 1) * gridSideInPixel},
+                                             v2{gridO.x + (f32)(gridX + 1) * gridSideInPixel, gridO.y - (f32)gridY * gridSideInPixel},
                                              v4{gameState->particleGrid[gridY][gridX].density * invMax, 0.0f, 0.0f, 1.0f});
                                 }
                             }
@@ -524,7 +522,7 @@ GAME_MAIN(GameMain)
                                 v2 P = O + v2{particle->P.x * ppm, -particle->P.y * ppm} - gridO;
                                 s32 gridX = Clamp(FloorR32ToS32(P.x) / (s32)gridSideInPixel, 0, GRID_X - 1);
                                 s32 gridY = Clamp(FloorR32ToS32(-P.y) / (s32)gridSideInPixel, 0, GRID_Y - 1);
-                                r32 density = particle->alpha;
+                                f32 density = particle->alpha;
                                 ParticleCel *cel = &gameState->particleGrid[gridY][gridX];
                                 cel->density += density;
                                 cel->V = particle->V;
@@ -541,13 +539,13 @@ GAME_MAIN(GameMain)
                                     ParticleCel *right   = &gameState->particleGrid[gridY][gridX + 1];
                                     ParticleCel *up      = &gameState->particleGrid[gridY + 1][gridX];
 
-                                    r32 overRelaxation = 1.9f;
-                                    r32 div = overRelaxation * (
+                                    f32 overRelaxation = 1.9f;
+                                    f32 div = overRelaxation * (
                                                                 -cel->V.x
                                                                 -cel->V.y
                                                                 +right->V.x
                                                                 +up->V.y);
-                                    r32 quarterD = div * 0.25f;
+                                    f32 quarterD = div * 0.25f;
                                     cel->V.x   += 0.25f * quarterD;
                                     cel->V.y   += 0.25f * quarterD;
                                     right->V.x -= 0.25f * quarterD;
@@ -582,7 +580,7 @@ GAME_MAIN(GameMain)
                                 // Render Particle
                                 v2 particleCen = cen + ppm * v2{particle->P.x, -particle->P.y};
                                 particleCen.y += bmpDim.y * 0.5f;
-                                r32 scale = 0.3f;
+                                f32 scale = 0.3f;
                                 Bitmap *bitmap = GetBitmap(transState, GAI_Particle, transState->lowPriorityQueue, &gameMemory->platform);
                                 if (bitmap) {
                                     push_quad(renderGroup, base,
@@ -599,10 +597,10 @@ GAME_MAIN(GameMain)
                         case eEntity_Tree: {
                             Bitmap *bitmap = GetBitmap(transState, GAI_Tree, transState->lowPriorityQueue, &gameMemory->platform);
                             if (bitmap) {
-                                v2 bmp_dim = v2{(r32)bitmap->width, (r32)bitmap->height};
-                                r32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
-                                r32 card_h = 2.0f;
-                                r32 card_w = card_h * bmp_height_over_width;
+                                v2 bmp_dim = v2{(f32)bitmap->width, (f32)bitmap->height};
+                                f32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
+                                f32 card_h = 2.0f;
+                                f32 card_w = card_h * bmp_height_over_width;
                                 push_quad(render_group,
                                             v3{base.x - card_w * 0.5f, base.y, base.z},
                                             v3{card_w * cos(tilt_angle_y), card_w * sin(tilt_angle_y), 0.0f},
@@ -613,10 +611,10 @@ GAME_MAIN(GameMain)
 
                         case eEntity_Familiar: {
                             s32 face = entity->face;
-                            v2 bmp_dim = v2{(r32)gameAssets->familiarBmp[face]->width, (r32)gameAssets->familiarBmp[face]->height};
-                            r32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
-                            r32 card_h = 1.8f;
-                            r32 card_w = card_h * bmp_height_over_width;
+                            v2 bmp_dim = v2{(f32)gameAssets->familiarBmp[face]->width, (f32)gameAssets->familiarBmp[face]->height};
+                            f32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
+                            f32 card_h = 1.8f;
+                            f32 card_w = card_h * bmp_height_over_width;
                             push_quad(render_group,
                                         v3{base.x - card_w * 0.5f, base.y, base.z},
                                         v3{card_w * cos(tilt_angle_y), card_w * sin(tilt_angle_y), 0.0f},
@@ -631,8 +629,8 @@ GAME_MAIN(GameMain)
                         } break;
 
                         case eEntity_Tile: {
-                            r32 radius = entity->dim.x * 0.5f;
-                            r32 height = entity->dim.z;
+                            f32 radius = entity->dim.x * 0.5f;
+                            f32 height = entity->dim.z;
                             push_cube(render_group, base, radius, height,
                                       v4{0.2f, 0.3f, 0.1f, 1.0f});
                         } break;
@@ -668,11 +666,11 @@ GAME_MAIN(GameMain)
     EndTemporaryMemory(&debug_render_memory);
 #endif
 }
-// end of main.
 
 
 internal void
-init_debug(Debug_Log *debug_log, Memory_Arena *arena) {
+init_debug(Debug_Log *debug_log, Memory_Arena *arena)
+{
     // COUNTER must be the last one in the game code translation unit.
     u32 width = __COUNTER__;
     debug_log->record_width = width;
@@ -691,7 +689,8 @@ init_debug(Debug_Log *debug_log, Memory_Arena *arena) {
 }
 
 internal void
-display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets *game_assets, Memory_Arena *arena) {
+display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets *game_assets, Memory_Arena *arena)
+{
     for (u32 record_idx = 0;
             record_idx < debug_log->record_width;
             ++record_idx) {
@@ -708,10 +707,10 @@ display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets
 
 #if 1
         // draw graph.
-        r32 x = 800.0f;
-        r32 max_height = (r32)game_assets->v_advance;
-        r32 width = 2.0f;
-        r32 inv_max_cycles = 0.0f;
+        f32 x = 800.0f;
+        f32 max_height = (f32)game_assets->v_advance;
+        f32 width = 2.0f;
+        f32 inv_max_cycles = 0.0f;
         if (info->max_cycles != 0.0f) {
             inv_max_cycles = 1.0f / info->max_cycles;
         }
@@ -721,7 +720,7 @@ display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets
              ++frame)
         {
             Debug_Record *record = g_debug_log.debug_records + frame * g_debug_log.record_width + record_idx;
-            r32 height = max_height * record->cycles * inv_max_cycles;
+            f32 height = max_height * record->cycles * inv_max_cycles;
             v2 min = v2{x + width * frame, 100.0f + max_height * record_idx - height};
             v2 max = min + v2{width * 0.5f, height};
 #if 0
@@ -737,7 +736,8 @@ display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets
 }
 
 internal void
-end_debug_log(Debug_Log *debug_log) {
+end_debug_log(Debug_Log *debug_log)
+{
     Debug_Record *records = (debug_log->debug_records +
                              debug_log->next_frame *
                              debug_log->record_width);

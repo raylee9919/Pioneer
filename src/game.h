@@ -74,7 +74,7 @@ struct Entity {
     Position pos;
     v3 velocity;
     v3 accel;
-    r32 u;
+    f32 u;
     Bitmap bmp;
     u32 flags;
 
@@ -116,12 +116,12 @@ struct Particle {
     v3 P;
     v3 V;
     v3 A;
-    r32 alpha;
-    r32 dAlpha;
+    f32 alpha;
+    f32 dAlpha;
 };
 
 struct ParticleCel {
-    r32 density;
+    f32 density;
     v3 VSum;
     v3 V;
 };
@@ -194,10 +194,17 @@ struct Game_Assets {
     DEBUG_PLATFORM_READ_FILE_ *debug_platform_read_file;
 };
 
+struct Load_Asset_Work_Data {
+    Game_Assets         *gameAssets;
+    Memory_Arena        *assetArena;
+    Asset_ID            assetID;
+    const char          *fileName;
+    WorkMemory_Arena    *workSlot;
+};
 
 struct GameState {
     b32 is_init;
-    r32 time;
+    f32 time;
 
     RandomSeries particleRandomSeries;
 
@@ -220,7 +227,7 @@ struct GameState {
     ParticleCel particleGrid[GRID_Y][GRID_X];
 
     // debug.
-    r32 debug_toggle_delay;
+    f32 debug_toggle_delay;
     b32 debug_mode;
     Memory_Arena debug_arena;
 };

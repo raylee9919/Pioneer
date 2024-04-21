@@ -27,7 +27,7 @@ struct Render_Text {
     Render_Entity_Header header;
     const char *str;
     Game_Assets *game_assets;
-    r32 scale;
+    f32 scale;
     v4 color;
 };
 
@@ -38,8 +38,9 @@ struct Render_Quad {
 
 struct Camera {
     b32     orthographic;
-    r32     focal_length;
-    r32     w_over_h;
+    f32     focal_length;
+    f32     w_over_h;
+    v3      world_pos;
     m4x4    projection;
 };
 

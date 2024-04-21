@@ -9,14 +9,14 @@
 #define pi32    3.14159265359f
 
 //
-// Vector2
+// @v2
 //
 struct v2 { 
     union {
         struct {
-            r32 x, y;
+            f32 x, y;
         };
-        r32 e[2];
+        f32 e[2];
     };
 };
 
@@ -29,7 +29,7 @@ operator-(const v2 &in) {
 }
 
 inline v2
-operator*(r32 A, v2 B) {
+operator*(f32 A, v2 B) {
     v2 result;
     result.x = A * B.x;
     result.y = A * B.y;
@@ -72,16 +72,16 @@ operator-=(v2& a, v2 b) {
 }
 
 inline v2&
-operator*=(v2& a, r32 b) {
+operator*=(v2& a, f32 b) {
     a.x *= b;
     a.y *= b;
 
     return a;
 }
 
-inline r32
-inner(v2 a, v2 b) {
-    r32 result = a.x * b.x + a.y * b.y;
+inline f32
+dot(v2 a, v2 b) {
+    f32 result = a.x * b.x + a.y * b.y;
     return result;
 }
 
@@ -95,33 +95,33 @@ hadamard(v2 A, v2 B) {
     return result;
 }
 
-inline r32
-LenSquare(v2 A) {
-    r32 result = inner(A, A);
+inline f32
+len_square(v2 A) {
+    f32 result = dot(A, A);
     return result;
 }
 
-inline r32
-InvLenSquare(v2 A) {
-    r32 result = 1.0f / inner(A, A);
+inline f32
+inv_len_square(v2 A) {
+    f32 result = 1.0f / dot(A, A);
     return result;
 }
 
-inline r32
-Len(v2 A) {
-    r32 result = sqrt(LenSquare(A));
+inline f32
+len(v2 A) {
+    f32 result = sqrt(len_square(A));
     return result;
 }
 
 //
-// Vector3
+// @v3
 //
 struct v3 { 
     union {
         struct {
-            r32 x, y, z;
+            f32 x, y, z;
         };
-        r32 e[3];
+        f32 e[3];
     };
 };
 
@@ -135,7 +135,7 @@ operator-(const v3 &in) {
 }
 
 inline v3
-operator*(r32 A, v3 B) {
+operator*(f32 A, v3 B) {
     v3 result;
     result.x = A * B.x;
     result.y = A * B.y;
@@ -183,7 +183,7 @@ operator-=(v3& a, v3 b) {
 }
 
 inline v3&
-operator*=(v3& a, r32 b) {
+operator*=(v3& a, f32 b) {
     a.x *= b;
     a.y *= b;
     a.z *= b;
@@ -191,12 +191,11 @@ operator*=(v3& a, r32 b) {
     return a;
 }
 
-inline r32
-inner(v3 a, v3 b) {
-    r32 result =
-        a.x * b.x +
-        a.y * b.y +
-        a.z * b.z;
+inline f32
+dot(v3 a, v3 b) {
+    f32 result = (a.x * b.x +
+                  a.y * b.y +
+                  a.z * b.z);
 
     return result;
 }
@@ -208,58 +207,75 @@ hadamard(v3 A, v3 B) {
         A.y * B.y,
         A.z * B.z 
     };
-
     return result;
 }
 
-inline r32
-LenSquare(v3 A) {
-    r32 result = inner(A, A);
+inline v3
+cross(v3 A, v3 B) {
+    v3 R = {};
+    R.x = (A.y * B.z) - (B.y * A.z);
+    R.y = (A.z * B.x) - (B.z * A.x);
+    R.z = (A.x * B.y) - (B.x * A.y);
+    return R;
+}
+
+inline f32
+len_square(v3 A) {
+    f32 result = dot(A, A);
     return result;
 }
 
-inline r32
-Len(v3 A) {
-    r32 result = sqrt(LenSquare(A));
+inline f32
+len(v3 A) {
+    f32 result = sqrt(len_square(A));
     return result;
+}
+
+inline v3
+normalize(v3 a) {
+    v3 r = a;
+    f32 inv_len = (1.0f / len(r));
+    r *= inv_len;
+    return r;
 }
 
 //
-// v4
+// @v4
 //
 struct v4 { 
     union {
         struct {
-            r32 x, y, z, w;
+            f32 x, y, z, w;
         };
         struct {
             union {
                 struct {
-                    r32 r, g, b;
+                    f32 r, g, b;
                 };
                 v3 rgb;
             };
-            r32 a;
+            f32 a;
         };
-        r32 e[4];
+        f32 e[4];
         struct {
             v3  xyz;
-            r32 w;
+            f32 w;
         };
     };
 };
 
 //
-// Matrix
+// @m4x4
 //
 
 // these are row-major, which is apposed to gl's column-major notation.
 struct m4x4 {
-    r32 e[4][4];
+    f32 e[4][4];
 };
 
 inline m4x4
-operator*(m4x4 a, m4x4 b) {
+operator*(m4x4 a, m4x4 b) 
+{
     m4x4 R = {};
 
     for (int r = 0; r < 4; ++r) {
@@ -274,7 +290,8 @@ operator*(m4x4 a, m4x4 b) {
 }
 
 static v3
-transform(m4x4 M, v3 P, r32 Pw = 1.0f) {
+transform(m4x4 M, v3 P, f32 Pw = 1.0f) 
+{
     v3 R;
 
     R.x = M.e[0][0] * P.x +
@@ -296,13 +313,15 @@ transform(m4x4 M, v3 P, r32 Pw = 1.0f) {
 }
 
 inline v3
-operator*(m4x4 m, v3 p) { 
+operator*(m4x4 m, v3 p) 
+{
     v3 r = transform(m, p, 1.0f);
     return r;
 }
 
 inline m4x4
-identity_4x4() {
+identity_4x4() 
+{
     m4x4 r = {
        {{ 1,  0,  0,  0 },
         { 0,  1,  0,  0 },
@@ -313,9 +332,10 @@ identity_4x4() {
 }
 
 inline m4x4
-x_rotation(r32 a) {
-    r32 c = cos(a);
-    r32 s = sin(a);
+x_rotation(f32 a) 
+{
+    f32 c = cos(a);
+    f32 s = sin(a);
     m4x4 r = {
        {{ 1,  0,  0,  0 },
         { 0,  c, -s,  0 },
@@ -327,9 +347,10 @@ x_rotation(r32 a) {
 }
 
 inline m4x4
-y_rotation(r32 a) {
-    r32 c = cos(a);
-    r32 s = sin(a);
+y_rotation(f32 a) 
+{
+    f32 c = cos(a);
+    f32 s = sin(a);
     m4x4 r = {
        {{ c,  0,  s,  0 },
         { 0,  1,  0,  0 },
@@ -341,9 +362,10 @@ y_rotation(r32 a) {
 }
 
 inline m4x4
-z_rotation(r32 a) {
-    r32 c = cos(a);
-    r32 s = sin(a);
+z_rotation(f32 a) 
+{
+    f32 c = cos(a);
+    f32 s = sin(a);
     m4x4 r = {
        {{ c, -s,  0,  0 },
         { s,  c,  0,  0 },
@@ -355,7 +377,8 @@ z_rotation(r32 a) {
 }
 
 inline m4x4
-transpose(m4x4 m) {
+transpose(m4x4 m) 
+{
     m4x4 r = {};
     for (int i = 0; i < 4; ++i) {
         for (int j = 0; j < 4; ++j) {
@@ -366,7 +389,8 @@ transpose(m4x4 m) {
 }
 
 inline m4x4
-rows(v3 x, v3 y, v3 z) {
+rows(v3 x, v3 y, v3 z) 
+{
     m4x4 r = {
        {{ x.x, x.y, x.z,  0 },
         { y.x, y.y, y.z,  0 },
@@ -377,7 +401,8 @@ rows(v3 x, v3 y, v3 z) {
 }
 
 inline m4x4
-columns(v3 x, v3 y, v3 z) {
+columns(v3 x, v3 y, v3 z) 
+{
     m4x4 r = {
        {{ x.x, y.x, z.x,  0 },
         { x.y, y.y, z.y,  0 },
@@ -388,7 +413,8 @@ columns(v3 x, v3 y, v3 z) {
 }
 
 static m4x4
-translate(m4x4 m, v3 t) {
+translate(m4x4 m, v3 t) 
+{
     m4x4 r = m;
     r.e[0][3] += t.x;
     r.e[1][3] += t.y;
@@ -397,7 +423,8 @@ translate(m4x4 m, v3 t) {
 }
 
 inline m4x4
-camera_transform(v3 x, v3 y, v3 z, v3 p) {
+camera_transform(v3 x, v3 y, v3 z, v3 p) 
+{
     m4x4 R = rows(x, y, z);
     R = translate(R, -(R * p));
 
@@ -405,7 +432,8 @@ camera_transform(v3 x, v3 y, v3 z, v3 p) {
 }
 
 inline v3
-get_row(m4x4 M, u32 R) {
+get_row(m4x4 M, u32 R) 
+{
     v3 V = {
         M.e[R][0],
         M.e[R][1],
@@ -415,7 +443,8 @@ get_row(m4x4 M, u32 R) {
 }
 
 inline v3
-get_column(m4x4 M, u32 C) {
+get_column(m4x4 M, u32 C) 
+{
     v3 V = {
         M.e[0][C],
         M.e[1][C],
@@ -451,27 +480,27 @@ b32 IsPointInRect(v3 point, Rect3 rect) {
 // Misc.
 //
 
-inline r32
-square(r32 val) {
-    r32 result = val * val;
+inline f32
+square(f32 val) {
+    f32 result = val * val;
     return result;
 }
 
-inline r32
-abs(r32 val) {
-    r32 result = (val > 0) ? val : -val;
+inline f32
+abs(f32 val) {
+    f32 result = (val > 0) ? val : -val;
     return result;
 }
 
-inline r32
-lerp(r32 A, r32 B, r32 t) {
-    r32 result = t * B + (1.0f - t) * A;
+inline f32
+lerp(f32 A, f32 B, f32 t) {
+    f32 result = t * B + (1.0f - t) * A;
     return result;
 }
 
-inline r32
-clamp(r32 x, r32 low, r32 high) {
-    r32 result = x;
+inline f32
+clamp(f32 x, f32 low, f32 high) {
+    f32 result = x;
     if (x < low) {
         result = low;
     }
@@ -493,9 +522,9 @@ clamp(s32 x, s32 low, s32 high) {
     return result;
 }
 
-inline r32
-safe_ratio(r32 a, r32 b) {
-    r32 result = 0.0f;
+inline f32
+safe_ratio(f32 a, f32 b) {
+    f32 result = 0.0f;
     if (b != 0) {
         result = a / b;
     }

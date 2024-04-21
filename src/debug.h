@@ -13,11 +13,11 @@
 #define TIMED_BLOCK(...) TIMED_BLOCK_(__LINE__, ##__VA_ARGS__)
 
 #define DEBUG_LOG_FRAME_COUNT 120
-r32 inv_debug_log_frame_count = 1.0f / (r32)DEBUG_LOG_FRAME_COUNT;
+f32 inv_debug_log_frame_count = 1.0f / (f32)DEBUG_LOG_FRAME_COUNT;
 
-r32 g_debug_cam_orbital_pitch = 0.16f * pi32;
-r32 g_debug_cam_orbital_yaw;
-r32 g_debug_cam_z = 6.0f;
+f32 g_debug_cam_orbital_pitch = 0.16f * pi32;
+f32 g_debug_cam_orbital_yaw;
+f32 g_debug_cam_z = 6.0f;
 v2  g_debug_cam_last_mouse_p;
 
 struct Debug_Record {
@@ -68,9 +68,9 @@ struct Timed_Block {
     ~Timed_Block() {
         // average cycles.
         // TODO: there can be several hits in a frame!!!
-        m_debug_info->avg_cycles -= (u64)((r32)m_debug_record->cycles * inv_debug_log_frame_count);
+        m_debug_info->avg_cycles -= (u64)((f32)m_debug_record->cycles * inv_debug_log_frame_count);
         atomic_exchange_u64(&m_debug_record->cycles, __rdtsc() - m_start_cycles);
-        m_debug_info->avg_cycles += (u64)((r32)m_debug_record->cycles * inv_debug_log_frame_count);
+        m_debug_info->avg_cycles += (u64)((f32)m_debug_record->cycles * inv_debug_log_frame_count);
 
         // TODO: this is busted... max and min must be the value in last 120 frames!
         atomic_exchange_u64(&m_debug_info->max_cycles, Max(m_debug_info->max_cycles, m_debug_record->cycles));

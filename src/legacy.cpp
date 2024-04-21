@@ -7,13 +7,12 @@
    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
 
+/*
 // software SIMD was darn fun. Much insights, infos.
-// I just want to leave it here.
-#if 0 // pure cpu simd render.
+// I just wanted to leave it here.
 internal void
-draw_bitmap_fast(Bitmap *buffer, v2 origin, v2 axisX, v2 axisY, Bitmap *bmp, v4 color) {
-    TIMED_BLOCK();
-
+draw_bitmap_fast(Bitmap *buffer, v2 origin, v2 axisX, v2 axisY, Bitmap *bmp, v4 color)
+{
     s32 bufWidthMax = buffer->width - 1;
     s32 bufHeightMax = buffer->height - 1;
 
@@ -49,7 +48,7 @@ draw_bitmap_fast(Bitmap *buffer, v2 origin, v2 axisX, v2 axisY, Bitmap *bmp, v4 
     if (maxY > bufHeightMax) { maxY = bufHeightMax; }
 
 
-#define M(m, i)  ((r32 *)&m)[i]
+#define M(m, i)  ((f32 *)&m)[i]
 #define Mi(m, i) ((u32 *)&m)[i]
 #define _mm_clamp01_ps(A) _mm_max_ps(_mm_min_ps(A, Onef), Zerof)
 #define _mm_square_ps(A) _mm_mul_ps(A, A)
@@ -73,9 +72,8 @@ draw_bitmap_fast(Bitmap *buffer, v2 origin, v2 axisX, v2 axisY, Bitmap *bmp, v4 
     __m128 axisYx = _mm_set1_ps(axisY.x);
     __m128 axisYy = _mm_set1_ps(axisY.y);
 
-    // TODO: This is bit incorrect mathematically, but looks fine.
-    __m128 bmpWidthMinusTwo = _mm_set1_ps((r32)(bmp->width - 2));
-    __m128 bmpHeightMinusTwo = _mm_set1_ps((r32)(bmp->height - 2));
+    __m128 bmpWidthMinusTwo = _mm_set1_ps((f32)(bmp->width - 2));
+    __m128 bmpHeightMinusTwo = _mm_set1_ps((f32)(bmp->height - 2));
 
     __m128 InvLenSquareX = _mm_set1_ps(InvLenSquare(axisX));
     __m128 InvLenSquareY = _mm_set1_ps(InvLenSquare(axisY));
@@ -96,7 +94,6 @@ draw_bitmap_fast(Bitmap *buffer, v2 origin, v2 axisX, v2 axisY, Bitmap *bmp, v4 
                 TIMED_BLOCK(4);
 
                 // NOTE: Clamp X
-                // TODO: Must to it properly.
                 if (X + 3 > maxX) { X = maxX - 3; }
                 if (X < 0) { X = 0; }
 
@@ -120,7 +117,6 @@ draw_bitmap_fast(Bitmap *buffer, v2 origin, v2 axisX, v2 axisY, Bitmap *bmp, v4 
 
 
 
-                ///////////////////////////////////////////////////////////////////////////////
                 //
                 // Bilinear Filtering
                 //
@@ -245,6 +241,4 @@ draw_bitmap_fast(Bitmap *buffer, v2 origin, v2 axisX, v2 axisY, Bitmap *bmp, v4 
     }
 
 }
-
-    
-
+*/

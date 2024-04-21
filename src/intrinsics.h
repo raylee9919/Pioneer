@@ -47,54 +47,54 @@ atomic_add_u64(u64 *value, u64 addend) {
 //
 // @Trigonometry
 //
-inline r32
-cos(r32 x) {
-    r32 result = _mm_cvtss_f32(_mm_cos_ps(_mm_set1_ps(x)));
+inline f32
+cos(f32 x) {
+    f32 result = _mm_cvtss_f32(_mm_cos_ps(_mm_set1_ps(x)));
     return result;
 }
 
-inline r32
-sin(r32 x) {
-    r32 result = _mm_cvtss_f32(_mm_sin_ps(_mm_set1_ps(x)));
+inline f32
+sin(f32 x) {
+    f32 result = _mm_cvtss_f32(_mm_sin_ps(_mm_set1_ps(x)));
     return result;
 }
 
 
-inline r32
-tan(r32 x) {
-    r32 result = _mm_cvtss_f32(_mm_tan_ps(_mm_set1_ps(x)));
+inline f32
+tan(f32 x) {
+    f32 result = _mm_cvtss_f32(_mm_tan_ps(_mm_set1_ps(x)));
     return result;
 }
 
 //
 // @Convert
 //
-inline r32
-sqrt(r32 x) {
-    r32 result = _mm_cvtss_f32(_mm_sqrt_ss(_mm_set_ss(x)));
+inline f32
+sqrt(f32 x) {
+    f32 result = _mm_cvtss_f32(_mm_sqrt_ss(_mm_set_ss(x)));
     return result;
 }
 
 inline s32 
-round_r32_to_s32(r32 x) {
+round_f32_to_s32(f32 x) {
     s32 result = _mm_cvtss_si32(_mm_set_ss(x));
     return result;
 }
 
 inline u32 
-round_r32_to_u32(r32 x) {
+round_f32_to_u32(f32 x) {
     s32 result = (u32)_mm_cvtss_si32(_mm_set_ss(x));
     return result;
 }
 
 inline s32
-FloorR32ToS32(r32 A) {
+FloorR32ToS32(f32 A) {
     s32 result = (s32)A;
     return result;
 }
 
 inline s32
-CeilR32ToS32(r32 A) {
+CeilR32ToS32(f32 A) {
     s32 result = (s32)A + 1;
     return result;
 }
