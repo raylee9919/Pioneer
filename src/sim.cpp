@@ -45,8 +45,9 @@ get_chunk(Memory_Arena *arena, ChunkHashmap *hashmap, Position pos)
     u32 bucket = ChunkHash(hashmap, pos);
     ChunkList *list = hashmap->chunks + bucket;
     for (Chunk *chunk = list->head;
-            chunk != 0;
-            chunk = chunk->next) {
+         chunk != 0;
+         chunk = chunk->next) 
+    {
         if (IsSameChunk(chunk, pos)) {
             result = chunk;
             break;
@@ -100,11 +101,6 @@ push_entity(Memory_Arena *arena, ChunkHashmap *hashmap,
         } break;
 
         case eEntity_Tree: {
-            SetFlag(entity, EntityFlag_Collides);
-        } break;
-
-        case eEntity_Golem: {
-            entity->dim = {2.0f, 1.8f, 1.0f};
             SetFlag(entity, EntityFlag_Collides);
         } break;
 
@@ -175,8 +171,9 @@ MapEntityToChunk(Memory_Arena *arena, ChunkHashmap *hashmap, Entity *entity,
     EntityList *newEntities = &newChunk->entities;
 
     for (Entity *E = oldEntities->head;
-            E != 0;
-            E = E->next) { 
+         E != 0;
+         E = E->next) 
+    { 
         if (E == entity) { 
             oldEntities->head = E->next;
             break;
@@ -208,7 +205,7 @@ Subtract(Position A, Position B, v3 chunkDim)
 }
 
 internal void
-UpdateEntityPos(GameState *gameState, Entity *self, f32 dt, Position simMin, Position simMax)
+UpdateEntityPos(Game_State *gameState, Entity *self, f32 dt, Position simMin, Position simMax)
 {
     Position oldPos = self->pos;
     Position newPos = self->pos;
@@ -309,17 +306,19 @@ UpdateEntityPos(GameState *gameState, Entity *self, f32 dt, Position simMin, Pos
 }
 
 internal void
-update_entities(GameState *gameState, f32 dt, Position simMin, Position simMax) 
+update_entities(Game_State *gameState, f32 dt, Position simMin, Position simMax) 
 {
     TIMED_BLOCK();
     for (s32 Z = simMin.chunkZ; Z <= simMax.chunkZ; ++Z) {
         for (s32 Y = simMin.chunkY; Y <= simMax.chunkY; ++Y) {
-            for (s32 X = simMin.chunkX; X <= simMax.chunkX; ++X) {
+            for (s32 X = simMin.chunkX; X <= simMax.chunkX; ++X) 
+            {
                 Chunk *chunk = get_chunk(&gameState->worldArena,
                                          &gameState->world->chunkHashmap, {X, Y, Z});
                 for (Entity *entity = chunk->entities.head;
                      entity != 0;
-                     entity = entity->next) {
+                     entity = entity->next) 
+                {
                     switch (entity->type) {
                         case eEntity_Player: {
                             f32 epsilon = 0.01f;
@@ -348,9 +347,6 @@ update_entities(GameState *gameState, f32 dt, Position simMin, Position simMax)
                         } break;
 
                         case eEntity_Tree: {
-                        } break;
-
-                        case eEntity_Golem: {
                         } break;
 
                         case eEntity_Tile: {

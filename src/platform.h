@@ -6,7 +6,7 @@
     $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
     ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
-struct v2;
+union v2;
 struct Bitmap;
 
 #define KB(value) (   value  * 1024ll)
@@ -39,11 +39,13 @@ struct Bitmap;
 #endif
 
 
-extern "C" {
-    typedef struct DebugReadFileResult {
-        u32 content_size;
-        void *contents;
-    } DebugReadFileResult;
+extern "C" 
+{
+    typedef struct Entire_File 
+    {
+        u32     content_size;
+        void    *contents;
+    } Entire_File;
 
     #define DEBUG_PLATFORM_WRITE_FILE(name) b32 name(const char *filename, u32 size, void *contents)
     typedef DEBUG_PLATFORM_WRITE_FILE(DEBUG_PLATFORM_WRITE_FILE_);
@@ -51,9 +53,8 @@ extern "C" {
     #define DEBUG_PLATFORM_FREE_MEMORY(name) void name(void *memory)
     typedef DEBUG_PLATFORM_FREE_MEMORY(DEBUG_PLATFORM_FREE_MEMORY_);
 
-    #define DEBUG_PLATFORM_READ_FILE(name) DebugReadFileResult name(const char *filename)
-    typedef DEBUG_PLATFORM_READ_FILE(DEBUG_PLATFORM_READ_FILE_);
-
+    #define PLATFORM_READ_ENTIRE_FILE(name) Entire_File name(const char *filename)
+    typedef PLATFORM_READ_ENTIRE_FILE(Read_Entire_File);
 
     typedef struct Game_Key {
         b32 is_set;
@@ -100,7 +101,7 @@ extern "C" {
         Platform_Add_Entry          *platform_add_entry;
         Platform_Complete_All_Work  *platform_complete_all_work;
 
-        DEBUG_PLATFORM_READ_FILE_   *debug_platform_read_file;
+        Read_Entire_File            *debug_platform_read_file;
         DEBUG_PLATFORM_WRITE_FILE_  *debug_platform_write_file;
         DEBUG_PLATFORM_FREE_MEMORY_ *debug_platform_free_memory;
 
@@ -113,7 +114,7 @@ extern "C" {
         size_t  used;
     } Render_Batch;
 
-    typedef struct GameMemory {
+    typedef struct Game_Memory {
         // NOTE: Spec memory to be initialized to zero.
         void *permanent_memory;
         u64 permanent_memory_size;
@@ -130,14 +131,14 @@ extern "C" {
         Platform_API platform;
 
         Render_Batch render_batch;
-    } GameMemory;
+    } Game_Memory;
 
-    typedef struct GameScreenBuffer{
+    typedef struct Game_Screen_Buffer{
         void *memory;
         u32 width;
         u32 height;
         u32 bpp;
         u32 pitch;
-    } GameScreenBuffer;
+    } Game_Screen_Buffer;
 
 }

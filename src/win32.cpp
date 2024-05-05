@@ -16,41 +16,6 @@
 #include "game.h"
 #include "win32.h"
 
-
-#define WGL_GET_PROC_ADDRESS(Name) Name = (Type_##Name *)wglGetProcAddress(#Name)
-
-#define WGL_CONTEXT_MAJOR_VERSION_ARB               0x2091
-#define WGL_CONTEXT_MINOR_VERSION_ARB               0x2092
-#define WGL_CONTEXT_LAYER_PLANE_ARB                 0x2093
-#define WGL_CONTEXT_FLAGS_ARB                       0x2094
-#define WGL_CONTEXT_PROFILE_MASK_ARB                0x9126
-
-#define WGL_CONTEXT_DEBUG_BIT_ARB                   0x0001
-#define WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB      0x0002
-#define WGL_CONTEXT_CORE_PROFILE_BIT_ARB            0x00000001
-#define WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB   0x00000002
-
-#define ERROR_INVALID_VERSION_ARB                   0x2095
-#define ERROR_INVALID_PROFILE_ARB                   0x2096
-
-const int wgl_attrib_list[] = {
-    WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
-    WGL_CONTEXT_MINOR_VERSION_ARB, 0,
-    WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
-#if __DEBUG
-        | WGL_CONTEXT_DEBUG_BIT_ARB
-#endif
-        ,
-    //WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
-    WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
-    0,
-};
-
-
-typedef HGLRC Type_wglCreateContextAttribsARB(HDC hDC, HGLRC hShareContext, const int *attribList);
-global_var Type_wglCreateContextAttribsARB *wglCreateContextAttribsARB;
-
-
 global_var bool                 g_running = true;
 global_var Win32ScreenBuffer    g_screen_buffer;
 global_var LARGE_INTEGER        g_counter_hz;
@@ -70,29 +35,9 @@ XINPUT_SET_STATE(xinput_set_state_stub) { return 1; }
 __XInputSetState *xinput_set_state = xinput_set_state_stub;
 
 
-#if 0
-// thx, Reymond Chen.
-// this function is called once for each "piece"
-internal BOOL CALLBACK
-MonitorEnumProc(HMONITOR hmon, HDC hdc,
-                LPRECT prc, LPARAM lParam) {
-    // compute the color depth of monitor "hmon"
-    int bits_pixel  = GetDeviceCaps(hdc, BITSPIXEL);
-    int planes      = GetDeviceCaps(hdc, PLANES);
-    int colorDepth = bits_pixel * planes; 
-    return TRUE;
-}
 internal void
-win32_get_monitor_bit_depth(HDC hdc) {
-    EnumDisplayMonitors(hdc, NULL, MonitorEnumProc, 0);
-}
-#endif
-
-
-
-
-internal void
-Win32LoadXInput() {
+win32_load_xinput() 
+{
     HMODULE xinput_module = LoadLibraryA("xinput1_4.dll");
     if (!xinput_module) { LoadLibraryA("Xinput9_1_0.dll"); }
     if (!xinput_module) { LoadLibraryA("xinput1_3.dll"); }
@@ -107,14 +52,16 @@ Win32LoadXInput() {
 }
 
 internal inline size_t
-str_len(const char *str) {
+str_len(const char *str) 
+{
     size_t result = 0;
     while (str[result] != '\0') { ++result; }
     return result;
 }
 
 inline b32
-is_whitespace(char c) {
+is_whitespace(char c) 
+{
     b32 result = ( (c == ' ')  ||
                    (c == '\t') ||
                    (c == '\v') ||
@@ -126,27 +73,25 @@ is_whitespace(char c) {
 }
 
 internal b32
-str_match(char *text, char *pattern, size_t len) {
+str_match(char *text, char *pattern, size_t len) 
+{
     b32 found = true;
     if (len > 0) {
-        for (size_t i = 0;
-             i < len;
-             ++i) 
-        {
+        for (size_t i = 0; i < len; ++i) {
             if (text[i] != pattern[i]) {
                 found = false;
                 break;
             }
         }
-    }
-    else {
+    } else {
         found = false;
     }
     return found;
 }
 
 internal void *
-str_find(char *text, size_t t_len, char *pattern, size_t p_len) {
+str_find(char *text, size_t t_len, char *pattern, size_t p_len) 
+{
     void *result = 0;
 
     if (t_len >= p_len) {
@@ -154,11 +99,13 @@ str_find(char *text, size_t t_len, char *pattern, size_t p_len) {
         u8 *p = (u8 *)pattern;
         for (u8 *t_base = t;
              t_base < t + t_len;
-             ++t_base) {
+             ++t_base) 
+        {
             u8 *t_at = t_base;
             for (u8 *p_at = p;
                  p_at < p + p_len && *p_at == *t_at;
-                 ++p_at, ++t_at) {
+                 ++p_at, ++t_at) 
+            {
                 if (p_at == p + p_len - 1) {
                     result = t_base;
                     break;
@@ -174,7 +121,8 @@ str_find(char *text, size_t t_len, char *pattern, size_t p_len) {
 }
 
 internal void
-win32_set_pixel_format(HDC dc) {
+win32_set_pixel_format(HDC dc) 
+{
     PIXELFORMATDESCRIPTOR desiredPixelFormat = {};
     desiredPixelFormat.nSize            = sizeof(desiredPixelFormat);
     desiredPixelFormat.nVersion         = 1;
@@ -192,7 +140,8 @@ win32_set_pixel_format(HDC dc) {
 }
 
 internal void
-win32_load_gl_extensions() {
+win32_load_gl_extensions() 
+{
     WNDCLASSA wclass = {};
     wclass.lpfnWndProc     = DefWindowProcA;
     wclass.hInstance       = GetModuleHandleA(0);
@@ -247,6 +196,7 @@ win32_load_gl_extensions() {
             WGL_GET_PROC_ADDRESS(glDebugMessageCallbackARB);
             WGL_GET_PROC_ADDRESS(glDisableVertexAttribArray);
             WGL_GET_PROC_ADDRESS(glUniform3fv);
+            WGL_GET_PROC_ADDRESS(glVertexAttribPointer);
 
             wglMakeCurrent(0, 0);
         }
@@ -259,8 +209,8 @@ win32_load_gl_extensions() {
 
 
 internal void
-win32_init_opengl(HDC dc) {
-
+win32_init_opengl(HDC dc) 
+{
     win32_load_gl_extensions();
     win32_set_pixel_format(dc);
 
@@ -302,7 +252,8 @@ win32_init_opengl(HDC dc) {
 }
 
 internal void 
-win32_toggle_fullscreen(HWND window) {
+win32_toggle_fullscreen(HWND window) 
+{
     DWORD style = GetWindowLong(window, GWL_STYLE);
     if (style & WS_OVERLAPPEDWINDOW) {
         MONITORINFO mi = { sizeof(mi) };
@@ -327,7 +278,8 @@ win32_toggle_fullscreen(HWND window) {
 }
 
 internal Win32WindowDimension 
-Win32GetWindowDimension(HWND hwnd) {
+win32_get_window_dimension(HWND hwnd) 
+{
     Win32WindowDimension result = {};
     RECT rect;
     GetWindowRect(hwnd, &rect);
@@ -338,7 +290,8 @@ Win32GetWindowDimension(HWND hwnd) {
 }
 
 internal void
-Win32ResizeDIBSection(Win32ScreenBuffer *screen_buffer, int width, int height) {
+win32_resize_dib_section(Win32ScreenBuffer *screen_buffer, int width, int height) 
+{
     if (screen_buffer->memory) {
         VirtualFree(g_screen_buffer.memory, 0, MEM_RELEASE);
     }
@@ -361,9 +314,9 @@ Win32ResizeDIBSection(Win32ScreenBuffer *screen_buffer, int width, int height) {
                                          MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 }
 
-
 internal void 
-win32_update_screen(HDC hdc, int windowWidth, int windowHeight) {
+win32_update_screen(HDC hdc, int windowWidth, int windowHeight) 
+{
     // NOTE: For debugging purpose
 #if 0
     StretchDIBits(hdc,
@@ -378,27 +331,30 @@ win32_update_screen(HDC hdc, int windowWidth, int windowHeight) {
 }
 
 inline LARGE_INTEGER
-Win32GetClock() {
+win32_get_clock() 
+{
     LARGE_INTEGER result;
     QueryPerformanceCounter(&result);
 
     return result;
 }
 
-internal inline f32
-Win32GetElapsedSec(LARGE_INTEGER begin, LARGE_INTEGER end) {
+inline f32
+win32_get_elapsed_sec(LARGE_INTEGER begin, LARGE_INTEGER end) 
+{
     f32 result = (f32)(end.QuadPart - begin.QuadPart) / (f32)g_counter_hz.QuadPart;
     return result;
 }
 
-internal inline f32
-Win32GetElapsedMs(LARGE_INTEGER begin, LARGE_INTEGER end) {
-    f32 result = Win32GetElapsedSec(begin, end) * 1000.0f;
+inline f32
+win32_get_elapsed_ms(LARGE_INTEGER begin, LARGE_INTEGER end) {
+    f32 result = win32_get_elapsed_sec(begin, end) * 1000.0f;
     return result;
 }
 
 internal FILETIME
-Win32GetFileTime(LPCSTR filename) {
+win32_get_file_time(LPCSTR filename) 
+{
     FILETIME result = {};
     WIN32_FIND_DATA find_data;
     FindFirstFileA(filename, &find_data);
@@ -408,9 +364,10 @@ Win32GetFileTime(LPCSTR filename) {
 }
 
 internal void
-Win32ConcatNString(char *dst,
-                   char *src1, size_t len1,
-                   const char *src2, size_t len2) {
+win32_concat_str(char *dst,
+                 char *src1, size_t len1,
+                 const char *src2, size_t len2) 
+{
     char *at = dst;
     for (int i = 0; i < len1; i++) { *at++ = src1[i]; }
     for (int i = 0; i < len2; i++) { *at++ = src2[i]; }
@@ -419,7 +376,8 @@ Win32ConcatNString(char *dst,
 
 
 internal void
-Win32XInputHandleDeadzone(XINPUT_STATE *state) {
+win32_xinput_handle_deadzone(XINPUT_STATE *state) 
+{
 #define XINPUT_DEAD_ZONE 2500
     f32 lx = state->Gamepad.sThumbLX;
     f32 ly = state->Gamepad.sThumbLY;
@@ -435,46 +393,60 @@ Win32XInputHandleDeadzone(XINPUT_STATE *state) {
     }
 }
 
-DEBUG_PLATFORM_FREE_MEMORY(DebugPlatformFreeMemory) {
+DEBUG_PLATFORM_FREE_MEMORY(DebugPlatformFreeMemory) 
+{
     if (memory) {
         VirtualFree(memory, 0, MEM_RELEASE); 
     }
 }
 
-DEBUG_PLATFORM_READ_FILE(DebugPlatformReadEntireFile) {
-    DebugReadFileResult result = {};
+PLATFORM_READ_ENTIRE_FILE(DebugPlatformReadEntireFile) 
+{
+    Entire_File result = {};
 
     HANDLE file = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
-    if (file != INVALID_HANDLE_VALUE) {
+    if (file != INVALID_HANDLE_VALUE) 
+    {
         LARGE_INTEGER filesize;
-        if (GetFileSizeEx(file, &filesize)) {
+        if (GetFileSizeEx(file, &filesize)) 
+        {
             uint32 filesize32 = (uint32)(filesize.QuadPart);
             result.contents = VirtualAlloc(0, filesize32, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-            if (result.contents) {
+            if (result.contents) 
+            {
                 DWORD BytesRead;
                 if (ReadFile(file, result.contents, filesize32, &BytesRead, 0) &&
-                    (filesize32 == BytesRead)) {
+                    (filesize32 == BytesRead)) 
+                {
                     result.content_size = filesize32;
-                } else {
+                } 
+                else 
+                {
                     DebugPlatformFreeMemory(result.contents);
                     result.contents = 0;
                 }
-            } else {
+            } 
+            else 
+            {
 
             }
-        } else {
+        } 
+        else 
+        {
 
         }
         CloseHandle(file);
     }
-    else {
+    else 
+    {
 
     }
 
     return result;
 }
 
-DEBUG_PLATFORM_WRITE_FILE(DebugPlatformWriteEntireFile) {
+DEBUG_PLATFORM_WRITE_FILE(DebugPlatformWriteEntireFile) 
+{
     bool32 result = false;
 
     HANDLE file = CreateFileA(filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
@@ -496,7 +468,8 @@ DEBUG_PLATFORM_WRITE_FILE(DebugPlatformWriteEntireFile) {
 }
 
 internal void
-Win32BeginRecordingInput(Win32State *win32_state) {
+Win32BeginRecordingInput(Win32State *win32_state) 
+{
     win32_state->is_recording = 1;
     const char *filename = "inputNstate.rec";
     win32_state->record_file = CreateFileA(filename, GENERIC_WRITE,
@@ -509,20 +482,23 @@ Win32BeginRecordingInput(Win32State *win32_state) {
 }
 
 internal void
-Win32RecordInput(Win32State *win32_state, Game_Input *game_input) {
+Win32RecordInput(Win32State *win32_state, Game_Input *game_input) 
+{
     DWORD bytes_written;
     WriteFile(win32_state->record_file, game_input, sizeof(*game_input),
               &bytes_written, 0);
 }
 
 internal void
-Win32EndInputRecording(Win32State *win32_state) {
+Win32EndInputRecording(Win32State *win32_state) 
+{
     CloseHandle(win32_state->record_file);
     win32_state->is_recording = 0;
 }
 
 internal void
-Win32BeginInputPlayback(Win32State *win32_state) {
+Win32BeginInputPlayback(Win32State *win32_state) 
+{
     win32_state->is_playing = 1;
 
     const char *filename = "inputNstate.rec";
@@ -535,13 +511,15 @@ Win32BeginInputPlayback(Win32State *win32_state) {
 }
 
 internal void
-Win32EndInputPlayback(Win32State *win32_state) {
+Win32EndInputPlayback(Win32State *win32_state) 
+{
     CloseHandle(win32_state->record_file);
     win32_state->is_playing = 0;
 }
 
 internal void
-Win32PlaybackInput(Win32State *win32_state, Game_Input *game_input) {
+Win32PlaybackInput(Win32State *win32_state, Game_Input *game_input) 
+{
     DWORD bytes_read;
     if (ReadFile(win32_state->record_file, game_input,
                  sizeof(*game_input), &bytes_read, 0)) {
@@ -553,13 +531,15 @@ Win32PlaybackInput(Win32State *win32_state, Game_Input *game_input) {
 }
 
 internal void
-Win32ProcessKeyboard(Game_Key *game_key, b32 is_down) {
+win32_process_keyboard(Game_Key *game_key, b32 is_down) 
+{
     if (is_down) { game_key->is_set = true; } 
     else { game_key->is_set = false; }
 }
 
 internal void
-win32_get_mouse_pos_to_game_coordinate(HWND hwnd, Win32WindowDimension wd, Game_Input *game_input) {
+win32_get_mouse_pos_to_game_coord(HWND hwnd, Win32WindowDimension wd, Game_Input *game_input) 
+{
     f32 aspect_h_over_w = safe_ratio((f32)wd.height, (f32)wd.width);
     POINT mouse_p;
     GetCursorPos(&mouse_p);
@@ -569,7 +549,8 @@ win32_get_mouse_pos_to_game_coordinate(HWND hwnd, Win32WindowDimension wd, Game_
 }
 
 internal void
-win32_process_mouse_click(s32 vk, Mouse_Input *mouse) {
+win32_process_mouse_click(s32 vk, Mouse_Input *mouse) 
+{
     b32 is_down = GetKeyState(vk) & (1 << 15);
     u32 E = 0;
 
@@ -605,7 +586,8 @@ win32_process_mouse_click(s32 vk, Mouse_Input *mouse) {
 }
 
 internal LRESULT 
-Win32WindowCallback(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+win32_window_callback(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) 
+{
     LRESULT result = 0;
 
     switch(msg) {
@@ -625,7 +607,7 @@ Win32WindowCallback(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
             PAINTSTRUCT paint;
             HDC hdc = BeginPaint(hwnd, &paint);
             Assert(hdc != 0);
-            Win32WindowDimension wd = Win32GetWindowDimension(hwnd);
+            Win32WindowDimension wd = win32_get_window_dimension(hwnd);
             win32_update_screen(hdc, wd.width, wd.height);
             ReleaseDC(hwnd, hdc);
             EndPaint(hwnd, &paint);
@@ -651,7 +633,8 @@ Win32WindowCallback(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 }
 
 internal void
-win32_init_render_batch(Render_Batch *batch, size_t size) {
+win32_init_render_batch(Render_Batch *batch, size_t size) 
+{
     batch->base = VirtualAlloc(0, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     batch->size = size;
     batch->used = 0;
@@ -737,7 +720,8 @@ ThreadProc(LPVOID lpParameter) {
 }
 
 internal void
-Win32MakeQueue(PlatformWorkQueue *Queue, u32 ThreadCount) {
+Win32MakeQueue(PlatformWorkQueue *Queue, u32 ThreadCount) 
+{
     Queue->CompletionGoal = 0;
     Queue->CompletionCount = 0;
 
@@ -759,7 +743,8 @@ Win32MakeQueue(PlatformWorkQueue *Queue, u32 ThreadCount) {
 }
 
 int WINAPI
-WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
+WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) 
+{
     //
     // Multi-Threading
     //
@@ -778,14 +763,14 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
 
     WNDCLASSA wnd_class = {};
     wnd_class.style             = CS_HREDRAW | CS_VREDRAW;
-    wnd_class.lpfnWndProc       = Win32WindowCallback;
+    wnd_class.lpfnWndProc       = win32_window_callback;
     wnd_class.hInstance         = hinst;
     wnd_class.hCursor           = LoadCursorA(0, IDC_ARROW);
     wnd_class.lpszClassName     = "GameWindowClass";
     RegisterClassA(&wnd_class);
 
     // Win32ResizeDIBSection(&g_screen_buffer, 960, 540);
-    Win32ResizeDIBSection(&g_screen_buffer, 1920, 1080);
+    win32_resize_dib_section(&g_screen_buffer, 1920, 1080);
 
     HWND hwnd = CreateWindowExA(0, wnd_class.lpszClassName, "Game",
                                 WS_OVERLAPPEDWINDOW | WS_VISIBLE,
@@ -796,10 +781,10 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     win32_toggle_fullscreen(hwnd);
     win32_init_opengl(GetDC(hwnd));
 
-    Win32LoadXInput();
+    win32_load_xinput();
 
-    int monitor_hz = GetDeviceCaps(GetDC(hwnd), VREFRESH);
-    int desired_hz = monitor_hz / 2;
+    s32 monitor_hz = GetDeviceCaps(GetDC(hwnd), VREFRESH);
+    s32 desired_hz = monitor_hz / 2;
     f32 desired_mspf = 1000.0f / (f32)desired_hz;
 
 
@@ -808,15 +793,15 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
 #else
     LPVOID base_address = 0;
 #endif
-    GameMemory game_memory = {};
+    Game_Memory game_memory = {};
     Win32State win32_state = {};
     game_memory.permanent_memory_size = MB(64);
     game_memory.transient_memory_size = GB(1);
     game_memory.debug_memory_size = MB(100);
 
-    u64 total_capacity = game_memory.permanent_memory_size +
-        game_memory.transient_memory_size + 
-        game_memory.debug_memory_size;
+    u64 total_capacity = (game_memory.permanent_memory_size +
+                          game_memory.transient_memory_size + 
+                          game_memory.debug_memory_size);
     win32_state.game_memory = VirtualAlloc(base_address, (size_t)total_capacity,
                                            MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     win32_state.game_mem_total_cap = total_capacity;
@@ -834,9 +819,9 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
 
     win32_init_render_batch(&game_memory.render_batch, KB(4));
 
-    GameState *game_state = (GameState *)game_memory.permanent_memory;
+    Game_State *game_state = (Game_State *)game_memory.permanent_memory;
 
-    GameScreenBuffer gameScreenBuffer = {};
+    Game_Screen_Buffer gameScreenBuffer = {};
     gameScreenBuffer.memory = g_screen_buffer.memory;
     gameScreenBuffer.width = g_screen_buffer.width;
     gameScreenBuffer.height = g_screen_buffer.height;
@@ -844,7 +829,8 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     gameScreenBuffer.pitch = g_screen_buffer.bpp * g_screen_buffer.width;
 
     HMODULE xinput_dll = LoadLibraryA(TEXT("xinput.dll"));
-    if (!xinput_dll) {
+    if (!xinput_dll) 
+    {
         // TODO: diagnostic.
     }
 
@@ -861,8 +847,8 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
 
     char game_dll_abs_path[MAX_PATH];
     char game_dll_load_abs_path[MAX_PATH];
-    Win32ConcatNString(game_dll_abs_path, exe_path_buf, last_backslash_idx + 1, game_dll_filename, str_len(game_dll_filename));
-    Win32ConcatNString(game_dll_load_abs_path, exe_path_buf, last_backslash_idx + 1, game_dll_load_filename, str_len(game_dll_load_filename));
+    win32_concat_str(game_dll_abs_path, exe_path_buf, last_backslash_idx + 1, game_dll_filename, str_len(game_dll_filename));
+    win32_concat_str(game_dll_load_abs_path, exe_path_buf, last_backslash_idx + 1, game_dll_load_filename, str_len(game_dll_load_filename));
 
     FILETIME game_dll_time_last = {};
     FILETIME game_dll_time = {};
@@ -873,10 +859,11 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
     //
     // Loop
     //
-    while(g_running) {
-        LARGE_INTEGER counter_begin = Win32GetClock();
+    while(g_running) 
+    {
+        LARGE_INTEGER counter_begin = win32_get_clock();
 
-        game_dll_time = Win32GetFileTime(game_dll_abs_path);
+        game_dll_time = win32_get_file_time(game_dll_abs_path);
         if (CompareFileTime(&game_dll_time_last, &game_dll_time) != 0) {
             if (game_dll) {
                 FreeLibrary(game_dll); 
@@ -894,7 +881,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
 
         game_input.mouse.wheel_delta = 0;
         MSG msg;
-        while(PeekMessageA(&msg, hwnd, 0, 0, PM_REMOVE)) {
+        while (PeekMessageA(&msg, hwnd, 0, 0, PM_REMOVE)) {
             switch(msg.message) {
                 case WM_QUIT: {
                     g_running = false;
@@ -909,24 +896,24 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
                     if (was_down != is_down) {
                         switch (vk_code) {
                             case 'W': {
-                                Win32ProcessKeyboard(&game_input.move_up, is_down);
+                                win32_process_keyboard(&game_input.move_up, is_down);
                             } break;
                             case 'A': {
-                                Win32ProcessKeyboard(&game_input.move_left, is_down);
+                                win32_process_keyboard(&game_input.move_left, is_down);
                             } break;
                             case 'S': {
-                                Win32ProcessKeyboard(&game_input.move_down, is_down);
+                                win32_process_keyboard(&game_input.move_down, is_down);
                             } break;
                             case 'D': {
-                                Win32ProcessKeyboard(&game_input.move_right, is_down);
+                                win32_process_keyboard(&game_input.move_right, is_down);
                             } break;
                             case VK_MENU: { // alt
-                                Win32ProcessKeyboard(&game_input.alt, is_down);
+                                win32_process_keyboard(&game_input.alt, is_down);
                             } break;
 #ifdef __DEBUG
                             // tilde key.
                             case VK_OEM_3: {
-                                Win32ProcessKeyboard(&game_input.toggle_debug, is_down);
+                                win32_process_keyboard(&game_input.toggle_debug, is_down);
                             } break;
 
                             case 'L': {
@@ -965,12 +952,12 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
             DispatchMessageA(&msg);
         }
 
-        Win32WindowDimension wd = Win32GetWindowDimension(hwnd);
+        Win32WindowDimension wd = win32_get_window_dimension(hwnd);
 
 
         Mouse_Input *mouse = &game_input.mouse;
         // TODO: we don't need to calculate aspect ratio every frame!
-        win32_get_mouse_pos_to_game_coordinate(hwnd, wd, &game_input);
+        win32_get_mouse_pos_to_game_coord(hwnd, wd, &game_input);
 
         // get mouse info via function call, alternative to WM.
         win32_process_mouse_click(VK_LBUTTON, mouse);
@@ -998,7 +985,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
             XINPUT_STATE state;
             ZeroMemory(&state, sizeof(XINPUT_STATE));
             result = xinput_get_state(idx, &state);
-            Win32XInputHandleDeadzone(&state);
+            win32_xinput_handle_deadzone(&state);
             if (result == ERROR_SUCCESS) {
 
             } else {
@@ -1025,22 +1012,16 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) {
         // win32_update_screen(dc, wd.width, wd.height);
         ReleaseDC(hwnd, dc);
 
-        LARGE_INTEGER counter_end = Win32GetClock();
-        f32 actual_mspf = Win32GetElapsedMs(counter_begin, counter_end);
+        LARGE_INTEGER counter_end = win32_get_clock();
+        f32 actual_mspf = win32_get_elapsed_ms(counter_begin, counter_end);
 
-        if(actual_mspf < desired_mspf) {
+        if (actual_mspf < desired_mspf) {
             DWORD ms_to_sleep = (DWORD)(desired_mspf - actual_mspf);
             Sleep(ms_to_sleep);
-            actual_mspf = Win32GetElapsedMs(counter_begin, Win32GetClock());
+            actual_mspf = win32_get_elapsed_ms(counter_begin, win32_get_clock());
         } else {
             // TODO: Missed framerate handling
         }
-#if 0
-        f32 fps = 1000.0f / actual_mspf;
-        char profile[256];
-        sprintf_s(profile, "elapsed_ms: %02f, fps: %02f\n", actual_mspf, fps);
-        OutputDebugStringA(profile);
-#endif
 
     }
 

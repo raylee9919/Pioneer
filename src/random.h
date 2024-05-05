@@ -139,20 +139,20 @@ u32 RandomTable[] = {
 
 u32 maxInRandomTable = 0XFFB7D659; 
 
-struct RandomSeries {
+struct Random_Series {
     u32 nextIdx;
 };
 
-inline RandomSeries
-Seed(u32 seed) 
+inline Random_Series
+seed(u32 seed) 
 {
-    RandomSeries result = {};
+    Random_Series result = {};
     result.nextIdx = (seed % ArrayCount(RandomTable));
     return result;
 }
 
 inline u32
-RandNext(RandomSeries *series)
+rand_next(Random_Series *series)
 {
     u32 result = RandomTable[series->nextIdx++];
     if (series->nextIdx > ArrayCount(RandomTable)) {
@@ -162,23 +162,23 @@ RandNext(RandomSeries *series)
 }
 
 inline f32
-rand_unilateral(RandomSeries *series)
+rand_unilateral(Random_Series *series)
 {
     f32 div = 1.0f / (f32)maxInRandomTable;
-    f32 result = (f32)RandNext(series) * div;
+    f32 result = (f32)rand_next(series) * div;
     return result;
 }
 
 inline f32
-rand_bilateral(RandomSeries *series)
+rand_bilateral(Random_Series *series)
 {
     f32 result = rand_unilateral(series) * 2.0f - 1.0f;
     return result;
 }
 
 inline f32
-rand_range(RandomSeries *series, f32 lo, f32 hi)
+rand_range(Random_Series *series, f32 lo, f32 hi)
 {
-    f32 result = lerp(lo, hi, rand_unilateral(series));
+    f32 result = lerp(lo, rand_unilateral(series), hi);
     return result;
 }

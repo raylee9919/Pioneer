@@ -24,10 +24,12 @@ clear_to_zero(size_t size, void *data) {
 
 #include "platform.h"
 
+#include "asset_model.h"
 #include "asset.h"
 #include "random.h"
 
-struct Memory_Arena {
+struct Memory_Arena 
+{
     size_t size;
     size_t used;
     u8 *base;
@@ -35,59 +37,65 @@ struct Memory_Arena {
     u32 tempCount;
 };
 
-struct TemporaryMemory {
+struct TemporaryMemory 
+{
     Memory_Arena *memoryArena;
     // simply stores what was the used amount before.
     // restoring without any precedence issues problem in multi-threading.
     size_t used;
 };
 
-struct WorkMemory_Arena {
+struct WorkMemory_Arena 
+{
     b32 isUsed;
     Memory_Arena memoryArena;
     TemporaryMemory flush;
 };
 
 
-struct Position {
+struct Position 
+{
     s32 chunkX;
     s32 chunkY;
     s32 chunkZ;
-    v3 offset;
+    v3  offset;
 };
 
-enum Entity_Type {
+enum Entity_Type 
+{
     eEntity_Player,
     eEntity_Familiar,
     eEntity_Tree,
-    eEntity_Golem,
-    eEntity_Tile
+    eEntity_Tile,
+    eEntity_XBot
 };
 
-enum EntityFlag {
+enum EntityFlag 
+{
     EntityFlag_Collides = 1
 };
 
-struct Entity {
+struct Entity 
+{
     Entity_Type type;
-    v3 dim;
-    Position pos;
-    v3 velocity;
-    v3 accel;
-    f32 u;
-    Bitmap bmp;
-    u32 flags;
-
-    u32 face;
-
-    Entity *next;
+    Position    pos;
+    v3          dim;
+    v3          velocity;
+    v3          accel;
+    f32         u;
+    Bitmap      bmp;
+    u32         flags;
+    u32         face;
+    Entity      *next;
 };
 
-struct EntityList {
+struct EntityList 
+{
     Entity *head;
 };
 
-struct Chunk { 
+struct Chunk 
+{
     s32 chunkX;
     s32 chunkY;
     s32 chunkZ;
@@ -95,16 +103,19 @@ struct Chunk {
     Chunk *next;
 };
 
-struct ChunkList {
+struct ChunkList 
+{
     Chunk *head;
     u32 count;
 };
 
-struct ChunkHashmap { 
+struct ChunkHashmap 
+{
     ChunkList chunks[4096];
 };
 
-struct World {
+struct World 
+{
     ChunkHashmap chunkHashmap;
     v3 chunkDim;
 
@@ -112,7 +123,8 @@ struct World {
     u32 entityCount;
 };
 
-struct Particle {
+struct Particle 
+{
     v3 P;
     v3 V;
     v3 A;
@@ -120,35 +132,41 @@ struct Particle {
     f32 dAlpha;
 };
 
-struct ParticleCel {
+struct ParticleCel 
+{
     f32 density;
     v3 VSum;
     v3 V;
 };
 
-struct Kerning {
+struct Kerning 
+{
     u32 first;
     u32 second;
     s32 value;
     Kerning *prev;
     Kerning *next;
 };
-struct Kerning_List {
-    Kerning *first;
-    Kerning *last;
-    u32 count;
+struct Kerning_List 
+{
+    Kerning     *first;
+    Kerning     *last;
+    u32         count;
 };
-struct Kerning_Hashmap {
+struct Kerning_Hashmap 
+{
     Kerning_List entries[1024];
 };
 inline u32
-kerning_hash(Kerning_Hashmap *hashmap, u32 first, u32 second) {
+kerning_hash(Kerning_Hashmap *hashmap, u32 first, u32 second) 
+{
     // todo: better hash function.
     u32 result = (first * 12 + second * 33) % ArrayCount(hashmap->entries);
     return result;
 }
 internal void
-push_kerning(Kerning_Hashmap *hashmap, Kerning *kern, u32 entry_idx) {
+push_kerning(Kerning_Hashmap *hashmap, Kerning *kern, u32 entry_idx) 
+{
     Assert(entry_idx < ArrayCount(hashmap->entries));
     Kerning_List *list = hashmap->entries + entry_idx;
     if (list->first) {
@@ -191,7 +209,7 @@ struct Game_Assets {
     Kerning_Hashmap kern_hashmap;
     Asset_Glyph *glyphs[256];
 
-    DEBUG_PLATFORM_READ_FILE_ *debug_platform_read_file;
+    Read_Entire_File *debug_platform_read_file;
 };
 
 struct Load_Asset_Work_Data {
@@ -202,11 +220,11 @@ struct Load_Asset_Work_Data {
     WorkMemory_Arena    *workSlot;
 };
 
-struct GameState {
+struct Game_State {
     b32 is_init;
     f32 time;
 
-    RandomSeries particleRandomSeries;
+    Random_Series particleRandomSeries;
 
     World *world;
     Memory_Arena worldArena;
@@ -246,6 +264,6 @@ struct TransientState {
 
 
 
-#define GAME_MAIN(name) void name(GameMemory *gameMemory, GameState *gameState, \
-        Game_Input *gameInput, GameScreenBuffer *gameScreenBuffer)
+#define GAME_MAIN(name) void name(Game_Memory *gameMemory, Game_State *gameState, \
+        Game_Input *gameInput, Game_Screen_Buffer *gameScreenBuffer)
 typedef GAME_MAIN(GameMain_);

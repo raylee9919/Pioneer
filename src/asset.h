@@ -8,7 +8,8 @@
 
 // let's discriminimate microsoft's bmp and "pure" bitmap.
 #pragma pack(push, 1)
-struct BMP_Info_Header {
+struct BMP_Info_Header 
+{
     u16 filetype;
     u32 filesize;
     u16 reserved1;
@@ -31,7 +32,8 @@ struct BMP_Info_Header {
     u32 b_mask;
 };
 
-struct Bitmap {
+struct Bitmap 
+{
     s32     width;
     s32     height;
     s32     pitch;
@@ -40,10 +42,10 @@ struct Bitmap {
     void    *memory;
 };
 
-enum Asset_ID {
+enum Asset_ID 
+{
     GAI_Tree,
     GAI_Particle,
-    GAI_Golem,
 
     GAI_Count
 };
@@ -57,16 +59,19 @@ enum Asset_State {
 //
 // Font
 //
-struct Asset_Font_Header {
+struct Asset_Font_Header 
+{
     u32 kerning_pair_count;
     u32 vertical_advance;
 };
-struct Asset_Kerning {
+struct Asset_Kerning 
+{
     u32 first;
     u32 second;
     s32 value;
 };
-struct Asset_Glyph {
+struct Asset_Glyph 
+{
     u32 codepoint;
     s32 ascent;
     s32 A;
@@ -74,5 +79,36 @@ struct Asset_Glyph {
     s32 C;
     Bitmap bitmap;
 };
+
+
+
+#if 0
+struct Vertex
+{
+    u32 index; // in control_points
+    v2  uv;
+    v3  normal;
+};
+struct Mesh
+{
+    u32     control_point_count;
+    v3      *control_points;
+
+    u32     vertex_count;
+    Vertex  *vertices;
+};
+struct Mesh_Array
+{
+    u32     mesh_count;
+    size_t  used;
+    size_t  size;
+    Mesh    *base;
+};
+struct Model
+{
+    u32 mesh_count;
+    Mesh *meshes;
+};
+#endif
 
 #pragma pack(pop)

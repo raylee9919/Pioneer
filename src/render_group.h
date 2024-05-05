@@ -9,6 +9,7 @@
 enum Render_Type {
     eRender_Quad,
     eRender_Text,
+    eRender_Mesh,
 };
 
 struct Render_Entity_Header {
@@ -23,7 +24,15 @@ struct Render_Entity_Header {
 
 struct Game_Assets;
 
-struct Render_Text {
+
+struct Render_Quad 
+{
+    Render_Entity_Header header;
+    Bitmap *bitmap;
+};
+
+struct Render_Text 
+{
     Render_Entity_Header header;
     const char *str;
     Game_Assets *game_assets;
@@ -31,12 +40,15 @@ struct Render_Text {
     v4 color;
 };
 
-struct Render_Quad {
+struct Render_Mesh
+{
     Render_Entity_Header header;
-    Bitmap *bitmap;
+    Asset_Mesh  *mesh;
+    m4x4        *animation_transforms;
 };
 
-struct Camera {
+struct Camera 
+{
     b32     orthographic;
     f32     focal_length;
     f32     w_over_h;
@@ -44,7 +56,8 @@ struct Camera {
     m4x4    projection;
 };
 
-struct Textured_Vertex {
+struct Textured_Vertex 
+{
     v3      p;
     v2      uv;
     v4      color;

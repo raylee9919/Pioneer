@@ -23,7 +23,7 @@ __push_render_entity(Render_Group *renderGroup, u32 size, Render_Type type)
     return header;
 }
 
-
+#if 0
 internal void
 push_vertex(Render_Group *group, v3 P, v2 uv, v4 color, v3 normal)
 {
@@ -31,7 +31,18 @@ push_vertex(Render_Group *group, v3 P, v2 uv, v4 color, v3 normal)
     Textured_Vertex vertex = Textured_Vertex{P, uv, color, normal};
     group->vertices[group->vertex_count++] = vertex;
 }
+#endif
 
+internal void
+push_mesh(Render_Group *group, Asset_Mesh *mesh, m4x4 *animtion_transforms = 0)
+{
+    Render_Mesh *piece          = push_render_entity(group, Render_Mesh);
+    piece->mesh                 = mesh;
+    piece->animation_transforms = animtion_transforms;
+}
+
+
+#if 0
 internal void
 push_quad(Render_Group *group, v3 O, v3 ax, v3 ay,
           Bitmap *bitmap, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f})
@@ -51,10 +62,12 @@ push_quad(Render_Group *group, v3 O, v3 ax, v3 ay,
     push_vertex(group, V[2], v2{0, 1}, color, normal);
     push_vertex(group, V[3], v2{1, 1}, color, normal);
 
-    if (piece) {
+    if (piece) 
+    {
         piece->bitmap = bitmap;
     }
 }
+
 
 internal void
 push_cube(Render_Group *group,
@@ -133,11 +146,13 @@ push_text(Render_Group *render_group, v3 base,
     }
     cen_y += game_assets->v_advance;
 }
+#endif
 
 
 #if 0
 internal void
-draw_text(Bitmap *buffer, Render_Text *info) {
+draw_text(Bitmap *buffer, Render_Text *info) 
+{
     f32 left_x = 40.0f;
     f32 kern = 0.0f;
     f32 C = 0.0f;
@@ -181,7 +196,7 @@ alloc_render_group(Memory_Arena *arena, b32 ortho, f32 aspect_ratio)
     result->capacity            = MB(4);
     result->base                = (u8 *)push_size(arena, result->capacity);
     result->used                = 0;
-#define VARRAY_SIZE 65536
+#define VARRAY_SIZE MB(1)
     result->vertices            = push_array(arena, Textured_Vertex, VARRAY_SIZE);
     result->vertex_count        = 0;
     result->varray_size         = VARRAY_SIZE;
@@ -190,7 +205,8 @@ alloc_render_group(Memory_Arena *arena, b32 ortho, f32 aspect_ratio)
     cam->orthographic       = ortho;
     cam->focal_length       = 0.5f;
 
-    if (cam->orthographic) {
+    if (cam->orthographic) 
+    {
         f32 a = aspect_ratio;
         cam->projection = m4x4{{
             { 1,  0,  0,  0},
@@ -199,8 +215,9 @@ alloc_render_group(Memory_Arena *arena, b32 ortho, f32 aspect_ratio)
             { 0,  0,  0,  1}
         }};
     } 
-    else { // perspective.
-        cam->w_over_h       = aspect_ratio;
+    else 
+    {
+        cam->w_over_h = aspect_ratio;
 
         m4x4 cam_o = (x_rotation(g_debug_cam_orbital_pitch) *
                       y_rotation(g_debug_cam_orbital_yaw));
@@ -211,7 +228,6 @@ alloc_render_group(Memory_Arena *arena, b32 ortho, f32 aspect_ratio)
                                       cam_o * cam_translation); // always focus on origin.
 
         cam->world_pos = cam_o * cam_translation;
-                                                                
 
         f32 f = cam->focal_length;
         f32 a = cam->w_over_h * f;

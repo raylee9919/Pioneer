@@ -28,15 +28,15 @@ init_arena(Memory_Arena *arena, size_t size, u8 *base)
 }
 
 internal void
-init_sub_arena(Memory_Arena *subArena, Memory_Arena *motherArena, size_t size)
+init_sub_arena(Memory_Arena *sub_arena, Memory_Arena *mom_arena, size_t size)
 {
-    Assert(motherArena->size >= motherArena->used + size);
-    init_arena(subArena, size, motherArena->base + motherArena->used);
-    motherArena->used += size;
+    Assert(mom_arena->size >= mom_arena->used + size);
+    init_arena(sub_arena, size, mom_arena->base + mom_arena->used);
+    mom_arena->used += size;
 }
 
 internal TemporaryMemory
-BeginTemporaryMemory(Memory_Arena *memoryArena)
+begin_temporary_memory(Memory_Arena *memoryArena)
 {
     memoryArena->tempCount++;
 
@@ -48,7 +48,7 @@ BeginTemporaryMemory(Memory_Arena *memoryArena)
 }
 
 internal void
-EndTemporaryMemory(TemporaryMemory *temporaryMemory) 
+end_temporary_memory(TemporaryMemory *temporaryMemory) 
 {
     Memory_Arena *arena = temporaryMemory->memoryArena;
     Assert(arena->used >= temporaryMemory->used);
@@ -58,7 +58,7 @@ EndTemporaryMemory(TemporaryMemory *temporaryMemory)
 }
 
 internal WorkMemory_Arena *
-BeginWorkMemory(TransientState *transState)
+begin_work_memory(TransientState *transState)
 {
     WorkMemory_Arena *result = 0;
     for (s32 idx = 0;
@@ -69,7 +69,7 @@ BeginWorkMemory(TransientState *transState)
         if (!workSlot->isUsed) {
             result = workSlot;
             result->isUsed = true;
-            result->flush = BeginTemporaryMemory(&result->memoryArena);
+            result->flush = begin_temporary_memory(&result->memoryArena);
             break;
         }
     }
@@ -77,9 +77,9 @@ BeginWorkMemory(TransientState *transState)
 }
 
 internal void
-EndWorkMemory(WorkMemory_Arena *workMemory_Arena)
+end_work_memory(WorkMemory_Arena *workMemory_Arena)
 {
-    EndTemporaryMemory(&workMemory_Arena->flush);
+    end_temporary_memory(&workMemory_Arena->flush);
     __WRITE_BARRIER__
     workMemory_Arena->isUsed = false;
 }

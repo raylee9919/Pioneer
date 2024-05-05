@@ -8,20 +8,87 @@
 
 #define pi32    3.14159265359f
 
+
+//
+// Misc.
+//
+inline f32
+square(f32 val) 
+{
+    f32 result = val * val;
+    return result;
+}
+
+inline f32
+abs(f32 val) 
+{
+    f32 result = (val > 0) ? val : -val;
+    return result;
+}
+
+inline f32
+lerp(f32 a, f32 t, f32 b) 
+{
+    f32 result = b * t + (1 - a) * t;
+    return result;
+}
+
+inline f32
+clamp(f32 x, f32 low, f32 high) 
+{
+    f32 result = x;
+    if (x < low) 
+    {
+        result = low;
+    }
+    else if (x > high) 
+    {
+        result = high;
+    }
+    return result;
+}
+
+inline s32
+clamp(s32 x, s32 low, s32 high) 
+{
+    s32 result = x;
+    if (x < low) 
+    {
+        result = low;
+    }
+    else if (x > high) 
+    {
+        result = high;
+    }
+    return result;
+}
+
+inline f32
+safe_ratio(f32 a, f32 b) 
+{
+    f32 result = 0.0f;
+    if (b != 0) 
+    {
+        result = a / b;
+    }
+    return result;
+}
+
 //
 // @v2
 //
-struct v2 { 
-    union {
-        struct {
-            f32 x, y;
-        };
-        f32 e[2];
+union v2
+{
+    struct 
+    {
+        f32 x, y;
     };
+    f32 e[2];
 };
 
 inline v2
-operator-(const v2 &in) {
+operator-(const v2 &in) 
+{
     v2 V;
     V.x = -in.x;
     V.y = -in.y;
@@ -29,7 +96,8 @@ operator-(const v2 &in) {
 }
 
 inline v2
-operator*(f32 A, v2 B) {
+operator*(f32 A, v2 B) 
+{
     v2 result;
     result.x = A * B.x;
     result.y = A * B.y;
@@ -38,7 +106,8 @@ operator*(f32 A, v2 B) {
 }
 
 inline v2
-operator+(v2 A, v2 B) {
+operator+(v2 A, v2 B) 
+{
     v2 result;
     result.x = A.x + B.x;
     result.y = A.y + B.y;
@@ -47,7 +116,8 @@ operator+(v2 A, v2 B) {
 }
 
 inline v2
-operator-(v2 A, v2 B) {
+operator-(v2 A, v2 B) 
+{
     v2 result;
     result.x = A.x - B.x;
     result.y = A.y - B.y;
@@ -56,7 +126,8 @@ operator-(v2 A, v2 B) {
 }
 
 inline v2&
-operator+=(v2& a, v2 b) {
+operator+=(v2& a, v2 b) 
+{
     a.x += b.x;
     a.y += b.y;
 
@@ -64,7 +135,8 @@ operator+=(v2& a, v2 b) {
 }
 
 inline v2&
-operator-=(v2& a, v2 b) {
+operator-=(v2& a, v2 b) 
+{
     a.x -= b.x;
     a.y -= b.y;
 
@@ -72,7 +144,8 @@ operator-=(v2& a, v2 b) {
 }
 
 inline v2&
-operator*=(v2& a, f32 b) {
+operator*=(v2& a, f32 b) 
+{
     a.x *= b;
     a.y *= b;
 
@@ -80,13 +153,15 @@ operator*=(v2& a, f32 b) {
 }
 
 inline f32
-dot(v2 a, v2 b) {
+dot(v2 a, v2 b) 
+{
     f32 result = a.x * b.x + a.y * b.y;
     return result;
 }
 
 inline v2
-hadamard(v2 A, v2 B) {
+hadamard(v2 A, v2 B) 
+{
     v2 result = {
         A.x * B.x,
         A.y * B.y,
@@ -96,19 +171,22 @@ hadamard(v2 A, v2 B) {
 }
 
 inline f32
-len_square(v2 A) {
+len_square(v2 A) 
+{
     f32 result = dot(A, A);
     return result;
 }
 
 inline f32
-inv_len_square(v2 A) {
+inv_len_square(v2 A) 
+{
     f32 result = 1.0f / dot(A, A);
     return result;
 }
 
 inline f32
-len(v2 A) {
+len(v2 A) 
+{
     f32 result = sqrt(len_square(A));
     return result;
 }
@@ -116,17 +194,18 @@ len(v2 A) {
 //
 // @v3
 //
-struct v3 { 
-    union {
-        struct {
-            f32 x, y, z;
-        };
-        f32 e[3];
+union v3 
+{
+    struct 
+    {
+        f32 x, y, z;
     };
+    f32 e[3];
 };
 
 inline v3
-operator-(const v3 &in) {
+operator-(const v3 &in) 
+{
     v3 V;
     V.x = -in.x;
     V.y = -in.y;
@@ -135,7 +214,8 @@ operator-(const v3 &in) {
 }
 
 inline v3
-operator*(f32 A, v3 B) {
+operator*(f32 A, v3 B) 
+{
     v3 result;
     result.x = A * B.x;
     result.y = A * B.y;
@@ -145,7 +225,8 @@ operator*(f32 A, v3 B) {
 }
 
 inline v3
-operator+(v3 A, v3 B) {
+operator+(v3 A, v3 B) 
+{
     v3 result;
     result.x = A.x + B.x;
     result.y = A.y + B.y;
@@ -155,7 +236,8 @@ operator+(v3 A, v3 B) {
 }
 
 inline v3
-operator-(v3 A, v3 B) {
+operator-(v3 A, v3 B) 
+{
     v3 result;
     result.x = A.x - B.x;
     result.y = A.y - B.y;
@@ -165,7 +247,8 @@ operator-(v3 A, v3 B) {
 }
 
 inline v3&
-operator+=(v3& a, v3 b) {
+operator+=(v3& a, v3 b) 
+{
     a.x += b.x;
     a.y += b.y;
     a.z += b.z;
@@ -174,7 +257,8 @@ operator+=(v3& a, v3 b) {
 }
 
 inline v3&
-operator-=(v3& a, v3 b) {
+operator-=(v3& a, v3 b) 
+{
     a.x -= b.x;
     a.y -= b.y;
     a.z -= b.z;
@@ -183,7 +267,8 @@ operator-=(v3& a, v3 b) {
 }
 
 inline v3&
-operator*=(v3& a, f32 b) {
+operator*=(v3& a, f32 b) 
+{
     a.x *= b;
     a.y *= b;
     a.z *= b;
@@ -192,7 +277,8 @@ operator*=(v3& a, f32 b) {
 }
 
 inline f32
-dot(v3 a, v3 b) {
+dot(v3 a, v3 b) 
+{
     f32 result = (a.x * b.x +
                   a.y * b.y +
                   a.z * b.z);
@@ -201,7 +287,8 @@ dot(v3 a, v3 b) {
 }
 
 inline v3
-hadamard(v3 A, v3 B) {
+hadamard(v3 A, v3 B) 
+{
     v3 result = {
         A.x * B.x,
         A.y * B.y,
@@ -211,7 +298,8 @@ hadamard(v3 A, v3 B) {
 }
 
 inline v3
-cross(v3 A, v3 B) {
+cross(v3 A, v3 B) 
+{
     v3 R = {};
     R.x = (A.y * B.z) - (B.y * A.z);
     R.y = (A.z * B.x) - (B.z * A.x);
@@ -220,56 +308,76 @@ cross(v3 A, v3 B) {
 }
 
 inline f32
-len_square(v3 A) {
+len_square(v3 A) 
+{
     f32 result = dot(A, A);
     return result;
 }
 
 inline f32
-len(v3 A) {
+len(v3 A) 
+{
     f32 result = sqrt(len_square(A));
     return result;
 }
 
 inline v3
-normalize(v3 a) {
+normalize(v3 a) 
+{
     v3 r = a;
     f32 inv_len = (1.0f / len(r));
     r *= inv_len;
     return r;
 }
 
+inline v3
+lerp(v3 a, f32 t, v3 b)
+{
+    v3 result = {};
+    result.x = lerp(a.x, t, b.x);
+    result.y = lerp(a.y, t, b.y);
+    result.z = lerp(a.z, t, b.z);
+    return result;
+}
+
 //
 // @v4
 //
-struct v4 { 
-    union {
-        struct {
-            f32 x, y, z, w;
-        };
-        struct {
-            union {
-                struct {
-                    f32 r, g, b;
-                };
-                v3 rgb;
+union v4
+{
+    struct 
+    {
+        union 
+        {
+            struct 
+            {
+                f32 r, g, b;
             };
-            f32 a;
+            v3 rgb;
         };
-        f32 e[4];
-        struct {
-            v3  xyz;
-            f32 w;
-        };
+        f32 a;
     };
+    f32 e[4];
 };
+
+inline v4
+V4(f32 r, f32 g, f32 b, f32 a)
+{
+    v4 result;
+    result.r = r;
+    result.g = g;
+    result.b = b;
+    result.a = a;
+    return result;
+}
 
 //
 // @m4x4
 //
 
 // these are row-major, which is apposed to gl's column-major notation.
-struct m4x4 {
+struct m4x4 
+{
     f32 e[4][4];
 };
 
@@ -320,7 +428,7 @@ operator*(m4x4 m, v3 p)
 }
 
 inline m4x4
-identity_4x4() 
+identity() 
 {
     m4x4 r = {
        {{ 1,  0,  0,  0 },
@@ -454,79 +562,51 @@ get_column(m4x4 M, u32 C)
 }
 
 //
-// Rect.
+// @quaternion
 //
-struct Rect2 {
+struct quat
+{
+    f32 w, x, y, z;
+};
+
+inline quat
+slerp(quat a, f32 t, quat b) 
+{
+    quat result = {};
+    return result;
+}
+
+
+//
+// @Rect
+//
+struct Rect2 
+{
     v2 cen;
     v2 dim;
 };
 
-struct Rect3 {
+struct Rect3 
+{
     v3 cen;
     v3 dim;
 };
 
-b32 IsPointInRect(v3 point, Rect3 rect) {
+b32 IsPointInRect(v3 point, Rect3 rect) 
+{
     v3 min = rect.cen - 0.5f * rect.dim;
     v3 max = rect.cen + 0.5f * rect.dim;
-    b32 isIn = 
-        min.x < point.x && max.x > point.x &&
-        min.y < point.y && max.y > point.y &&
-        min.z < point.z && max.z > point.z;
-    return isIn;
+    b32 is_in =  (min.x < point.x && max.x > point.x &&
+                 min.y < point.y && max.y > point.y &&
+                 min.z < point.z && max.z > point.z);
+    return is_in;
 }
 
-//
-// Misc.
-//
 
-inline f32
-square(f32 val) {
-    f32 result = val * val;
-    return result;
-}
+inline m4x4
+trs_to_transform(v3 translation, quat rotation, v3 scaling)
+{
+    m4x4 result = {};
 
-inline f32
-abs(f32 val) {
-    f32 result = (val > 0) ? val : -val;
-    return result;
-}
-
-inline f32
-lerp(f32 A, f32 B, f32 t) {
-    f32 result = t * B + (1.0f - t) * A;
-    return result;
-}
-
-inline f32
-clamp(f32 x, f32 low, f32 high) {
-    f32 result = x;
-    if (x < low) {
-        result = low;
-    }
-    else if (x > high) {
-        result = high;
-    }
-    return result;
-}
-
-inline s32
-clamp(s32 x, s32 low, s32 high) {
-    s32 result = x;
-    if (x < low) {
-        result = low;
-    }
-    else if (x > high) {
-        result = high;
-    }
-    return result;
-}
-
-inline f32
-safe_ratio(f32 a, f32 b) {
-    f32 result = 0.0f;
-    if (b != 0) {
-        result = a / b;
-    }
     return result;
 }

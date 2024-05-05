@@ -41,7 +41,8 @@
 // Memory
 //
 inline void
-init_memory() {
+init_memory() 
+{
     size_t mem_size = ALLOC_SIZE;
     void *mem_block = malloc(mem_size);
     Assert(mem_block != 0);

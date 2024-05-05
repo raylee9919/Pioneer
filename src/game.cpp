@@ -18,7 +18,6 @@
 
 #include "sim.cpp"
 
-
 internal void
 init_debug(Debug_Log *debug_log, Memory_Arena *arena);
 
@@ -30,9 +29,310 @@ end_debug_log(Debug_Log *debug_log);
 
 
 internal void
-load_font(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, Game_Assets *game_assets)
+memcpy(void *dst, void *src, size_t size)
 {
-    DebugReadFileResult read = read_file(ASSET_FILE_NAME);
+    if (size)
+    {
+        u8 *dst_at = (u8 *)dst;
+        u8 *src_at = (u8 *)src;
+        for (size_t i = 0; i < size; ++i)
+        {
+            *dst_at++ = *src_at++;
+        }
+    }
+}
+
+global_var Asset_Model xbot_model;
+internal void
+load_xbot(Memory_Arena *arena, Read_Entire_File *read_entire_file)
+{
+    Entire_File entire_file = read_entire_file("models.pack");
+    u8 *at                  = (u8 *)entire_file.contents;
+    u8 *end                 = at + entire_file.content_size;
+
+    xbot_model.mesh_count = *(u32 *)at;
+    at += sizeof(xbot_model.mesh_count);
+
+    xbot_model.meshes = push_array(arena, Asset_Mesh, xbot_model.mesh_count);
+    Asset_Mesh *mesh = xbot_model.meshes;
+    size_t tmp_size;
+    for (u32 mesh_idx = 0;
+         mesh_idx < xbot_model.mesh_count;
+         ++mesh_idx)
+    {
+        mesh->vertex_count = *(u32 *)at;
+        at += sizeof(u32);
+
+        tmp_size = sizeof(Asset_Vertex) * mesh->vertex_count;
+        mesh->vertices = (Asset_Vertex *)push_size(arena, tmp_size);
+        memcpy(mesh->vertices, at, tmp_size);
+        at += tmp_size;
+
+        mesh->index_count = *(u32 *)at;
+        at += sizeof(u32);
+
+        tmp_size = sizeof(u32) * mesh->index_count;
+        mesh->indices = (u32 *)push_size(arena, tmp_size);
+        memcpy(mesh->indices, at, tmp_size);
+        at += tmp_size;
+
+        mesh->bone_count = *(u32 *)at;
+        at += sizeof(u32);
+
+        mesh->root_bone_id = *(s32 *)at;
+        at += sizeof(s32);
+
+        tmp_size = sizeof(Asset_Bone) * mesh->bone_count;
+        mesh->bones = (Asset_Bone *)push_size(arena, tmp_size);
+        memcpy(mesh->bones, at, tmp_size);
+        at += tmp_size;
+
+        ++mesh;
+    }
+
+    Assert(at == end);
+}
+
+global_var Asset_Bone_Hierarchy g_bone_hierarchy;
+internal void
+load_bone_hierarchy(Memory_Arena *arena, Read_Entire_File *read_entire_file)
+{
+    Entire_File entire_file = read_entire_file("bones.pack");
+    u8 *at                  = (u8 *)entire_file.contents;
+    u8 *end                 = at + entire_file.content_size;
+
+    for (u32 id = 0;
+         id < MAX_BONE_BINDING_COUNT;
+         ++id)
+    {
+        Asset_Bone_Info *bone = &g_bone_hierarchy.bone_infos[id];
+
+        bone->child_count = *(u32 *)at;
+        at += sizeof(u32);
+
+        if (bone->child_count)
+        {
+            size_t tmp_size = sizeof(s32) * bone->child_count;
+            bone->child_ids = (s32 *)push_size(arena, tmp_size);
+            memcpy(bone->child_ids, at, tmp_size);
+            at += tmp_size;
+        }
+    }
+
+    Assert(at == end);
+}
+
+global_var Asset_Animation g_anim;
+internal void
+load_animation(Memory_Arena *arena, Read_Entire_File *read_entire_file)
+{
+    Entire_File entire_file = read_entire_file("animations.pack");
+    u8 *at                  = (u8 *)entire_file.contents;
+    u8 *end                 = at + entire_file.content_size;
+
+    g_anim.id = *(s32 *)at;
+    at += sizeof(s32);
+
+    g_anim.frame_count = *(u32 *)at;
+    at += sizeof(u32);
+
+    g_anim.fps = *(f32 *)at;
+    at += sizeof(f32);
+
+    g_anim.bone_count = *(u32 *)at;
+    at += sizeof(u32);
+
+    g_anim.bones = push_array(arena, Asset_Animation_Bone, g_anim.bone_count);
+
+    for (u32 bone_idx = 0;
+         bone_idx < g_anim.bone_count;
+         ++bone_idx)
+    {
+        Asset_Animation_Bone *bone = g_anim.bones + bone_idx;
+
+        bone->bone_id = *(s32 *)at;
+        at += sizeof(s32);
+
+        bone->translation_count = *(u32 *)at;
+        at += sizeof(u32);
+
+        bone->rotation_count = *(u32 *)at;
+        at += sizeof(u32);
+
+        bone->scaling_count = *(u32 *)at;
+        at += sizeof(u32);
+
+        bone->translations  = push_array(arena, dt_v3_Pair, bone->translation_count);
+        bone->rotations     = push_array(arena, dt_quat_Pair, bone->rotation_count);
+        bone->scalings      = push_array(arena, dt_v3_Pair, bone->scaling_count);
+
+        for (dt_v3_Pair *t = bone->translations;
+             t < bone->translations + bone->translation_count;
+             ++t)
+        {
+            *t = *(dt_v3_Pair *)at;
+            at += sizeof(dt_v3_Pair);
+        }
+
+        for (dt_quat_Pair *r = bone->rotations;
+             r < bone->rotations + bone->rotation_count;
+             ++r)
+        {
+            *r = *(dt_quat_Pair *)at;
+            at += sizeof(dt_quat_Pair);
+        }
+
+        for (dt_v3_Pair *s = bone->scalings;
+             s < bone->scalings + bone->scaling_count;
+             ++s)
+        {
+            *s = *(dt_v3_Pair *)at;
+            at += sizeof(dt_v3_Pair);
+        }
+    }
+
+    Assert(at == end);
+}
+
+
+internal void
+build_animation_transform(Asset_Mesh *mesh, s32 bone_id,
+                          Asset_Animation *anim, f32 dt,
+                          Asset_Bone_Hierarchy *bone_hierarchy,
+                          m4x4 *final_transforms,
+                          m4x4 parent_transform)
+{
+    // TODO: getting dt can be better.
+    Assert(dt >= 0.0f);
+
+    m4x4 final_transform    = {};
+    m4x4 anim_transform     = {};
+    v3 lerped_translation   = {};
+    quat slerped_rotation   = {};
+    v3 lerped_scaling       = {};
+
+    b32 found = 0;
+
+    Asset_Bone *bone = 0;
+    // TODO: this is stupid.
+    for (u32 bone_idx = 0;
+         bone_idx < mesh->bone_count;
+         ++bone_idx)
+    {
+        Asset_Bone *at = mesh->bones + bone_idx;
+        if (at->bone_id == bone_id)
+        {
+            bone = at;
+            break;
+        }
+    }
+    Assert(bone);
+
+    // TODO: this is stupid.
+    for (u32 bone_idx = 0;
+         bone_idx < anim->bone_count;
+         ++bone_idx)
+    {
+        Asset_Animation_Bone *anim_bone = (anim->bones + bone_idx);
+        if (bone_id == anim_bone->bone_id)
+        {
+            found = 1;
+            // lerp translation.
+            for (u32 translation_idx = 0;
+                 translation_idx < anim_bone->translation_count;
+                 ++translation_idx)
+            {
+                dt_v3_Pair *hi_key = anim_bone->translations + translation_idx;
+                if (hi_key->dt > dt)
+                {
+                    dt_v3_Pair *lo_key = (hi_key - 1);
+                    f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
+                    lerped_translation = lerp(lo_key->vec, t, hi_key->vec);
+                    break;
+                }
+                else if (hi_key->dt == dt)
+                {
+                    lerped_translation = hi_key->vec;
+                    break;
+                }
+            }
+
+            // slerp rotation.
+            for (u32 rotation_idx = 0;
+                 rotation_idx < anim_bone->rotation_count;
+                 ++rotation_idx)
+            {
+                dt_quat_Pair *hi_key = anim_bone->rotations + rotation_idx;
+                if (hi_key->dt > dt)
+                {
+                    dt_quat_Pair *lo_key = (hi_key - 1);
+                    f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
+                    slerped_rotation = _slerp(lo_key->q, t, hi_key->q);
+                    break;
+                }
+                else if (hi_key->dt == dt)
+                {
+                    slerped_rotation = hi_key->q;
+                    break;
+                }
+            }
+
+            // lerp scaling.
+            for (u32 scaling_idx = 0;
+                 scaling_idx < anim_bone->scaling_count;
+                 ++scaling_idx)
+            {
+                dt_v3_Pair *hi_key = anim_bone->scalings + scaling_idx;
+                if (hi_key->dt > dt)
+                {
+                    dt_v3_Pair *lo_key = (hi_key - 1);
+                    f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
+                    lerped_scaling = lerp(lo_key->vec, t, hi_key->vec);
+                    break;
+                }
+                else if (hi_key->dt == dt)
+                {
+                    lerped_scaling = hi_key->vec;
+                    break;
+                }
+            }
+
+            anim_transform = _trs_to_transform(lerped_translation,
+                                               slerped_rotation,
+                                               lerped_scaling);
+
+            final_transform = (parent_transform *
+                               bone->transform *
+                               anim_transform *
+                               bone->offset);
+
+            break;
+        }
+    }
+    Assert(found);
+
+
+    final_transforms[bone_id] = final_transform;
+    Asset_Bone_Info *bone_info = bone_hierarchy->bone_infos + bone_id;
+    u32 child_count = bone_info->child_count;
+    for (u32 child_idx = 0;
+         child_idx < child_count;
+         ++child_idx)
+    {
+        s32 child_bone_id = bone_info->child_ids[child_idx];
+        build_animation_transform(mesh, child_bone_id,
+                                  anim, dt,
+                                  bone_hierarchy,
+                                  final_transforms,
+                                  final_transform);
+    }
+
+}
+
+internal void
+load_font(Memory_Arena *arena, Read_Entire_File *read_file, Game_Assets *game_assets)
+{
+    Entire_File read = read_file(ASSET_FILE_NAME);
     u8 *at = (u8 *)read.contents;
     u8 *end = at + read.content_size;
 
@@ -42,7 +342,8 @@ load_font(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, Game_Assets
     at += sizeof(Asset_Font_Header);
 
     // parse kerning pairs.
-    for (u32 count = 0; count < kern_count; ++count) {
+    for (u32 count = 0; count < kern_count; ++count) 
+    {
         Asset_Kerning *asset_kern = (Asset_Kerning *)at;
 
         Kerning *kern = push_struct(arena, Kerning);
@@ -57,8 +358,10 @@ load_font(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, Game_Assets
     }
 
     // parse glyphs.
-    if(read.content_size != 0) {
-        while (at < end) {
+    if (read.content_size != 0) 
+    {
+        while (at < end) 
+        {
             Asset_Glyph *glyph = (Asset_Glyph *)at;
             Bitmap *bitmap = &glyph->bitmap;
             game_assets->glyphs[glyph->codepoint] = glyph;
@@ -70,13 +373,14 @@ load_font(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, Game_Assets
 }
 
 internal Bitmap *
-load_bmp(Memory_Arena *arena, DEBUG_PLATFORM_READ_FILE_ *read_file, const char *filename)
+load_bmp(Memory_Arena *arena, Read_Entire_File *read_file, const char *filename)
 {
     Bitmap *result = push_struct(arena, Bitmap);
     *result = {};
     
-    DebugReadFileResult read = read_file(filename);
-    if(read.content_size != 0) {
+    Entire_File read = read_file(filename);
+    if (read.content_size != 0) 
+    {
         BMP_Info_Header *header = (BMP_Info_Header *)read.contents;
         u32 *pixels = (u32 *)((u8 *)read.contents + header->bitmap_offset);
 
@@ -150,7 +454,7 @@ PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work)
     Load_Asset_Work_Data *workData = (Load_Asset_Work_Data *)data;
     workData->gameAssets->bitmaps[workData->assetID] = load_bmp(workData->assetArena, workData->gameAssets->debug_platform_read_file, workData->fileName);
     workData->gameAssets->bitmapStates[workData->assetID] = Asset_State_Loaded;
-    EndWorkMemory(workData->workSlot);
+    end_work_memory(workData->workSlot);
 }
 
 internal Bitmap *
@@ -159,28 +463,30 @@ GetBitmap(TransientState *transState, Asset_ID assetID,
 {
     Bitmap *result = transState->gameAssets.bitmaps[assetID];
 
-    if (!result) {
+    if (!result) 
+    {
         if (atomic_compare_exchange_u32((u32 *)&transState->gameAssets.bitmapStates[assetID],
-                                        Asset_State_Queued, Asset_State_Unloaded)) {
-            WorkMemory_Arena *workSlot = BeginWorkMemory(transState);
-            if (workSlot) {
+                                        Asset_State_Queued, Asset_State_Unloaded)) 
+        {
+            WorkMemory_Arena *workSlot = begin_work_memory(transState);
+            if (workSlot) 
+            {
                 Load_Asset_Work_Data *workData = push_struct(&workSlot->memoryArena, Load_Asset_Work_Data);
                 workData->gameAssets = &transState->gameAssets;
                 workData->assetArena = &transState->assetArena;
                 workData->assetID = assetID;
                 workData->workSlot = workSlot;
 
-                switch(assetID) {
-                    case GAI_Tree: {
+                switch(assetID) 
+                {
+                    case GAI_Tree: 
+                    {
                         workData->fileName = "tree2_teal.bmp";
                     } break;
 
-                    case GAI_Particle: {
+                    case GAI_Particle: 
+                    {
                         workData->fileName = "white_particle.bmp";
-                    } break;
-
-                    case GAI_Golem: {
-                        workData->fileName = "golem.bmp";
                     } break;
 
                     INVALID_DEFAULT_CASE
@@ -207,13 +513,13 @@ GetBitmap(TransientState *transState, Asset_ID assetID,
 extern "C"
 GAME_MAIN(GameMain)
 {
-    if (!gameState->is_init) {
-
-        gameState->particleRandomSeries = Seed(254);
+    if (!gameState->is_init) 
+    {
+        gameState->particleRandomSeries = seed(254);
 
         init_arena(&gameState->worldArena,
-                  gameMemory->permanent_memory_size - sizeof(GameState),
-                  (u8 *)gameMemory->permanent_memory + sizeof(GameState));
+                   gameMemory->permanent_memory_size - sizeof(Game_State),
+                   (u8 *)gameMemory->permanent_memory + sizeof(Game_State));
         gameState->world = push_struct(&gameState->worldArena, World);
         World *world = gameState->world;
         world->chunkDim = {17.0f, 9.0f, 3.0f};
@@ -225,10 +531,6 @@ GAME_MAIN(GameMain)
 
         push_entity(world_arena, chunk_hashmap, eEntity_Familiar, {0, 0, 0, v3{3.0f, 0.0f, 0.0f}});
 
-
-#if 0
-        push_entity(worldArena, chunkHashmap, EntityType_Golem, {0, 0, 0, v3{3.0f, 3.0f, 0.0f}});
-#endif
 
 #if 1
         Chunk *chunk = get_chunk(&gameState->worldArena, chunk_hashmap, gameState->player->pos);
@@ -274,6 +576,9 @@ GAME_MAIN(GameMain)
         init_debug(&g_debug_log, &gameState->debug_arena);
 #endif
 
+        load_xbot(&gameState->worldArena, gameMemory->platform.debug_platform_read_file);
+        load_bone_hierarchy(&gameState->worldArena, gameMemory->platform.debug_platform_read_file);
+        load_animation(&gameState->worldArena, gameMemory->platform.debug_platform_read_file);
         gameState->is_init = true;
     }
 
@@ -300,15 +605,15 @@ GAME_MAIN(GameMain)
         // reserved memory for multi-thread work data.
         for (u32 idx = 0;
              idx < ArrayCount(transState->workArena);
-             ++idx) {
+             ++idx) 
+        {
             WorkMemory_Arena *workSlot = transState->workArena + idx;
             init_sub_arena(&workSlot->memoryArena, &transState->transientArena, MB(4));
         }
         
         // asset arena.
-        init_arena(&transState->assetArena,
-                MB(20),
-                (u8 *)transMem + sizeof(TransientState) + transState->transientArena.size);
+        init_arena(&transState->assetArena, MB(20),
+                   (u8 *)transMem + sizeof(TransientState) + transState->transientArena.size);
 
         transState->highPriorityQueue = gameMemory->highPriorityQueue;
         transState->lowPriorityQueue = gameMemory->lowPriorityQueue;
@@ -334,7 +639,7 @@ GAME_MAIN(GameMain)
     f32 aspect_ratio = safe_ratio((f32)draw_buffer.width,
                                   (f32)draw_buffer.height);
 
-    TemporaryMemory renderMemory = BeginTemporaryMemory(&transState->transientArena);
+    TemporaryMemory renderMemory = begin_temporary_memory(&transState->transientArena);
 
 
 
@@ -354,7 +659,8 @@ GAME_MAIN(GameMain)
     if (gameInput->move_down.is_set) { player->accel.y = -1.0f; }
     if (gameInput->move_left.is_set) { player->accel.x = -1.0f; }
     if (gameInput->move_right.is_set) { player->accel.x = 1.0f; }
-    if (player->accel.x != 0.0f && player->accel.y != 0.0f) {
+    if (player->accel.x != 0.0f && player->accel.y != 0.0f) 
+    {
         player->accel *= 0.707106781187f;
     }
 
@@ -423,15 +729,19 @@ GAME_MAIN(GameMain)
     //
     Game_Assets *gameAssets = &transState->gameAssets;
 
+#if 0
     for (s32 Z = minPos.chunkZ;
          Z <= maxPos.chunkZ;
-         ++Z) {
+         ++Z) 
+    {
         for (s32 Y = minPos.chunkY;
              Y <= maxPos.chunkY;
-             ++Y) {
+             ++Y) 
+        {
             for (s32 X = minPos.chunkX;
                  X <= maxPos.chunkX;
-                 ++X) {
+                 ++X) 
+            {
                 Chunk *chunk = get_chunk(&gameState->worldArena,
                                         &gameState->world->chunkHashmap, {X, Y, Z});
                 for (Entity *entity = chunk->entities.head;
@@ -448,8 +758,10 @@ GAME_MAIN(GameMain)
                     const f32 tilt_angle_z = 0.16f * pi32;
                     const f32 tilt_angle_y = 0.01f * pi32;
 
-                    switch (entity->type) {
-                        case eEntity_Player: {
+                    switch (entity->type) 
+                    {
+                        case eEntity_Player: 
+                        {
                             s32 face = entity->face;
                             v2 bmp_dim = v2{(f32)gameAssets->playerBmp[face]->width, (f32)gameAssets->playerBmp[face]->height};
                             f32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
@@ -594,7 +906,8 @@ GAME_MAIN(GameMain)
 
                         } break;
 
-                        case eEntity_Tree: {
+                        case eEntity_Tree: 
+                        {
                             Bitmap *bitmap = GetBitmap(transState, GAI_Tree, transState->lowPriorityQueue, &gameMemory->platform);
                             if (bitmap) {
                                 v2 bmp_dim = v2{(f32)bitmap->width, (f32)bitmap->height};
@@ -609,7 +922,8 @@ GAME_MAIN(GameMain)
                             }
                         } break;
 
-                        case eEntity_Familiar: {
+                        case eEntity_Familiar: 
+                        {
                             s32 face = entity->face;
                             v2 bmp_dim = v2{(f32)gameAssets->familiarBmp[face]->width, (f32)gameAssets->familiarBmp[face]->height};
                             f32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
@@ -622,17 +936,12 @@ GAME_MAIN(GameMain)
                                         gameAssets->familiarBmp[face]);
                         } break;
 
-                        case eEntity_Golem: {
-                            Bitmap *bitmap = GetBitmap(transState, GAI_Golem, transState->lowPriorityQueue, &gameMemory->platform);
-                            if (bitmap) {
-                            }
-                        } break;
-
-                        case eEntity_Tile: {
+                        case eEntity_Tile: 
+                        {
                             f32 radius = entity->dim.x * 0.5f;
                             f32 height = entity->dim.z;
                             push_cube(render_group, base, radius, height,
-                                      v4{0.2f, 0.3f, 0.1f, 1.0f});
+                                      V4(0.2f, 0.3f, 0.1f, 1.0f));
                         } break;
 
                         INVALID_DEFAULT_CASE
@@ -642,28 +951,53 @@ GAME_MAIN(GameMain)
             }
         }
     }
+#endif
+
+#if 1
+    //
+    // play debug animation
+    //
+    local_persist f32 anim_dt = 0.0f;
+    Asset_Mesh *mesh = xbot_model.meshes;
+    s32 root_bone_id = mesh->root_bone_id;
+    m4x4 *final_transforms = push_array(&transState->transientArena, m4x4, MAX_BONE_BINDING_COUNT);
+    m4x4 *at = final_transforms;
+    for (u32 cnt = 0; cnt < MAX_BONE_BINDING_COUNT; ++cnt)
+    {
+        *at++ = identity();
+    }
+    build_animation_transform(mesh, mesh->root_bone_id,
+                              &g_anim, anim_dt,
+                              &g_bone_hierarchy,
+                              final_transforms,
+                              identity());
+    anim_dt += dt;
+    push_mesh(render_group, mesh, final_transforms);
+
+
+
+#endif
 
     render_group_to_output_batch(render_group, &gameMemory->render_batch);
 
-    EndTemporaryMemory(&renderMemory);
+    end_temporary_memory(&renderMemory);
 
 
     //
     // Debug Overlay
     //
 #ifdef __DEBUG
-    TemporaryMemory debug_render_memory = BeginTemporaryMemory(&gameState->debug_arena);
-    Render_Group *debug_render_group = alloc_render_group(&gameState->debug_arena,
-                                                          true,
-                                                          aspect_ratio);
+    TemporaryMemory debug_render_memory = begin_temporary_memory(&gameState->debug_arena);
+    Render_Group *debug_render_group = alloc_render_group(&gameState->debug_arena, true, aspect_ratio);
 
-    if (gameState->debug_mode) {
+    if (gameState->debug_mode)
+    {
         display_debug_info(&g_debug_log, debug_render_group, gameAssets, &gameState->debug_arena);
     }
     end_debug_log(&g_debug_log);
 
     render_group_to_output_batch(debug_render_group, &gameMemory->render_batch);
-    EndTemporaryMemory(&debug_render_memory);
+    end_temporary_memory(&debug_render_memory);
 #endif
 }
 
@@ -679,8 +1013,9 @@ init_debug(Debug_Log *debug_log, Memory_Arena *arena)
     debug_log->next_frame = 0;
 
     for (u32 idx = 0;
-            idx < width;
-            ++idx) {
+         idx < width;
+         ++idx) 
+    {
         Debug_Info *info = debug_log->debug_infos + idx;
         info->max_cycles = 0;
         info->min_cycles = UINT64_MAX;
@@ -703,7 +1038,7 @@ display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets
                   info->function,
                   info->line,
                   info->avg_cycles);
-        push_text(render_group, v3{0.0f, 0.0f, 0.0f}, buf, game_assets);
+        // push_text(render_group, v3{0.0f, 0.0f, 0.0f}, buf, game_assets);
 
 #if 1
         // draw graph.
@@ -743,15 +1078,17 @@ end_debug_log(Debug_Log *debug_log)
                              debug_log->record_width);
     for (u32 record_idx = 0;
          record_idx < debug_log->record_width;
-         ++record_idx) {
+         ++record_idx) 
+    {
         Debug_Record *record = records + record_idx;
         atomic_exchange_u32(&record->hit, 0);
     }
 
-    if (++debug_log->next_frame == DEBUG_LOG_FRAME_COUNT) {
+    if (++debug_log->next_frame == DEBUG_LOG_FRAME_COUNT) 
+    {
         debug_log->next_frame = 0;
     }
 
     // TODO: remove this mf.
-    cen_y = 100.0f;
+    // cen_y = 100.0f;
 }

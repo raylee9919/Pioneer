@@ -23,6 +23,7 @@ typedef void (APIENTRY  *GLDEBUGPROCARB)(GLenum source,GLenum type,GLuint id,GLe
 #define GL_COMPILE_STATUS                   0x8B81
 #define GL_LINK_STATUS                      0x8B82
 #define GL_ARRAY_BUFFER                     0x8892
+#define GL_ELEMENT_ARRAY_BUFFER             0x8893
 #define GL_MAJOR_VERSION                    0x821B
 #define GL_MINOR_VERSION                    0x821C
 #define GL_CLAMP_TO_EDGE                    0x812F
@@ -39,6 +40,26 @@ typedef void (APIENTRY  *GLDEBUGPROCARB)(GLenum source,GLenum type,GLuint id,GLe
 #define GL_DEBUG_SEVERITY_HIGH              0x9146
 #define GL_DEBUG_SEVERITY_MEDIUM            0x9147
 #define GL_DEBUG_SEVERITY_LOW               0x9148
+#define GL_CULL_FACE                        0x0B44
+#define GL_NONE                             0
+#define GL_FRONT_LEFT                       0x0400
+#define GL_FRONT_RIGHT                      0x0401
+#define GL_BACK_LEFT                        0x0402
+#define GL_BACK_RIGHT                       0x0403
+#define GL_FRONT                            0x0404
+#define GL_BACK                             0x0405
+#define GL_LEFT                             0x0406
+#define GL_RIGHT                            0x0407
+#define GL_FRONT_AND_BACK                   0x0408
+#define GL_CW                               0x0900
+#define GL_CCW                              0x0901
+#define GL_BYTE                             0x1400
+#define GL_UNSIGNED_BYTE                    0x1401
+#define GL_SHORT                            0x1402
+#define GL_UNSIGNED_SHORT                   0x1403
+#define GL_INT                              0x1404
+#define GL_UNSIGNED_INT                     0x1405
+#define GL_FLOAT                            0x1406
 
 
 typedef BOOL        Type_wglSwapIntervalEXT(int interval);
@@ -69,6 +90,7 @@ typedef void        Type_glBindAttribLocation (GLuint program, GLuint index, con
 typedef void        Type_glDebugMessageCallbackARB (GLDEBUGPROCARB callback, const void *userParam);
 typedef void        Type_glDisableVertexAttribArray (GLuint index);
 typedef void        Type_glUniform3fv (GLint location, GLsizei count, const GLfloat *value);
+typedef void        Type_glVertexAttribIPointer (GLuint index, GLint size, GLenum type, GLsizei stride, const void *pointer);
 
 #define GL_DECLARE_GLOBAL_FUNCTION(Name) global_var Type_##Name *Name
 GL_DECLARE_GLOBAL_FUNCTION(wglSwapIntervalEXT);
@@ -98,6 +120,7 @@ GL_DECLARE_GLOBAL_FUNCTION(glBindAttribLocation);
 GL_DECLARE_GLOBAL_FUNCTION(glDebugMessageCallbackARB);
 GL_DECLARE_GLOBAL_FUNCTION(glDisableVertexAttribArray);
 GL_DECLARE_GLOBAL_FUNCTION(glUniform3fv);
+GL_DECLARE_GLOBAL_FUNCTION(glVertexAttribIPointer);
 
 
 global_var GL gl;
@@ -129,9 +152,11 @@ gl_parse_version()
     gl_info.version = (char *)glGetString(GL_VERSION);
 
     char *at = gl_info.version;
-    for(s32 i = 0; i < 2;) {
+    for (s32 i = 0; i < 2;) 
+    {
         char c = *at++;
-        if (c >= '0' && c <= '9') {
+        if (c >= '0' && c <= '9') 
+        {
             if (i++ == 0) {
                 gl_info.major = (c - '0');
             } 
@@ -142,20 +167,24 @@ gl_parse_version()
     }
 }
 
-internal void
+    internal void
 gl_debug_callback(GLenum source, GLenum type, GLuint id,
                   GLenum severity, GLsizei length, const GLchar *message,
                   const void *userParam)
 {
     char *error = (char *)message;
-    switch (severity) {
-        case GL_DEBUG_SEVERITY_LOW: {
+    switch (severity) 
+    {
+        case GL_DEBUG_SEVERITY_LOW: 
+        {
 
         } break;
-        case GL_DEBUG_SEVERITY_MEDIUM: {
+        case GL_DEBUG_SEVERITY_MEDIUM: 
+        {
             Assert(0);
         } break;
-        case GL_DEBUG_SEVERITY_HIGH: {
+        case GL_DEBUG_SEVERITY_HIGH: 
+        {
             Assert(0);
         } break;
     }
@@ -168,9 +197,12 @@ gl_get_info()
     gl_info.renderer                 = (char *)glGetString(GL_RENDERER);
     gl_info.extensions               = (char *)glGetString(GL_EXTENSIONS);
     gl_parse_version();
-    if (gl_info.modern) {
+    if (gl_info.modern) 
+    {
         gl_info.shading_language_version = (char *)glGetString(GL_SHADING_LANGUAGE_VERSION);
-    } else {
+    } 
+    else 
+    {
         gl_info.shading_language_version = "N/A";
     }
 
@@ -188,15 +220,20 @@ gl_get_info()
     }
 
 
-    if (!gl_info.modern) {
+    if (!gl_info.modern) 
+    {
         for (char *tk_begin = gl_info.extensions;
-             *tk_begin;) {
-            if (is_whitespace(*tk_begin)) {
+             *tk_begin;) 
+        {
+            if (is_whitespace(*tk_begin)) 
+            {
                 ++tk_begin;
             } 
-            else {
+            else 
+            {
                 char *tk_end = tk_begin;
-                while (!is_whitespace(*(tk_end + 1))) {
+                while (!is_whitespace(*(tk_end + 1))) 
+                {
                     ++tk_end;
                 }
 
@@ -204,17 +241,21 @@ gl_get_info()
 
                 for (u32 idx = 0;
                      idx < ArrayCount(ext_str_table);
-                     ++idx) {
+                     ++idx) 
+                {
                     char *ext_str = ext_str_table[idx];
                     size_t p_len = ext_str_len[idx];
-                    if (t_len == p_len) {
+                    if (t_len == p_len) 
+                    {
                         b32 match = str_match(tk_begin, ext_str, t_len);
-                        if (match) {
+                        if (match) 
+                        {
                             gl_info.has_ext[idx] = true;
                             break;
                         }
                     } 
-                    else {
+                    else 
+                    {
                         continue;
                     }
                 }
@@ -226,72 +267,6 @@ gl_get_info()
 
 }
 
-internal void
-gl_draw_quad(v3 V[4], Bitmap *bitmap, v4 color) 
-{
-    if (bitmap) {
-        glBegin(GL_TRIANGLES);
-        glColor4f(color.r, color.g, color.b, color.a);
-
-        // upper triangle.
-        glTexCoord2f(0.0f, 0.0f);
-        glVertex3f(V[0].x, V[0].y, V[0].z);
-
-        glTexCoord2f(1.0f, 0.0f);
-        glVertex3f(V[1].x, V[1].y, V[1].z);
-
-        glTexCoord2f(1.0f, 1.0f);
-        glVertex3f(V[2].x, V[2].y, V[2].z);
-
-        // bottom triangle.
-        glTexCoord2f(0.0f, 0.0f);
-        glVertex3f(V[0].x, V[0].y, V[0].z);
-
-        glTexCoord2f(1.0f, 1.0f);
-        glVertex3f(V[2].x, V[2].y, V[2].z);
-
-        glTexCoord2f(0.0f, 1.0f);
-        glVertex3f(V[3].x, V[3].y, V[3].z);
-
-        glEnd();
-    } else {
-        glBegin(GL_TRIANGLES);
-        glColor4f(color.r, color.g, color.b, color.a);
-
-        glVertex3f(V[0].x, V[0].y, V[0].z);
-        glVertex3f(V[1].x, V[1].y, V[1].z);
-        glVertex3f(V[2].x, V[2].y, V[2].z);
-
-        glVertex3f(V[0].x, V[0].y, V[0].z);
-        glVertex3f(V[2].x, V[2].y, V[2].z);
-        glVertex3f(V[3].x, V[3].y, V[3].z);
-
-        glEnd();
-    }
-}
-
-internal void
-gl_draw_cube(v3 V[8], v4 color)
-{
-    glBegin(GL_TRIANGLES);
-    glColor4f(color.r, color.g, color.b, color.a);
-
-    v3 facet1[4] = {V[0], V[1], V[2], V[3]};
-    v3 facet2[4] = {V[4], V[5], V[6], V[7]};
-    v3 facet3[4] = {V[4], V[5], V[1], V[0]};
-    v3 facet4[4] = {V[5], V[7], V[3], V[1]};
-    v3 facet5[4] = {V[7], V[6], V[3], V[2]};
-    v3 facet6[4] = {V[6], V[4], V[0], V[2]};
-
-    gl_draw_quad(facet1, 0, color);
-    gl_draw_quad(facet2, 0, color);
-    gl_draw_quad(facet3, 0, color);
-    gl_draw_quad(facet4, 0, color);
-    gl_draw_quad(facet5, 0, color);
-    gl_draw_quad(facet6, 0, color);
-
-    glEnd();
-}
 
 internal GLuint
 gl_create_program(const char *header,
@@ -300,7 +275,8 @@ gl_create_program(const char *header,
 {
     GLuint program = 0;
 
-    if (glCreateShader) {
+    if (glCreateShader) 
+    {
         GLuint vshader = glCreateShader(GL_VERTEX_SHADER);
         const GLchar *vunit[] = {
             header,
@@ -325,7 +301,8 @@ gl_create_program(const char *header,
         glValidateProgram(program);
         GLint linked = false;
         glGetProgramiv(program, GL_LINK_STATUS, &linked);
-        if (!linked) {
+        if (!linked) 
+        {
             GLsizei stub;
 
             GLchar vlog[1024];
@@ -339,13 +316,14 @@ gl_create_program(const char *header,
 
             Assert(!"compile/link error.");
         }
-    } else {
+    } 
+    else 
+    {
         // TODO: handling.
     }
     
     return program;
 }
-
 
 internal void
 gl_alloc_texture(Bitmap *bitmap)
@@ -364,22 +342,27 @@ gl_alloc_texture(Bitmap *bitmap)
 internal void
 gl_bind_texture(Bitmap *bitmap)
 {
-    if (!bitmap) {
+    if (!bitmap) 
+    {
         bitmap = &gl.white_bitmap;
-    } else {
+    } 
+    else 
+    {
 
     }
 
-    if (bitmap->handle) {
+    if (bitmap->handle) 
+    {
         glBindTexture(GL_TEXTURE_2D, bitmap->handle);
-    } else {
+    } 
+    else 
+    {
         gl_alloc_texture(bitmap);
         glBindTexture(GL_TEXTURE_2D, bitmap->handle);
     }
 }
 
 // @batch
-// TODO: remove sort entries.
 internal void
 gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 {
@@ -397,6 +380,10 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glClear(GL_DEPTH_BUFFER_BIT);
     glDepthFunc(GL_LEQUAL);
 
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
+
     for (Render_Group *group = (Render_Group *)batch->base;
          (u8 *)group < (u8 *)batch->base + batch->used;
          ++group)
@@ -404,23 +391,26 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
 #if 1
         glUseProgram(gl.program);
-        glUniformMatrix4fv(gl.transform_id, 1, GL_TRUE, &group->camera.projection.e[0][0]);
+        glUniformMatrix4fv(gl.mvp_id, 1, GL_TRUE, &group->camera.projection.e[0][0]);
         glUniform3fv(gl.cam_pos_id, 1, (GLfloat *)&group->camera.world_pos);
 
-        glBufferData(GL_ARRAY_BUFFER,
-                     group->vertex_count * sizeof(Textured_Vertex),
-                     group->vertices,
-                     GL_STREAM_DRAW);
 
         glEnableVertexAttribArray(0);
         glEnableVertexAttribArray(1);
         glEnableVertexAttribArray(2);
         glEnableVertexAttribArray(3);
 
+#if 0
+        glBufferData(GL_ARRAY_BUFFER,
+                     group->vertex_count * sizeof(Asset_Vertex),
+                     group->vertices,
+                     GL_STREAM_DRAW);
+
         glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, p)));
         glVertexAttribPointer(1, 2, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, uv)));
         glVertexAttribPointer(2, 4, GL_FLOAT, true,  sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, color)));
         glVertexAttribPointer(3, 3, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, normal)));
+#endif
 
         u32 vidx = 0;
         for (u8 *at = group->base;
@@ -428,25 +418,58 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         {
             Render_Entity_Header *entity =(Render_Entity_Header *)at;
 
-            switch (entity->type) {
-                case eRender_Quad: {
+            switch (entity->type) 
+            {
+                case eRender_Quad: 
+                {
                     Render_Quad *piece = (Render_Quad *)entity;
                     at += sizeof(Render_Quad);
-
-
                     gl_bind_texture(piece->bitmap);
                     glDrawArrays(GL_TRIANGLE_STRIP, vidx, 4);
                     vidx += 4;
                 } break;
 
-                case eRender_Text: {
+                case eRender_Text: 
+                {
                     Render_Text *piece = (Render_Text *)entity;
                     at += sizeof(Render_Text);
                 } break;
 
+                case eRender_Mesh: 
+                {
+                    Render_Mesh *piece = (Render_Mesh *)entity;
+                    at += sizeof(Render_Mesh);
+#if 0
+                    gl_bind_texture(piece->bitmap);
+                    glDrawArrays(GL_TRIANGLES, vidx, piece->vertex_count);
+                    vidx += piece->vertex_count;
+#endif
+                    Asset_Mesh *mesh = piece->mesh;
+                    glBufferData(GL_ARRAY_BUFFER,
+                                 mesh->vertex_count * sizeof(Asset_Vertex),
+                                 mesh->vertices,
+                                 GL_STREAM_DRAW);
+
+                    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                                 mesh->index_count * sizeof(u32),
+                                 mesh->indices,
+                                 GL_STREAM_DRAW);
+
+                    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, pos)));
+                    glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, normal)));
+                    glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, uv)));
+                    glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, color)));
+
+                    glVertexAttribIPointer(4, 4, GL_INT, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, bone_ids)));
+                    glVertexAttribPointer(5, 4, GL_FLOAT, true, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, bone_weights)));
+
+                    glUniformMatrix4fv(gl.bone_transforms_id, MAX_BONE_BINDING_COUNT, GL_TRUE, (GLfloat *)piece->animation_transforms);
+
+                    glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0);
+                } break;
+
                 INVALID_DEFAULT_CASE
             }
-
         }
 
 
@@ -466,12 +489,15 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 internal void
 gl_init()
 {
+
 #if 1
-    if (glDebugMessageCallbackARB) {
+    if (glDebugMessageCallbackARB) 
+    {
         glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
         glDebugMessageCallbackARB(gl_debug_callback, 0);
     } 
-    else {
+    else 
+    {
         Assert("!glDebugMessageCallbackARB not found.");
     }
 #endif
@@ -481,15 +507,26 @@ gl_init()
     //
     const char *header = R"FOO(
             #version 330 core
+            #define s32 int
+            #define u32 unsigned int
+            #define f32 float
             )FOO";
 
     const char *vshader = R"FOO(
-            uniform mat4x4 transform;
+            uniform mat4x4 mvp;
 
+            // vertex info.
             layout (location = 0) in vec3 vP;
-            layout (location = 1) in vec2 vUV;
-            layout (location = 2) in vec4 vC;
-            layout (location = 3) in vec3 vN;
+            layout (location = 1) in vec3 vN;
+            layout (location = 2) in vec2 vUV;
+            layout (location = 3) in vec4 vC;
+            
+            // animation info.
+            #define MAX_BONE_INFLUENCE    = 4;
+            #define MAX_BONE_COUNT        = 100;
+            uniform mat4x4                  bone_transforms[MAX_BONE_COUNT];
+            layout (location = 4) in s32    bone_ids[4];
+            layout (location = 5) in f32    bone_weights[4];
 
             smooth out vec3 fP;
             smooth out vec2 fUV;
@@ -498,12 +535,30 @@ gl_init()
 
             void main()
             {
-                fP  = vP;
+                vec4 result_pos = vec4(vP, 1.0f);
+                vec3 result_normal = vN;
+                for (u32 idx = 0;
+                     idx < MAX_BONE_INFLUENCE;
+                     ++idx)
+                {
+                    u32 bone_idx = bone_indices[idx];
+                    if (bone_idx != -1)
+                    {
+                        vec4 local_pos = bone_transforms[bone_idx] * vec4(vP, 1.0f);
+                        result_pos += (local_pos * bone_weights[idx]);
+                        result_normal = mat3(bone_transforms[bone_idx]) * 
+                    }
+                    else
+                    {
+                    }
+                }
+                fP  = result_pos.xyz;
                 fUV = vUV;
                 fC  = vC;
-                fN  = vN;
+                
+                vN = mat3(bone_transforms[bone_idx]) * vN;
 
-                gl_Position = transform * vec4(vP, 1.0f);
+                gl_Position = mvp * result_pos;
             }
             )FOO";
 
@@ -512,9 +567,9 @@ gl_init()
             uniform vec3        cam_pos;
 
             smooth in vec3 fP;
+            smooth in vec3 fN;
             smooth in vec2 fUV;
             smooth in vec4 fC;
-            smooth in vec3 fN;
 
             out vec4 C;
 
@@ -553,12 +608,12 @@ gl_init()
                 }
             }
             )FOO";
-#undef f32
 
     gl.program              = gl_create_program(header, vshader, fshader);
-    gl.transform_id         = glGetUniformLocation(gl.program, "transform");
+    gl.mvp_id               = glGetUniformLocation(gl.program, "mvp");
     gl.texture_sampler_id   = glGetUniformLocation(gl.program, "texture_sampler");
     gl.cam_pos_id           = glGetUniformLocation(gl.program, "cam_pos");
+    gl.bone_transforms_id   = glGetUniformLocation(gl.program, "bone_transforms");
 
     gl.white_bitmap.width   = 4;
     gl.white_bitmap.height  = 4;
@@ -580,4 +635,7 @@ gl_init()
 
     glGenBuffers(1, &gl.vbo);
     glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+
+    glGenBuffers(1, &gl.vio);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl.vio);
 }
