@@ -53,19 +53,29 @@ atomic_add_u64(u64 *value, u64 addend)
 // @trigonometry
 //
 inline f32
-cos(f32 x) {
+cos(f32 x) 
+{
     f32 result = _mm_cvtss_f32(_mm_cos_ps(_mm_set1_ps(x)));
     return result;
 }
 
 inline f32
-sin(f32 x) {
+acos(f32 x) 
+{
+    f32 result = _mm_cvtss_f32(_mm_acos_ps(_mm_set1_ps(x)));
+    return result;
+}
+
+inline f32
+sin(f32 x) 
+{
     f32 result = _mm_cvtss_f32(_mm_sin_ps(_mm_set1_ps(x)));
     return result;
 }
 
 inline f32
-tan(f32 x) {
+tan(f32 x) 
+{
     f32 result = _mm_cvtss_f32(_mm_tan_ps(_mm_set1_ps(x)));
     return result;
 }

@@ -232,7 +232,7 @@ alloc_render_group(Memory_Arena *arena, b32 ortho, f32 aspect_ratio)
         f32 f = cam->focal_length;
         f32 a = cam->w_over_h * f;
         f32 N = 0.1f;
-        f32 F = 100.0f;
+        f32 F = 500.0f;
         f32 b = (N + F) / (N - F);
         f32 c = (2 * N * F) / (N - F);
         m4x4 proj = {{

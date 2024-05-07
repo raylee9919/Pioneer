@@ -36,6 +36,7 @@ typedef void (APIENTRY  *GLDEBUGPROCARB)(GLenum source,GLenum type,GLuint id,GLe
 #define GL_DYNAMIC_DRAW                     0x88E8
 #define GL_DYNAMIC_READ                     0x88E9
 #define GL_DYNAMIC_COPY                     0x88EA
+#define GL_DEBUG_OUTPUT                     0x92E0
 #define GL_DEBUG_OUTPUT_SYNCHRONOUS         0x8242
 #define GL_DEBUG_SEVERITY_HIGH              0x9146
 #define GL_DEBUG_SEVERITY_MEDIUM            0x9147
@@ -167,7 +168,7 @@ gl_parse_version()
     }
 }
 
-    internal void
+internal void
 gl_debug_callback(GLenum source, GLenum type, GLuint id,
                   GLenum severity, GLsizei length, const GLchar *message,
                   const void *userParam)
@@ -394,23 +395,12 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         glUniformMatrix4fv(gl.mvp_id, 1, GL_TRUE, &group->camera.projection.e[0][0]);
         glUniform3fv(gl.cam_pos_id, 1, (GLfloat *)&group->camera.world_pos);
 
-
         glEnableVertexAttribArray(0);
         glEnableVertexAttribArray(1);
         glEnableVertexAttribArray(2);
         glEnableVertexAttribArray(3);
-
-#if 0
-        glBufferData(GL_ARRAY_BUFFER,
-                     group->vertex_count * sizeof(Asset_Vertex),
-                     group->vertices,
-                     GL_STREAM_DRAW);
-
-        glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, p)));
-        glVertexAttribPointer(1, 2, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, uv)));
-        glVertexAttribPointer(2, 4, GL_FLOAT, true,  sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, color)));
-        glVertexAttribPointer(3, 3, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)(offset_of(Textured_Vertex, normal)));
-#endif
+        glEnableVertexAttribArray(4);
+        glEnableVertexAttribArray(5);
 
         u32 vidx = 0;
         for (u8 *at = group->base;
@@ -460,10 +450,10 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, uv)));
                     glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, color)));
 
-                    glVertexAttribIPointer(4, 4, GL_INT, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, bone_ids)));
-                    glVertexAttribPointer(5, 4, GL_FLOAT, true, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, bone_weights)));
+                    glVertexAttribIPointer(4, MAX_BONE_PER_VERTEX, GL_INT, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, bone_ids)));
+                    glVertexAttribPointer(5, MAX_BONE_PER_VERTEX, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, bone_weights)));
 
-                    glUniformMatrix4fv(gl.bone_transforms_id, MAX_BONE_BINDING_COUNT, GL_TRUE, (GLfloat *)piece->animation_transforms);
+                    glUniformMatrix4fv(gl.bone_transforms_id, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
 
                     glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0);
                 } break;
@@ -479,6 +469,8 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         glDisableVertexAttribArray(1);
         glDisableVertexAttribArray(2);
         glDisableVertexAttribArray(3);
+        glDisableVertexAttribArray(4);
+        glDisableVertexAttribArray(5);
 
 #endif
     }
@@ -508,8 +500,9 @@ gl_init()
     const char *header = R"FOO(
             #version 330 core
             #define s32 int
-            #define u32 unsigned int
             #define f32 float
+            #define MAX_BONE_PER_VERTEX         4
+            #define MAX_BONE_PER_MESH           100
             )FOO";
 
     const char *vshader = R"FOO(
@@ -522,41 +515,39 @@ gl_init()
             layout (location = 3) in vec4 vC;
             
             // animation info.
-            #define MAX_BONE_INFLUENCE    = 4;
-            #define MAX_BONE_COUNT        = 100;
-            uniform mat4x4                  bone_transforms[MAX_BONE_COUNT];
-            layout (location = 4) in s32    bone_ids[4];
-            layout (location = 5) in f32    bone_weights[4];
+            uniform mat4x4                  bone_transforms[MAX_BONE_PER_MESH];
+            layout (location = 4) in s32    bone_ids[MAX_BONE_PER_VERTEX];
+            layout (location = 5) in f32    bone_weights[MAX_BONE_PER_VERTEX];
 
             smooth out vec3 fP;
+            smooth out vec3 fN;
             smooth out vec2 fUV;
             smooth out vec4 fC;
-            smooth out vec3 fN;
 
             void main()
             {
-                vec4 result_pos = vec4(vP, 1.0f);
-                vec3 result_normal = vN;
-                for (u32 idx = 0;
-                     idx < MAX_BONE_INFLUENCE;
+                vec4 result_pos = vec4(0.0f);
+#if 1
+                for (s32 idx = 0;
+                     idx < MAX_BONE_PER_VERTEX;
                      ++idx)
                 {
-                    u32 bone_idx = bone_indices[idx];
-                    if (bone_idx != -1)
+                    s32 bone_id = bone_ids[idx];
+                    if (bone_id != -1)
                     {
-                        vec4 local_pos = bone_transforms[bone_idx] * vec4(vP, 1.0f);
+                        vec4 local_pos = bone_transforms[bone_id] * vec4(vP, 1.0f);
                         result_pos += (local_pos * bone_weights[idx]);
-                        result_normal = mat3(bone_transforms[bone_idx]) * 
-                    }
-                    else
-                    {
                     }
                 }
+                if (result_pos.w == 0.0f)
+                {
+                    result_pos = vec4(vP, 1.0f);
+                }
+#endif
                 fP  = result_pos.xyz;
+                fN  = vN;
                 fUV = vUV;
                 fC  = vC;
-                
-                vN = mat3(bone_transforms[bone_idx]) * vN;
 
                 gl_Position = mvp * result_pos;
             }
@@ -583,6 +574,9 @@ gl_init()
                 vec3 to_light           = normalize(light_pos - fP);
                 vec3 from_cam           = normalize(fP - cam_pos);
 
+                // ambient
+                vec3 ambient_light = vec3(0.4f, 0.4f, 0.4f);
+
                 // distance falloff
                 float d = distance(light_pos, fP);
                 light_strength /= (d * d);
@@ -598,7 +592,7 @@ gl_init()
                 float cos_ref = clamp(dot(ref, to_light), 0.0f, 1.0f);
                 float specular_light = specular_c * cos_ref * light_strength;
 
-                light_sum += diffuse_light + specular_light;
+                light_sum += ambient_light + diffuse_light + specular_light;
 
                 C.xyz *= light_sum;
 

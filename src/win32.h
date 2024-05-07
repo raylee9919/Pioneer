@@ -6,7 +6,8 @@
     $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
     ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
-struct Win32ScreenBuffer {
+struct Win32ScreenBuffer 
+{
     BITMAPINFO bitmap_info;
     void *memory;
     int width;
@@ -14,12 +15,14 @@ struct Win32ScreenBuffer {
     int bpp;
 };
 
-struct Win32WindowDimension {
+struct Win32WindowDimension 
+{
     int width;
     int height;
 };
 
-struct Win32State {
+struct Win32State 
+{
     HANDLE record_file;
     b32 is_recording;
     b32 is_playing;

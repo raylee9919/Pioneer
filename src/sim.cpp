@@ -249,7 +249,8 @@ UpdateEntityPos(Game_State *gameState, Entity *self, f32 dt, Position simMin, Po
                                 v3 newRelP = Subtract(newPos, other->pos, gameState->world->chunkDim);
                                 f32 tUsed = 0.0f;
                                 u32 axis = 0;
-                                if (IsPointInRect(newRelP, box)) {
+                                if (in_rect(newRelP, box)) 
+                                {
                                     if (vTotal.x != 0) {
                                         f32 t = (min.x - oldRelP.x) / vTotal.x;
                                         if (t >= 0 && t <= tRemain) {

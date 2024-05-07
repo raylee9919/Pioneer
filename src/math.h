@@ -6,11 +6,12 @@
     $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
     ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
-#define pi32    3.14159265359f
+#define pi32                3.14159265359f
+#define epsilon_f32         1.19209e-07
 
 
 //
-// Misc.
+// @misc
 //
 inline f32
 square(f32 val) 
@@ -29,7 +30,7 @@ abs(f32 val)
 inline f32
 lerp(f32 a, f32 t, f32 b) 
 {
-    f32 result = b * t + (1 - a) * t;
+    f32 result = b * t + (1 - t) * a;
     return result;
 }
 
@@ -85,6 +86,15 @@ union v2
     };
     f32 e[2];
 };
+
+inline v2
+_v2_(f32 x, f32 y)
+{
+    v2 v = {};
+    v.x = x;
+    v.y = y;
+    return v;
+}
 
 inline v2
 operator-(const v2 &in) 
@@ -202,6 +212,16 @@ union v3
     };
     f32 e[3];
 };
+
+inline v3
+_v3_(f32 x, f32 y, f32 z)
+{
+    v3 v = {};
+    v.x = x;
+    v.y = y;
+    v.z = z;
+    return v;
+}
 
 inline v3
 operator-(const v3 &in) 
@@ -360,6 +380,18 @@ union v4
     f32 e[4];
 };
 
+
+inline v4
+_v4_(f32 r, f32 g, f32 b, f32 a)
+{
+    v4 v = {};
+    v.r = r;
+    v.g = g;
+    v.b = b;
+    v.a = a;
+    return v;
+}
+
 inline v4
 V4(f32 r, f32 g, f32 b, f32 a)
 {
@@ -372,10 +404,154 @@ V4(f32 r, f32 g, f32 b, f32 a)
 }
 
 //
+// @quaternion
+//
+union qt
+{
+    struct
+    {
+        f32 w, x, y, z;
+    };
+    struct
+    {
+        f32 r, i, j, k;
+    };
+};
+
+static qt
+_qt_(f32 w, f32 x, f32 y, f32 z)
+{
+    qt q = {};
+    q.w = w;
+    q.x = x;
+    q.y = y;
+    q.z = z;
+    return q;
+}
+
+inline qt
+operator + (qt a, qt b)
+{
+    qt q = {};
+    q.w = a.w + b.w;
+    q.x = a.x + b.x;
+    q.y = a.y + b.y;
+    q.z = a.z + b.z;
+    return q;
+}
+
+inline qt
+operator * (qt a, qt b)
+{
+    qt q = {};
+    q.w = (a.w * b.w) - (a.x * b.x) - (a.y * b.y) - (a.z * b.z); 
+    q.x = (a.w * b.x) + (a.x * b.w) + (a.y * b.z) - (a.z * b.y); 
+    q.y = (a.w * b.y) + (a.y * b.w) + (a.z * b.x) - (a.x * b.z); 
+    q.z = (a.w * b.z) + (a.z * b.w) + (a.x * b.y) - (a.y * b.x); 
+    return q;
+}
+
+inline qt
+operator * (qt a, f32 b)
+{
+    qt q = {};
+    q.w = a.w * b;
+    q.x = a.x * b;
+    q.y = a.y * b;
+    q.z = a.z * b;
+    return q;
+}
+
+inline qt
+operator * (f32 b, qt a)
+{
+    qt q = {};
+    q.w = a.w * b;
+    q.x = a.x * b;
+    q.y = a.y * b;
+    q.z = a.z * b;
+    return q;
+}
+
+inline qt
+operator - (const qt &in)
+{
+    qt q = {};
+    q.w = -in.w;
+    q.x = -in.x;
+    q.y = -in.y;
+    q.z = -in.z;
+    return q;
+}
+
+inline qt
+normalize(qt q)
+{
+    qt result = q;
+    f32 magnitude = sqrt(q.w * q.w +
+                         q.x * q.x +
+                         q.y * q.y +
+                         q.z * q.z);
+    result = result * (1.0f / magnitude);
+    return result;
+}
+
+
+inline f32
+dot(qt a, qt b)
+{
+    f32 result = ( (a.w * b.w) +
+                   (a.x * b.x) +
+                   (a.y * b.y) +
+                   (a.z * b.y) );
+    return result;
+}
+
+static qt
+lerp(qt q1, f32 t, qt q2)
+{
+    qt result = _qt_(lerp(q1.w, t, q2.w),
+                     lerp(q1.x, t, q2.x),
+                     lerp(q1.y, t, q2.y),
+                     lerp(q1.z, t, q2.z));
+    return result;
+}
+
+static qt
+slerp(qt x, f32 t, qt y)
+{
+    x = normalize(x);
+    x = normalize(y);
+    qt result = {};
+    qt z = y;
+
+    f32 cosR = dot(x, y);
+
+    if (cosR < 0.0f)
+    {
+        z = -y;
+        cosR = -cosR;
+    }
+
+    if (cosR > 1.0f - epsilon_f32)
+    {
+        result = lerp(x, t, y);
+    }
+    else
+    {
+        f32 angle = acos(cosR);
+        f32 inv_sin_angle = 1.0f / sin(angle);
+        result = (sin((1-t)*angle) * x + sin(t*angle) * z) * inv_sin_angle;
+    }
+
+    return result;
+}
+
+//
 // @m4x4
 //
 
-// these are row-major, which is apposed to gl's column-major notation.
+// IMPORTANT: row-major!
 struct m4x4 
 {
     f32 e[4][4];
@@ -523,10 +699,49 @@ columns(v3 x, v3 y, v3 z)
 static m4x4
 translate(m4x4 m, v3 t) 
 {
+    m4x4 result = m;
+    result.e[0][3] += t.x;
+    result.e[1][3] += t.y;
+    result.e[2][3] += t.z;
+    return result;
+}
+
+static m4x4
+to_m4x4(qt q) 
+{
+    m4x4 result = identity();
+    q = normalize(q);
+    f32 w = q.w;
+    f32 x = q.x;
+    f32 y = q.y;
+    f32 z = q.z;
+
+    f32 xx = x * x;
+    f32 yy = y * y;
+    f32 zz = z * z;
+    f32 xy = x * y;
+    f32 xz = x * z;
+    f32 yz = y * z;
+    f32 wx = w * x;
+    f32 wy = w * y;
+    f32 wz = w * z;
+
+    result = {{
+        1 - 2 * (yy + zz),    2 * (xy - wz),        2 * (xz + wy),        0,
+        2 * (xy + wz),        1 - 2 * (xx + zz),    2 * (yz - wx),        0,
+        2 * (xz - wy),        2 * (yz + wx),        1 - 2 * (xx + yy),    0,
+        0,                    0,                    0,                    1
+    }};
+    return result;
+}
+
+static m4x4
+scale(m4x4 m, v3 s) 
+{
     m4x4 r = m;
-    r.e[0][3] += t.x;
-    r.e[1][3] += t.y;
-    r.e[2][3] += t.z;
+    r.e[0][0] *= s.x;
+    r.e[1][1] *= s.y;
+    r.e[2][2] *= s.z;
     return r;
 }
 
@@ -562,22 +777,6 @@ get_column(m4x4 M, u32 C)
 }
 
 //
-// @quaternion
-//
-struct quat
-{
-    f32 w, x, y, z;
-};
-
-inline quat
-slerp(quat a, f32 t, quat b) 
-{
-    quat result = {};
-    return result;
-}
-
-
-//
 // @Rect
 //
 struct Rect2 
@@ -592,7 +791,8 @@ struct Rect3
     v3 dim;
 };
 
-b32 IsPointInRect(v3 point, Rect3 rect) 
+inline b32 
+in_rect(v3 point, Rect3 rect) 
 {
     v3 min = rect.cen - 0.5f * rect.dim;
     v3 max = rect.cen + 0.5f * rect.dim;
@@ -602,11 +802,12 @@ b32 IsPointInRect(v3 point, Rect3 rect)
     return is_in;
 }
 
-
 inline m4x4
-trs_to_transform(v3 translation, quat rotation, v3 scaling)
+trs_to_transform(v3 translation, qt rotation, v3 scaling)
 {
-    m4x4 result = {};
-
+    m4x4 T = translate(identity(), translation);
+    m4x4 R = to_m4x4(rotation);
+    m4x4 S = scale(identity(), scaling);
+    m4x4 result = T * R * S;
     return result;
 }

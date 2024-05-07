@@ -76,19 +76,19 @@ load_xbot(Memory_Arena *arena, Read_Entire_File *read_entire_file)
         memcpy(mesh->indices, at, tmp_size);
         at += tmp_size;
 
-        mesh->bone_count = *(u32 *)at;
-        at += sizeof(u32);
-
-        mesh->root_bone_id = *(s32 *)at;
-        at += sizeof(s32);
-
-        tmp_size = sizeof(Asset_Bone) * mesh->bone_count;
-        mesh->bones = (Asset_Bone *)push_size(arena, tmp_size);
-        memcpy(mesh->bones, at, tmp_size);
-        at += tmp_size;
-
         ++mesh;
     }
+
+    xbot_model.bone_count = *(u32 *)at;
+    at += sizeof(u32);
+
+    xbot_model.root_bone_id = *(s32 *)at;
+    at += sizeof(s32);
+
+    tmp_size = sizeof(Asset_Bone) * xbot_model.bone_count;
+    xbot_model.bones = (Asset_Bone *)push_size(arena, tmp_size);
+    memcpy(xbot_model.bones, at, tmp_size);
+    at += tmp_size;
 
     Assert(at == end);
 }
@@ -102,7 +102,7 @@ load_bone_hierarchy(Memory_Arena *arena, Read_Entire_File *read_entire_file)
     u8 *end                 = at + entire_file.content_size;
 
     for (u32 id = 0;
-         id < MAX_BONE_BINDING_COUNT;
+         id < MAX_BONE_PER_MESH;
          ++id)
     {
         Asset_Bone_Info *bone = &g_bone_hierarchy.bone_infos[id];
@@ -133,12 +133,6 @@ load_animation(Memory_Arena *arena, Read_Entire_File *read_entire_file)
     g_anim.id = *(s32 *)at;
     at += sizeof(s32);
 
-    g_anim.frame_count = *(u32 *)at;
-    at += sizeof(u32);
-
-    g_anim.fps = *(f32 *)at;
-    at += sizeof(f32);
-
     g_anim.bone_count = *(u32 *)at;
     at += sizeof(u32);
 
@@ -163,7 +157,7 @@ load_animation(Memory_Arena *arena, Read_Entire_File *read_entire_file)
         at += sizeof(u32);
 
         bone->translations  = push_array(arena, dt_v3_Pair, bone->translation_count);
-        bone->rotations     = push_array(arena, dt_quat_Pair, bone->rotation_count);
+        bone->rotations     = push_array(arena, dt_qt_Pair, bone->rotation_count);
         bone->scalings      = push_array(arena, dt_v3_Pair, bone->scaling_count);
 
         for (dt_v3_Pair *t = bone->translations;
@@ -174,12 +168,12 @@ load_animation(Memory_Arena *arena, Read_Entire_File *read_entire_file)
             at += sizeof(dt_v3_Pair);
         }
 
-        for (dt_quat_Pair *r = bone->rotations;
+        for (dt_qt_Pair *r = bone->rotations;
              r < bone->rotations + bone->rotation_count;
              ++r)
         {
-            *r = *(dt_quat_Pair *)at;
-            at += sizeof(dt_quat_Pair);
+            *r = *(dt_qt_Pair *)at;
+            at += sizeof(dt_qt_Pair);
         }
 
         for (dt_v3_Pair *s = bone->scalings;
@@ -196,7 +190,7 @@ load_animation(Memory_Arena *arena, Read_Entire_File *read_entire_file)
 
 
 internal void
-build_animation_transform(Asset_Mesh *mesh, s32 bone_id,
+build_animation_transform(Asset_Model *model, s32 bone_id,
                           Asset_Animation *anim, f32 dt,
                           Asset_Bone_Hierarchy *bone_hierarchy,
                           m4x4 *final_transforms,
@@ -205,21 +199,19 @@ build_animation_transform(Asset_Mesh *mesh, s32 bone_id,
     // TODO: getting dt can be better.
     Assert(dt >= 0.0f);
 
-    m4x4 final_transform    = {};
-    m4x4 anim_transform     = {};
+    m4x4 final_transform    = identity();
+    m4x4 anim_transform     = identity();
     v3 lerped_translation   = {};
-    quat slerped_rotation   = {};
+    qt slerped_rotation     = {};
     v3 lerped_scaling       = {};
-
-    b32 found = 0;
 
     Asset_Bone *bone = 0;
     // TODO: this is stupid.
     for (u32 bone_idx = 0;
-         bone_idx < mesh->bone_count;
+         bone_idx < model->bone_count;
          ++bone_idx)
     {
-        Asset_Bone *at = mesh->bones + bone_idx;
+        Asset_Bone *at = model->bones + bone_idx;
         if (at->bone_id == bone_id)
         {
             bone = at;
@@ -236,8 +228,8 @@ build_animation_transform(Asset_Mesh *mesh, s32 bone_id,
         Asset_Animation_Bone *anim_bone = (anim->bones + bone_idx);
         if (bone_id == anim_bone->bone_id)
         {
-            found = 1;
             // lerp translation.
+            lerped_translation = _v3_(0, 0, 0); 
             for (u32 translation_idx = 0;
                  translation_idx < anim_bone->translation_count;
                  ++translation_idx)
@@ -258,16 +250,17 @@ build_animation_transform(Asset_Mesh *mesh, s32 bone_id,
             }
 
             // slerp rotation.
+            slerped_rotation = _qt_(1, 0, 0, 0);
             for (u32 rotation_idx = 0;
                  rotation_idx < anim_bone->rotation_count;
                  ++rotation_idx)
             {
-                dt_quat_Pair *hi_key = anim_bone->rotations + rotation_idx;
+                dt_qt_Pair *hi_key = anim_bone->rotations + rotation_idx;
                 if (hi_key->dt > dt)
                 {
-                    dt_quat_Pair *lo_key = (hi_key - 1);
+                    dt_qt_Pair *lo_key = (hi_key - 1);
                     f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
-                    slerped_rotation = _slerp(lo_key->q, t, hi_key->q);
+                    slerped_rotation = slerp(lo_key->q, t, hi_key->q);
                     break;
                 }
                 else if (hi_key->dt == dt)
@@ -278,6 +271,7 @@ build_animation_transform(Asset_Mesh *mesh, s32 bone_id,
             }
 
             // lerp scaling.
+            lerped_scaling = _v3_(1, 1, 1);
             for (u32 scaling_idx = 0;
                  scaling_idx < anim_bone->scaling_count;
                  ++scaling_idx)
@@ -297,22 +291,20 @@ build_animation_transform(Asset_Mesh *mesh, s32 bone_id,
                 }
             }
 
-            anim_transform = _trs_to_transform(lerped_translation,
+            anim_transform = trs_to_transform(lerped_translation,
                                                slerped_rotation,
                                                lerped_scaling);
-
-            final_transform = (parent_transform *
-                               bone->transform *
-                               anim_transform *
-                               bone->offset);
 
             break;
         }
     }
-    Assert(found);
 
-
+    final_transform = (parent_transform *
+                       bone->transform  *
+                       anim_transform   *
+                       bone->offset);
     final_transforms[bone_id] = final_transform;
+
     Asset_Bone_Info *bone_info = bone_hierarchy->bone_infos + bone_id;
     u32 child_count = bone_info->child_count;
     for (u32 child_idx = 0;
@@ -320,7 +312,7 @@ build_animation_transform(Asset_Mesh *mesh, s32 bone_id,
          ++child_idx)
     {
         s32 child_bone_id = bone_info->child_ids[child_idx];
-        build_animation_transform(mesh, child_bone_id,
+        build_animation_transform(model, child_bone_id,
                                   anim, dt,
                                   bone_hierarchy,
                                   final_transforms,
@@ -959,19 +951,14 @@ GAME_MAIN(GameMain)
     //
     local_persist f32 anim_dt = 0.0f;
     Asset_Mesh *mesh = xbot_model.meshes;
-    s32 root_bone_id = mesh->root_bone_id;
-    m4x4 *final_transforms = push_array(&transState->transientArena, m4x4, MAX_BONE_BINDING_COUNT);
+    m4x4 *final_transforms = push_array(&transState->transientArena, m4x4, MAX_BONE_PER_MESH);
     m4x4 *at = final_transforms;
-    for (u32 cnt = 0; cnt < MAX_BONE_BINDING_COUNT; ++cnt)
-    {
-        *at++ = identity();
-    }
-    build_animation_transform(mesh, mesh->root_bone_id,
+    build_animation_transform(&xbot_model, xbot_model.root_bone_id,
                               &g_anim, anim_dt,
                               &g_bone_hierarchy,
                               final_transforms,
                               identity());
-    anim_dt += dt;
+    // anim_dt += dt;
     push_mesh(render_group, mesh, final_transforms);
 
 

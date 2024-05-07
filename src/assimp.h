@@ -37,7 +37,7 @@ union v4
     f32 e[4];
 };
 
-struct quat
+struct qt
 {
     f32 w, x, y, z;
 };
