@@ -62,7 +62,7 @@ begin_work_memory(TransientState *transState)
 {
     WorkMemory_Arena *result = 0;
     for (s32 idx = 0;
-         idx < ArrayCount(transState->workArena);
+         idx < array_count(transState->workArena);
          ++idx)
     {
         WorkMemory_Arena *workSlot = transState->workArena + idx;

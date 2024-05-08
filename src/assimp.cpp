@@ -426,8 +426,10 @@ main(int argc, char **argv)
                         fwrite(asset_mesh->indices, sizeof(u32) * asset_mesh->index_count, 1, model_out);
                     }
 
-                    u32 model_bone_count    = (u32)model_bones.size();
-                    s32 model_root_bone_id  = get_bone_id(find_root_bone_node(model->mRootNode)->mName);
+                    m4x4 model_root_transform           = ai_m4x4_to_m4x4(model->mRootNode->mTransformation);
+                    u32  model_bone_count               = (u32)model_bones.size();
+                    s32  model_root_bone_id             = get_bone_id(find_root_bone_node(model->mRootNode)->mName);
+                    fwrite(&model_root_transform, sizeof(m4x4), 1, model_out);
                     fwrite(&model_bone_count, sizeof(u32), 1, model_out);
                     fwrite(&model_root_bone_id, sizeof(s32), 1, model_out);
                     for (auto &[id, model_bone] : model_bones)
@@ -508,7 +510,9 @@ main(int argc, char **argv)
                     {
                         s32 anim_id             = g_anim_map_used;
                         g_anim_map[anim_name]   = g_anim_map_used++;
+                        f32 anim_duration       = (f32)(anim->mDuration / anim->mTicksPerSecond);
                         asset_anim->id          = anim_id;
+                        asset_anim->duration    = anim_duration;
                         asset_anim->bone_count  = anim->mNumChannels;
                         asset_anim->bones       = push_array(&arena, Asset_Animation_Bone, asset_anim->bone_count);
 
@@ -623,6 +627,7 @@ main(int argc, char **argv)
         for (Asset_Animation asset_anim : g_animations)
         {
             fwrite(&asset_anim.id, sizeof(s32), 1, anim_out);
+            fwrite(&asset_anim.duration, sizeof(f32), 1, anim_out);
             fwrite(&asset_anim.bone_count, sizeof(u32), 1, anim_out);
             for (u32 bone_idx = 0;
                  bone_idx < asset_anim.bone_count;

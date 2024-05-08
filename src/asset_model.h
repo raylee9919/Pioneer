@@ -50,6 +50,7 @@ struct Asset_Model
     Asset_Mesh              *meshes;
 
     // skeletal
+    m4x4                    root_transform; // TODO: why dafuq is it here?
     u32                     bone_count;
     s32                     root_bone_id;
     Asset_Bone              *bones;
@@ -100,6 +101,7 @@ struct Asset_Animation_Bone
 struct Asset_Animation
 {
     s32                     id;
+    f32                     duration;
 
     u32                     bone_count;
     Asset_Animation_Bone   *bones;

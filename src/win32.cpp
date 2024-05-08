@@ -665,7 +665,7 @@ internal void
 Win32AddEntry(PlatformWorkQueue *Queue, PlatformWorkQueueCallback *Callback, void *Data) {
     // TODO: Switch to InterlockedCompareExchange eventually
     // so that any thread can add?
-    u32 NewNextEntryToWrite = (Queue->NextEntryToWrite + 1) % ArrayCount(Queue->Entries);
+    u32 NewNextEntryToWrite = (Queue->NextEntryToWrite + 1) % array_count(Queue->Entries);
     Assert(NewNextEntryToWrite != Queue->NextEntryToRead);
     PlatformWorkQueueEntry *Entry = Queue->Entries + Queue->NextEntryToWrite;
     Entry->Callback = Callback;    Entry->Data = Data;
@@ -679,7 +679,7 @@ Win32DoNextWorkQueueEntry(PlatformWorkQueue *Queue) {
     b32 shouldSleep = false;
 
     u32 OriginalNextEntryToRead = Queue->NextEntryToRead;
-    u32 NewNextEntryToRead = (OriginalNextEntryToRead + 1) % ArrayCount(Queue->Entries);
+    u32 NewNextEntryToRead = (OriginalNextEntryToRead + 1) % array_count(Queue->Entries);
     if (OriginalNextEntryToRead != Queue->NextEntryToWrite)
     {
         u32 Index = InterlockedCompareExchange((LONG volatile *)&Queue->NextEntryToRead,

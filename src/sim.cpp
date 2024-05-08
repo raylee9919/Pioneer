@@ -11,7 +11,7 @@ ChunkHash(ChunkHashmap *chunkHashmap, Position pos)
 {
     // TODO: Better hash function.
     u32 bucket = (pos.chunkX * 16 + pos.chunkY * 9 + pos.chunkZ * 4) &
-        (ArrayCount(chunkHashmap->chunks) - 1);
+        (array_count(chunkHashmap->chunks) - 1);
     Assert(bucket < sizeof(chunkHashmap->chunks));
 
     return bucket;

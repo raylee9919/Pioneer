@@ -9,8 +9,8 @@
 
 #define Max(a, b) ( (a > b) ? a : b )
 #define Min(a, b) ( (a < b) ? a : b )
-#define ArrayCount(array) ( sizeof(array) / sizeof(array[0]) )
-#define ZeroStruct(Struct) clear_to_zero(sizeof(Struct), Struct)
+#define array_count(array) ( sizeof(array) / sizeof(array[0]) )
+#define zero_struct(Struct) clear_to_zero(sizeof(Struct), Struct)
 internal void
 clear_to_zero(size_t size, void *data) {
     u8 *at = (u8 *)data;
@@ -161,13 +161,13 @@ inline u32
 kerning_hash(Kerning_Hashmap *hashmap, u32 first, u32 second) 
 {
     // todo: better hash function.
-    u32 result = (first * 12 + second * 33) % ArrayCount(hashmap->entries);
+    u32 result = (first * 12 + second * 33) % array_count(hashmap->entries);
     return result;
 }
 internal void
 push_kerning(Kerning_Hashmap *hashmap, Kerning *kern, u32 entry_idx) 
 {
-    Assert(entry_idx < ArrayCount(hashmap->entries));
+    Assert(entry_idx < array_count(hashmap->entries));
     Kerning_List *list = hashmap->entries + entry_idx;
     if (list->first) {
         list->last->next = kern;
@@ -187,7 +187,7 @@ internal s32
 get_kerning(Kerning_Hashmap *hashmap, u32 first, u32 second) {
     s32 result = 0;
     u32 entry_idx = kerning_hash(hashmap, first, second);
-    Assert(entry_idx < ArrayCount(hashmap->entries));
+    Assert(entry_idx < array_count(hashmap->entries));
     for (Kerning *at = hashmap->entries[entry_idx].first;
             at;
             at = at->next) {

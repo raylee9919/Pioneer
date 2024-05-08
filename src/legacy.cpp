@@ -29,7 +29,7 @@ draw_bitmap_fast(Bitmap *buffer, v2 origin, v2 axisX, v2 axisY, Bitmap *bmp, v4 
     };
 
     for (s32 idx = 0;
-            idx < ArrayCount(Vs);
+            idx < array_count(Vs);
             ++idx) {
         v2 V = Vs[idx];
         s32 floorX = FloorR32ToS32(V.x);

@@ -214,7 +214,7 @@ gl_get_info()
 #undef X
     size_t ext_str_len[GL_EXT_COUNT];
     for (s32 idx = 0;
-         idx < ArrayCount(ext_str_table);
+         idx < array_count(ext_str_table);
          ++idx) 
     {
         ext_str_len[idx] = str_len(ext_str_table[idx]);
@@ -241,7 +241,7 @@ gl_get_info()
                 size_t t_len = (tk_end - tk_begin + 1);
 
                 for (u32 idx = 0;
-                     idx < ArrayCount(ext_str_table);
+                     idx < array_count(ext_str_table);
                      ++idx) 
                 {
                     char *ext_str = ext_str_table[idx];
@@ -283,7 +283,7 @@ gl_create_program(const char *header,
             header,
             vsrc
         };
-        glShaderSource(vshader, ArrayCount(vunit), (const GLchar **)vunit, 0);
+        glShaderSource(vshader, array_count(vunit), (const GLchar **)vunit, 0);
         glCompileShader(vshader);
 
         GLuint fshader = glCreateShader(GL_FRAGMENT_SHADER);
@@ -291,7 +291,7 @@ gl_create_program(const char *header,
             header,
             fsrc
         };
-        glShaderSource(fshader, ArrayCount(funit), (const GLchar **)funit, 0);
+        glShaderSource(fshader, array_count(funit), (const GLchar **)funit, 0);
         glCompileShader(fshader);
 
         program = glCreateProgram();
@@ -375,7 +375,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glEnable(GL_SCISSOR_TEST);
 
     glEnable(GL_DEPTH_TEST);
-    glClearColor(0.01f, 0.01f, 0.01f, 1.0f);
+    glClearColor(0.10f, 0.10f, 0.10f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glClearDepth(1.0f);
     glClear(GL_DEPTH_BUFFER_BIT);
@@ -463,7 +463,6 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         }
 
 
-        glUseProgram(0);
 
         glDisableVertexAttribArray(0);
         glDisableVertexAttribArray(1);
@@ -471,6 +470,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         glDisableVertexAttribArray(3);
         glDisableVertexAttribArray(4);
         glDisableVertexAttribArray(5);
+        glUseProgram(0);
 
 #endif
     }
@@ -524,28 +524,45 @@ gl_init()
             smooth out vec2 fUV;
             smooth out vec4 fC;
 
+            mat4x4 identity()
+            {
+                return mat4(
+                    1, 0, 0, 0,
+                    0, 1, 0, 0,
+                    0, 0, 1, 0,
+                    0, 0, 0, 1
+                );
+            }
+
             void main()
             {
-                vec4 result_pos = vec4(0.0f);
-#if 1
-                for (s32 idx = 0;
-                     idx < MAX_BONE_PER_VERTEX;
-                     ++idx)
+                mat4x4 bone_transform;
+                if (bone_ids[0] != -1)
                 {
-                    s32 bone_id = bone_ids[idx];
-                    if (bone_id != -1)
+                    bone_transform = bone_transforms[bone_ids[0]] * bone_weights[0];
+                    for (s32 idx = 1;
+                         idx < MAX_BONE_PER_VERTEX;
+                         ++idx)
                     {
-                        vec4 local_pos = bone_transforms[bone_id] * vec4(vP, 1.0f);
-                        result_pos += (local_pos * bone_weights[idx]);
+                        s32 bone_id = bone_ids[idx];
+                        if (bone_id != -1)
+                        {
+                            bone_transform += bone_transforms[bone_id] * bone_weights[idx];
+                        }
+                        else
+                        {
+                            break;
+                        }
                     }
                 }
-                if (result_pos.w == 0.0f)
+                else
                 {
-                    result_pos = vec4(vP, 1.0f);
+                    bone_transform = identity();
                 }
-#endif
+
+                vec4 result_pos = bone_transform * vec4(vP, 1.0f);
                 fP  = result_pos.xyz;
-                fN  = vN;
+                fN  = normalize(mat3x3(bone_transform) * vN);
                 fUV = vUV;
                 fC  = vC;
 

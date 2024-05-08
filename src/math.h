@@ -508,41 +508,40 @@ dot(qt a, qt b)
 }
 
 static qt
-lerp(qt q1, f32 t, qt q2)
+slerp(qt q1, f32 t, qt q2)
 {
-    qt result = _qt_(lerp(q1.w, t, q2.w),
-                     lerp(q1.x, t, q2.x),
-                     lerp(q1.y, t, q2.y),
-                     lerp(q1.z, t, q2.z));
-    return result;
-}
+    qt result;
 
-static qt
-slerp(qt x, f32 t, qt y)
-{
-    x = normalize(x);
-    x = normalize(y);
-    qt result = {};
-    qt z = y;
-
-    f32 cosR = dot(x, y);
-
-    if (cosR < 0.0f)
+    f32 cosom = q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w;
+    qt q3 = q2;
+    if (cosom < 0.0f)
     {
-        z = -y;
-        cosR = -cosR;
+        cosom = -cosom;
+        q3.w = -q3.w;
+        q3.x = -q3.x;
+        q3.y = -q3.y;
+        q3.z = -q3.z;
     }
 
-    if (cosR > 1.0f - epsilon_f32)
+    f32 sclp, sclq;
+    if (1.0f - cosom > epsilon_f32)
     {
-        result = lerp(x, t, y);
-    }
+        f32 omega, sinom;
+        omega = acos(cosom);
+        sinom = sin(omega);
+        sclp  = sin((1.0f - t) * omega) / sinom;
+        sclq  = sin(t * omega) / sinom;
+    } 
     else
     {
-        f32 angle = acos(cosR);
-        f32 inv_sin_angle = 1.0f / sin(angle);
-        result = (sin((1-t)*angle) * x + sin(t*angle) * z) * inv_sin_angle;
+        sclp = 1.0f - t;
+        sclq = t;
     }
+
+    result.x = sclp * q1.x + sclq * q3.x;
+    result.y = sclp * q1.y + sclq * q3.y;
+    result.z = sclp * q1.z + sclq * q3.z;
+    result.w = sclp * q1.w + sclq * q3.w;
 
     return result;
 }
@@ -707,31 +706,26 @@ translate(m4x4 m, v3 t)
 }
 
 static m4x4
-to_m4x4(qt q) 
+rotate(m4x4 m, qt q) 
 {
-    m4x4 result = identity();
-    q = normalize(q);
+    m4x4 result = m;
     f32 w = q.w;
     f32 x = q.x;
     f32 y = q.y;
     f32 z = q.z;
 
-    f32 xx = x * x;
-    f32 yy = y * y;
-    f32 zz = z * z;
-    f32 xy = x * y;
-    f32 xz = x * z;
-    f32 yz = y * z;
-    f32 wx = w * x;
-    f32 wy = w * y;
-    f32 wz = w * z;
+    result.e[0][0] = 1.0f - 2.0f * (y * y + z * z);
+    result.e[0][1] = 2.0f * (x * y - z * w);
+    result.e[0][2] = 2.0f * (x * z + y * w);
 
-    result = {{
-        1 - 2 * (yy + zz),    2 * (xy - wz),        2 * (xz + wy),        0,
-        2 * (xy + wz),        1 - 2 * (xx + zz),    2 * (yz - wx),        0,
-        2 * (xz - wy),        2 * (yz + wx),        1 - 2 * (xx + yy),    0,
-        0,                    0,                    0,                    1
-    }};
+    result.e[1][0] = 2.0f * (x * y + z * w);
+    result.e[1][1] = 1.0f - 2.0f * (x * x + z * z);
+    result.e[1][2] = 2.0f * (y * z - x * w);
+
+    result.e[2][0] = 2.0f * (x * z - y * w);
+    result.e[2][1] = 2.0f * (y * z + x * w);
+    result.e[2][2] = 1.0f - 2.0f * (x * x + y * y);
+
     return result;
 }
 
@@ -806,7 +800,7 @@ inline m4x4
 trs_to_transform(v3 translation, qt rotation, v3 scaling)
 {
     m4x4 T = translate(identity(), translation);
-    m4x4 R = to_m4x4(rotation);
+    m4x4 R = rotate(identity(), rotation);
     m4x4 S = scale(identity(), scaling);
     m4x4 result = T * R * S;
     return result;

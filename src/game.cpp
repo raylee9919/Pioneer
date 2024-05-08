@@ -79,6 +79,9 @@ load_xbot(Memory_Arena *arena, Read_Entire_File *read_entire_file)
         ++mesh;
     }
 
+    xbot_model.root_transform = *(m4x4 *)at;
+    at += sizeof(m4x4);
+
     xbot_model.bone_count = *(u32 *)at;
     at += sizeof(u32);
 
@@ -132,6 +135,9 @@ load_animation(Memory_Arena *arena, Read_Entire_File *read_entire_file)
 
     g_anim.id = *(s32 *)at;
     at += sizeof(s32);
+
+    g_anim.duration = *(f32 *)at;
+    at += sizeof(f32);
 
     g_anim.bone_count = *(u32 *)at;
     at += sizeof(u32);
@@ -196,14 +202,7 @@ build_animation_transform(Asset_Model *model, s32 bone_id,
                           m4x4 *final_transforms,
                           m4x4 parent_transform)
 {
-    // TODO: getting dt can be better.
     Assert(dt >= 0.0f);
-
-    m4x4 final_transform    = identity();
-    m4x4 anim_transform     = identity();
-    v3 lerped_translation   = {};
-    qt slerped_rotation     = {};
-    v3 lerped_scaling       = {};
 
     Asset_Bone *bone = 0;
     // TODO: this is stupid.
@@ -220,6 +219,8 @@ build_animation_transform(Asset_Model *model, s32 bone_id,
     }
     Assert(bone);
 
+    m4x4 node_transform = bone->transform;
+
     // TODO: this is stupid.
     for (u32 bone_idx = 0;
          bone_idx < anim->bone_count;
@@ -229,7 +230,7 @@ build_animation_transform(Asset_Model *model, s32 bone_id,
         if (bone_id == anim_bone->bone_id)
         {
             // lerp translation.
-            lerped_translation = _v3_(0, 0, 0); 
+            v3 lerped_translation = (anim_bone->translations + (anim_bone->translation_count - 1))->vec;
             for (u32 translation_idx = 0;
                  translation_idx < anim_bone->translation_count;
                  ++translation_idx)
@@ -250,7 +251,7 @@ build_animation_transform(Asset_Model *model, s32 bone_id,
             }
 
             // slerp rotation.
-            slerped_rotation = _qt_(1, 0, 0, 0);
+            qt slerped_rotation = (anim_bone->rotations + (anim_bone->rotation_count - 1))->q;
             for (u32 rotation_idx = 0;
                  rotation_idx < anim_bone->rotation_count;
                  ++rotation_idx)
@@ -271,7 +272,7 @@ build_animation_transform(Asset_Model *model, s32 bone_id,
             }
 
             // lerp scaling.
-            lerped_scaling = _v3_(1, 1, 1);
+            v3 lerped_scaling = (anim_bone->scalings + (anim_bone->scaling_count - 1))->vec;
             for (u32 scaling_idx = 0;
                  scaling_idx < anim_bone->scaling_count;
                  ++scaling_idx)
@@ -291,19 +292,15 @@ build_animation_transform(Asset_Model *model, s32 bone_id,
                 }
             }
 
-            anim_transform = trs_to_transform(lerped_translation,
-                                               slerped_rotation,
-                                               lerped_scaling);
+            node_transform = trs_to_transform(lerped_translation, slerped_rotation, lerped_scaling);
 
             break;
         }
     }
 
-    final_transform = (parent_transform *
-                       bone->transform  *
-                       anim_transform   *
-                       bone->offset);
-    final_transforms[bone_id] = final_transform;
+    m4x4 global_transform = parent_transform * node_transform;
+    m4x4 final_transform  = global_transform * bone->offset;
+    final_transforms[bone->bone_id] = final_transform;
 
     Asset_Bone_Info *bone_info = bone_hierarchy->bone_infos + bone_id;
     u32 child_count = bone_info->child_count;
@@ -316,9 +313,8 @@ build_animation_transform(Asset_Model *model, s32 bone_id,
                                   anim, dt,
                                   bone_hierarchy,
                                   final_transforms,
-                                  final_transform);
+                                  global_transform);
     }
-
 }
 
 internal void
@@ -596,7 +592,7 @@ GAME_MAIN(GameMain)
         
         // reserved memory for multi-thread work data.
         for (u32 idx = 0;
-             idx < ArrayCount(transState->workArena);
+             idx < array_count(transState->workArena);
              ++idx) 
         {
             WorkMemory_Arena *workSlot = transState->workArena + idx;
@@ -795,14 +791,14 @@ GAME_MAIN(GameMain)
                             }
 #endif
 
-                            ZeroStruct(gameState->particleGrid);
+                            zero_struct(gameState->particleGrid);
 
                             // Create
                             for (s32 cnt = 0;
                                  cnt < 4; // TODO: This actually has to be particles per frame.
                                  ++cnt) {
                                 Particle *particle = gameState->particles + gameState->particleNextIdx++;
-                                if (gameState->particleNextIdx >= ArrayCount(gameState->particles)) {
+                                if (gameState->particleNextIdx >= array_count(gameState->particles)) {
                                     gameState->particleNextIdx = 0; 
                                 }
 
@@ -814,7 +810,7 @@ GAME_MAIN(GameMain)
 
                             // Simulate and Render
                             for (s32 particleIdx = 0;
-                                 particleIdx < ArrayCount(gameState->particles);
+                                 particleIdx < array_count(gameState->particles);
                                  ++particleIdx) {
                                 Particle *particle = gameState->particles + particleIdx; 
 
@@ -858,7 +854,7 @@ GAME_MAIN(GameMain)
                             }
 
                             for (s32 particleIdx = 0;
-                                 particleIdx < ArrayCount(gameState->particles);
+                                 particleIdx < array_count(gameState->particles);
                                  ++particleIdx) {
                                 Particle *particle = gameState->particles + particleIdx;
                                 v2 P = O + v2{particle->P.x * ppm, -particle->P.y * ppm} - gridO;
@@ -957,16 +953,19 @@ GAME_MAIN(GameMain)
                               &g_anim, anim_dt,
                               &g_bone_hierarchy,
                               final_transforms,
-                              identity());
-    // anim_dt += dt;
+                              xbot_model.root_transform);
+    anim_dt += dt;
+    if (anim_dt > g_anim.duration)
+    {
+        anim_dt = 0.0f;
+    }
     push_mesh(render_group, mesh, final_transforms);
-
-
-
+    push_mesh(render_group, mesh + 1, final_transforms);
 #endif
 
-    render_group_to_output_batch(render_group, &gameMemory->render_batch);
 
+
+    render_group_to_output_batch(render_group, &gameMemory->render_batch);
     end_temporary_memory(&renderMemory);
 
 

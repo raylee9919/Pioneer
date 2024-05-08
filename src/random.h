@@ -147,7 +147,7 @@ inline Random_Series
 seed(u32 seed) 
 {
     Random_Series result = {};
-    result.nextIdx = (seed % ArrayCount(RandomTable));
+    result.nextIdx = (seed % array_count(RandomTable));
     return result;
 }
 
@@ -155,7 +155,7 @@ inline u32
 rand_next(Random_Series *series)
 {
     u32 result = RandomTable[series->nextIdx++];
-    if (series->nextIdx > ArrayCount(RandomTable)) {
+    if (series->nextIdx > array_count(RandomTable)) {
         series->nextIdx = 0;
     }
     return result;
