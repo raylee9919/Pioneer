@@ -197,6 +197,7 @@ win32_load_gl_extensions()
             WGL_GET_PROC_ADDRESS(glDisableVertexAttribArray);
             WGL_GET_PROC_ADDRESS(glUniform3fv);
             WGL_GET_PROC_ADDRESS(glVertexAttribIPointer);
+            WGL_GET_PROC_ADDRESS(glUniform4fv);
 
             wglMakeCurrent(0, 0);
         }

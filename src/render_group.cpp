@@ -26,11 +26,12 @@ __push_render_entity(Render_Group *renderGroup, u32 size, Render_Type type)
 
 
 internal void
-push_skeletal_mesh(Render_Group *group, Asset_Mesh *mesh,
+push_skeletal_mesh(Render_Group *group, Asset_Mesh *mesh, Asset_Material *material,
                    m4x4 world_transform, m4x4 *animation_transforms)
 {
     Render_Skeletal_Mesh *piece = push_render_entity(group, Render_Skeletal_Mesh);
     piece->mesh                 = mesh;
+    piece->material             = material;
     piece->world_transform      = world_transform;
     piece->animation_transforms = animation_transforms;
 }

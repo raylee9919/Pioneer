@@ -339,6 +339,7 @@ update_entity_pos(Game_State *game_state, Entity *self, f32 dt, Chunk_Position s
     }
 }
 
+// TODO: this MUST be revamped.
 internal void
 update_entities(Game_State *game_state, f32 dt,
                 Chunk_Position sim_min, Chunk_Position sim_max) 

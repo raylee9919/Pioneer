@@ -69,8 +69,20 @@ load_model(Asset_Model **asset_model, const char *file_name,
         memcpy(mesh->indices, at, tmp_size);
         at += tmp_size;
 
+        mesh->material_idx = *(u32 *)at;
+        at += sizeof(u32);
+
         ++mesh;
     }
+
+    // MATERIAL
+    model->material_count = *(u32 *)at;
+    at += sizeof(u32);
+
+    tmp_size = sizeof(Asset_Material) * model->material_count;
+    model->materials = (Asset_Material *)push_size(arena, tmp_size);
+    memcpy(model->materials, at, tmp_size);
+    at += tmp_size;
 
 
     // SKELETAL
@@ -762,7 +774,9 @@ GAME_MAIN(game_main)
                                          mesh_idx < model->mesh_count;
                                          ++mesh_idx)
                                     {
-                                        push_skeletal_mesh(render_group, model->meshes + mesh_idx,
+                                        Asset_Mesh *mesh    = model->meshes + mesh_idx;
+                                        Asset_Material *mat = model->materials + mesh->material_idx;
+                                        push_skeletal_mesh(render_group, mesh, mat,
                                                            world_transform, final_transforms);
                                     }
                                 }

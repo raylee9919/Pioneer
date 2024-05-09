@@ -92,6 +92,7 @@ typedef void        Type_glDebugMessageCallbackARB (GLDEBUGPROCARB callback, con
 typedef void        Type_glDisableVertexAttribArray (GLuint index);
 typedef void        Type_glUniform3fv (GLint location, GLsizei count, const GLfloat *value);
 typedef void        Type_glVertexAttribIPointer (GLuint index, GLint size, GLenum type, GLsizei stride, const void *pointer);
+typedef void        Type_glUniform4fv (GLint location, GLsizei count, const GLfloat *value);
 
 #define GL_DECLARE_GLOBAL_FUNCTION(Name) global_var Type_##Name *Name
 GL_DECLARE_GLOBAL_FUNCTION(wglSwapIntervalEXT);
@@ -122,6 +123,7 @@ GL_DECLARE_GLOBAL_FUNCTION(glDebugMessageCallbackARB);
 GL_DECLARE_GLOBAL_FUNCTION(glDisableVertexAttribArray);
 GL_DECLARE_GLOBAL_FUNCTION(glUniform3fv);
 GL_DECLARE_GLOBAL_FUNCTION(glVertexAttribIPointer);
+GL_DECLARE_GLOBAL_FUNCTION(glUniform4fv);
 
 
 global_var GL gl;
@@ -429,7 +431,8 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     glDrawArrays(GL_TRIANGLES, vidx, piece->vertex_count);
                     vidx += piece->vertex_count;
 #endif
-                    Asset_Mesh *mesh = piece->mesh;
+                    Asset_Mesh *mesh    = piece->mesh;
+                    Asset_Material *mat = piece->material;
                     glBufferData(GL_ARRAY_BUFFER,
                                  mesh->vertex_count * sizeof(Asset_Vertex),
                                  mesh->vertices,
@@ -457,6 +460,8 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
                     glUniformMatrix4fv(gl.world_transform_id, 1, true, &piece->world_transform.e[0][0]);
                     glUniformMatrix4fv(gl.bone_transforms_id, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
+
+                    glUniform4fv(gl.color_diffuse_id, 1, (GLfloat *)&mat->color_diffuse);
 
                     glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0);
 
@@ -524,6 +529,9 @@ gl_init()
             layout (location = 4) in s32    bone_ids[MAX_BONE_PER_VERTEX];
             layout (location = 5) in f32    bone_weights[MAX_BONE_PER_VERTEX];
 
+            // material for mesh.
+            uniform vec4 color_diffuse;
+
             smooth out vec3 fP;
             smooth out vec3 fN;
             smooth out vec2 fUV;
@@ -570,7 +578,7 @@ gl_init()
                 fP  = result_pos.xyz;
                 fN  = normalize(mat3x3(final_transform) * vN);
                 fUV = vUV;
-                fC  = vC;
+                fC  = color_diffuse * vC;
 
                 gl_Position = mvp * result_pos;
             }
@@ -632,6 +640,7 @@ gl_init()
     gl.texture_sampler_id   = glGetUniformLocation(gl.program, "texture_sampler");
     gl.cam_pos_id           = glGetUniformLocation(gl.program, "cam_pos");
     gl.bone_transforms_id   = glGetUniformLocation(gl.program, "bone_transforms");
+    gl.color_diffuse_id     = glGetUniformLocation(gl.program, "color_diffuse");
 
     gl.white_bitmap.width   = 4;
     gl.white_bitmap.height  = 4;

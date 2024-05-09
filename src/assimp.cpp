@@ -128,9 +128,11 @@ print_indent(u32 depth)
     for (u32 i = 0; i < depth; ++i) { printf("  "); }
 }
 
+static s32 g_node_count;
 static void
 print_nodes(aiNode *node, u32 depth)
 {
+    g_node_count++;
     m4x4 transform = ai_m4x4_to_m4x4(node->mTransformation);
 
     print_indent(depth);
@@ -218,20 +220,24 @@ parse_model_file_name(char *model_file_name, const char *file_name)
 int
 main(int argc, char **argv)
 {
-    Memory_Arena arena      = init_memory_arena();
+    Memory_Arena arena = init_memory_arena();
     Assimp::Importer importer;
+
+    b32 write_skeleton = 1; // (*)
 
     for (u32 file_idx = 0;
          file_idx < 1;
          ++file_idx)
     {
-        const char *file_name = "xbot.dae";
+        const char *file_name = "xbot.dae"; // (*)
         const aiScene *model = importer.ReadFile(file_name, aiProcessPreset_TargetRealtime_Quality);
 
         if (model)
         {
             Asset_Model asset_model = {};
-            // print_nodes(model->mRootNode, 0);
+            print_nodes(model->mRootNode, 0);
+            printf("node count: %d\n", g_node_count);
+
             printf("success: load model '%s'.\n", file_name);
             printf("  mesh count      : %d\n", model->mNumMeshes);
             printf("  texture count   : %d\n", model->mNumTextures);
@@ -407,8 +413,32 @@ main(int argc, char **argv)
                                 asset_mesh->indices[idx_of_idx] = triangle->mIndices[i];
                             }
                         }
+
+                        asset_mesh->material_idx = mesh->mMaterialIndex;
                     }
 
+
+                    Asset_Material *asset_materials = 0;
+                    if (model->HasMaterials())
+                    {
+                        asset_materials = push_array(&arena, Asset_Material, 2);
+                        for (u32 mat_idx = 0;
+                             mat_idx < model->mNumMaterials;
+                             ++mat_idx)
+                        {
+                            Asset_Material *asset_mat = asset_materials + mat_idx;
+                            aiMaterial *mat = model->mMaterials[mat_idx];
+
+                            aiColor3D c;
+                            mat->Get(AI_MATKEY_COLOR_DIFFUSE, c);
+                            asset_mat->color_diffuse = _v4_(c.r, c.g, c.b, 1.0f);
+
+                            printf("msvc piece of shit\n");
+                        }
+                    }
+                    else
+                    {
+                    }
 
 
                     //
@@ -428,6 +458,15 @@ main(int argc, char **argv)
 
                         fwrite(&asset_mesh->index_count, sizeof(u32), 1, model_out);
                         fwrite(asset_mesh->indices, sizeof(u32) * asset_mesh->index_count, 1, model_out);
+
+                        fwrite(&asset_mesh->material_idx, sizeof(u32), 1, model_out);
+                    }
+
+                    u32 mat_count = model->mNumMaterials;
+                    fwrite(&mat_count, sizeof(u32), 1, model_out);
+                    if (mat_count)
+                    {
+                        fwrite(asset_materials, sizeof(Asset_Material) * mat_count, 1, model_out);
                     }
 
                     u32  model_bone_count               = (u32)model_bones.size();
@@ -459,30 +498,6 @@ main(int argc, char **argv)
                 }
 
 
-                if (model->HasMaterials())
-                {
-#if 0
-                    for (u32 material_index = 0;
-                         material_index < model->mNumMaterials;
-                         ++material_index)
-                    {
-                        aiMaterial *material = model->mMaterials[material_index];
-                        for (u32 stack = 0; 1; ++stack)
-                        {
-                            aiString path;
-                            material->Get(AI_MATKEY_TEXTURE(stack, aiTextureType_AMBIENT), path);
-                            material->Get(AI_MATKEY_TEXTURE(stack, aiTextureType_DIFFUSE), path);
-                            material->Get(AI_MATKEY_TEXTURE(stack, aiTextureType_SPECULAR), path);
-                            material->Get(AI_MATKEY_TEXTURE(stack, aiTextureType_NORMALS), path);
-                            material->Get(AI_MATKEY_TEXTURE(stack, aiTextureType_BASE_COLOR), path);
-                            printf("msvc piece of shit.\n");
-                        }
-                    }
-#endif
-                }
-                else
-                {
-                }
 
 
                 //
@@ -585,88 +600,49 @@ main(int argc, char **argv)
     //
     // Global Bone Hierarchy
     //
-    Asset_Bone_Hierarchy asset_bone_hierarchy = {};
-    for (s32 bone_id = 0;
-         bone_id < MAX_BONE_PER_MESH;
-         ++bone_id)
+    if (write_skeleton)
     {
-        std::vector<s32> bone_info  = g_bone_hierarchy[bone_id];
-        u32 child_count             = (u32)bone_info.size();
-        Asset_Bone_Info *asset_bone = &asset_bone_hierarchy.bone_infos[bone_id];
-        asset_bone->child_count     = child_count;
-        asset_bone->child_ids       = push_array(&arena, s32, child_count);
-        for (u32 child_id = 0;
-             child_id < child_count;
-             ++child_id)
+        Asset_Bone_Hierarchy asset_bone_hierarchy = {};
+        for (s32 bone_id = 0;
+             bone_id < MAX_BONE_PER_MESH;
+             ++bone_id)
         {
-            asset_bone->child_ids[child_id] = bone_info[child_id];
-        }
-    }
-
-    const char *bones_file_name = "bones.pack";
-    FILE *bones_out = fopen(bones_file_name, "wb");
-    if (bones_out)
-    {
-        for (u32 count = 0;
-             count < MAX_BONE_PER_MESH;
-             ++count)
-        {
-            Asset_Bone_Info *asset_bone = &asset_bone_hierarchy.bone_infos[count];
-            fwrite(&asset_bone->child_count, sizeof(u32), 1, bones_out);
-            fwrite(asset_bone->child_ids, sizeof(s32) * asset_bone->child_count, 1, bones_out);
+            std::vector<s32> bone_info  = g_bone_hierarchy[bone_id];
+            u32 child_count             = (u32)bone_info.size();
+            Asset_Bone_Info *asset_bone = &asset_bone_hierarchy.bone_infos[bone_id];
+            asset_bone->child_count     = child_count;
+            asset_bone->child_ids       = push_array(&arena, s32, child_count);
+            for (u32 child_id = 0;
+                 child_id < child_count;
+                 ++child_id)
+            {
+                asset_bone->child_ids[child_id] = bone_info[child_id];
+            }
         }
 
-        fclose(bones_out);
-        printf("success: written '%s'.\n", bones_file_name);
-    }
-    else
-    {
-        printf("error: couldn't open file %s.\n", bones_file_name);
-        exit(1);
+        const char *bones_file_name = "bones.pack";
+        FILE *bones_out = fopen(bones_file_name, "wb");
+        if (bones_out)
+        {
+            for (u32 count = 0;
+                 count < MAX_BONE_PER_MESH;
+                 ++count)
+            {
+                Asset_Bone_Info *asset_bone = &asset_bone_hierarchy.bone_infos[count];
+                fwrite(&asset_bone->child_count, sizeof(u32), 1, bones_out);
+                fwrite(asset_bone->child_ids, sizeof(s32) * asset_bone->child_count, 1, bones_out);
+            }
+
+            fclose(bones_out);
+            printf("success: written '%s'.\n", bones_file_name);
+        }
+        else
+        {
+            printf("error: couldn't open file %s.\n", bones_file_name);
+            exit(1);
+        }
     }
 
     printf("*** SUCCESSFUL! ***\n");
     return 0;
 }
-
-
-
-#if 0
-    //
-    // Global Animations
-    //
-    const char *anim_file_name = "animations.pack";
-    FILE *anim_out = fopen(anim_file_name, "wb");
-    if (anim_out)
-    {
-        for (Asset_Animation asset_anim : g_animations)
-        {
-            fwrite(&asset_anim.id, sizeof(s32), 1, anim_out);
-            fwrite(&asset_anim.duration, sizeof(f32), 1, anim_out);
-            fwrite(&asset_anim.bone_count, sizeof(u32), 1, anim_out);
-            for (u32 bone_idx = 0;
-                 bone_idx < asset_anim.bone_count;
-                 ++bone_idx)
-            {
-                Asset_Animation_Bone *asset_bone = (asset_anim.bones + bone_idx);
-                fwrite(&asset_bone->bone_id, sizeof(s32), 1, anim_out);
-
-                fwrite(&asset_bone->translation_count, sizeof(u32), 1, anim_out);
-                fwrite(&asset_bone->rotation_count,    sizeof(u32), 1, anim_out);
-                fwrite(&asset_bone->scaling_count,     sizeof(u32), 1, anim_out);
-
-                fwrite(asset_bone->translations, sizeof(dt_v3_Pair) * asset_bone->translation_count, 1, anim_out);
-                fwrite(asset_bone->rotations,    sizeof(dt_qt_Pair) * asset_bone->rotation_count,    1, anim_out);
-                fwrite(asset_bone->scalings,     sizeof(dt_v3_Pair) * asset_bone->scaling_count,     1, anim_out);
-            }
-        }
-
-        fclose(anim_out);
-        printf("success: written '%s'.\n", anim_file_name);
-    }
-    else
-    {
-        printf("error: couldn't open file '%s' to write.\n", anim_file_name);
-        exit(1);
-    }
-#endif

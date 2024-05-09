@@ -46,6 +46,7 @@ struct Render_Skeletal_Mesh
 {
     Render_Entity_Header    header;
     Asset_Mesh              *mesh;
+    Asset_Material          *material;
     m4x4                    world_transform;
     m4x4                    *animation_transforms;
 };

@@ -41,6 +41,7 @@ struct GL
     s32     texture_sampler_id;
     s32     cam_pos_id;
     s32     bone_transforms_id;
+    s32     color_diffuse_id;
 
     GLuint  vao;
     GLuint  vbo;

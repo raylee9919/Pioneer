@@ -31,6 +31,13 @@ struct Asset_Mesh
 
     u32             index_count;
     u32             *indices;
+
+    u32             material_idx;
+};
+
+struct Asset_Material
+{
+    v4  color_diffuse;
 };
 
 struct Asset_Bone
@@ -70,13 +77,16 @@ struct Asset_Animation
     f32                     duration;
 
     u32                     bone_count;
-    Asset_Animation_Bone   *bones;
+    Asset_Animation_Bone    *bones;
 };
 
 struct Asset_Model
 {
     u32                     mesh_count;
     Asset_Mesh              *meshes;
+
+    u32                     material_count;
+    Asset_Material          *materials;
 
     // skeletal
     u32                     bone_count;
