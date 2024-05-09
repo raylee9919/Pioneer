@@ -630,7 +630,7 @@ GAME_MAIN(game_main)
     if (game_input->move_up.is_set)
     {
         m4x4 rotation = to_m4x4(player->world_rotation);
-        player->accel = rotation * _v3_(0, 0, dt * 2.0f);
+        player->accel = rotation * _v3_(0, 0, 1);
     }
     if (game_input->move_right.is_set)
     {

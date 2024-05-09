@@ -97,7 +97,7 @@ push_entity(Memory_Arena *arena, Chunk_Hashmap *hashmap,
                                              chunk_pos.z * chunk_dim.z);
             entity->world_rotation      = _qt_(1, 0, 0, 0);
             entity->world_scaling       = _v3_(1, 1, 1);
-            entity->u                   = 100.0f;
+            entity->u                   = 80.0f;
         } break;
 
         case eEntity_Tile: 
@@ -222,8 +222,8 @@ update_entity_pos(Game_State *game_state, Entity *self, f32 dt, Chunk_Position s
     Chunk_Position old_chunk_pos = self->chunk_pos;
     Chunk_Position new_chunk_pos = self->chunk_pos;
 
-    self->accel             *= self->u;
-    self->accel             -= 1.5f * self->velocity;
+    self->accel             *= dt * self->u;
+    self->accel             -= dt * 150.0f * self->velocity;
     self->velocity          += dt * self->accel;
 
     self->world_translation += dt * self->velocity;
