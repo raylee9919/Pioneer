@@ -800,3 +800,18 @@ trs_to_transform(v3 translation, qt rotation, v3 scaling)
     m4x4 result = T * R * S;
     return result;
 }
+
+struct v3i
+{
+    s32 x, y, z;
+};
+
+inline v3i
+_v3i_(s32 x, s32 y, s32 z)
+{
+    v3i v;
+    v.x = x;
+    v.y = y;
+    v.z = z;
+    return v;
+}

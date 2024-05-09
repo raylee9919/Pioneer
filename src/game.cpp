@@ -512,28 +512,28 @@ GAME_MAIN(game_main)
                    game_memory->permanent_memory_size - sizeof(Game_State),
                    (u8 *)game_memory->permanent_memory + sizeof(Game_State));
 
-        game_state->world           = push_struct(&game_state->world_arena, World);
-        World *world                = game_state->world;
-        world->chunkDim             = {17.0f, 9.0f, 3.0f};
-        Memory_Arena *world_arena   = &game_state->world_arena;
-        ChunkHashmap *chunk_hashmap = &game_state->world->chunkHashmap;
+        game_state->world               = push_struct(&game_state->world_arena, World);
+        World *world                    = game_state->world;
+        world->chunk_dim                = {17.0f, 9.0f, 3.0f};
+        Memory_Arena *world_arena       = &game_state->world_arena;
+        Chunk_Hashmap *chunk_hashmap    = &game_state->world->chunkHashmap;
 
-        Chunk *chunk = get_chunk(&game_state->world_arena, chunk_hashmap, Chunk_Position{});
+        Chunk *chunk = get_chunk(&game_state->world_arena, chunk_hashmap, Chunk_Position{0, 0, 0});
         v3 dim = {1.0f, 1.0f, 1.0f};
 
         for (s32 X = -8; X <= 8; ++X) 
         {
             for (s32 Y = -4; Y <= 4; ++Y) 
             {
-                Chunk_Position tile_pos = {chunk->chunkX, chunk->chunkY, chunk->chunkZ};
+                Chunk_Position tile_pos = {chunk->x, chunk->y, chunk->z};
                 tile_pos.offset.x += dim.x * X;
                 tile_pos.offset.y += dim.y * Y;
-                recalc_pos(&tile_pos, game_state->world->chunkDim);
+                recalc_pos(&tile_pos, game_state->world->chunk_dim);
                 Entity *tile1 = push_entity(world_arena, chunk_hashmap,
-                                            eEntity_Tile, tile_pos);
+                                            eEntity_Tile, tile_pos, world->chunk_dim);
                 Entity *tile2 = push_entity(world_arena, chunk_hashmap,
-                                            eEntity_Tile, tile_pos);
-                --tile2->pos.chunkZ;
+                                            eEntity_Tile, tile_pos, world->chunk_dim);
+                --tile2->chunk_pos.z;
             }
         }
 
@@ -543,7 +543,7 @@ GAME_MAIN(game_main)
         init_debug(&g_debug_log, &game_state->debug_arena);
 #endif
 
-        Entity *xbot = push_entity(world_arena, chunk_hashmap, eEntity_XBot, Chunk_Position{});
+        Entity *xbot = push_entity(world_arena, chunk_hashmap, eEntity_XBot, Chunk_Position{0, 0, 0}, world->chunk_dim);
         game_state->player = xbot;
 
         load_bone_hierarchy(&game_state->world_arena, game_memory->platform.debug_platform_read_file);
@@ -607,51 +607,37 @@ GAME_MAIN(game_main)
                                                     false,
                                                     aspect_ratio);
 
-    v3 chunkDim = game_state->world->chunkDim;
+    v3 chunk_dim = game_state->world->chunk_dim;
     f32 dt = game_input->dt_per_frame;
 
     //
     // Process Input
     //
-    local_persist v3    tmp_world_translation   = _v3_(0, 0, 0);
-    local_persist qt    tmp_world_rotation      = _qt_(1, 0, 0, 0);
-    local_persist v3    tmp_world_scaling       = _v3_(1, 1, 1);
-    local_persist f32   theta                   = 0.0f;
     Entity *player = game_state->player;
-    player->accel = {};
+    player->accel = _v3_(0, 0, 0);
     if (game_input->move_up.is_set)
     {
-        m4x4 rotation = to_m4x4(tmp_world_rotation);
-        v3 d = rotation * _v3_(0, 0, dt * 2.0f);
-        tmp_world_translation += d;
-    }
-    if (game_input->move_down.is_set)
-    {
-        m4x4 rotation = to_m4x4(tmp_world_rotation);
-        v3 d = rotation * _v3_(0, 0, dt * 2.0f);
-        tmp_world_translation -= d;
+        m4x4 rotation = to_m4x4(player->world_rotation);
+        player->accel = rotation * _v3_(0, 0, dt * 2.0f);
     }
     if (game_input->move_right.is_set)
     {
-        theta -= dt * 1.0f;
-        tmp_world_rotation = _qt_(cos(theta), 0, sin(theta), 0);
+        f32 theta = acos(player->world_rotation.w) - dt;
+        if (theta < 0.0f)
+        {
+            theta += pi32;
+        }
+        player->world_rotation = _qt_(cos(theta), 0, sin(theta), 0);
     }
     if (game_input->move_left.is_set)
     {
-        theta += dt * 1.0f;
-        tmp_world_rotation = _qt_(cos(theta), 0, sin(theta), 0);
+        f32 theta = acos(player->world_rotation.w) + dt;
+        if (theta > pi32)
+        {
+            theta -= pi32;
+        }
+        player->world_rotation = _qt_(cos(theta), 0, sin(theta), 0);
     }
-#if 0
-    if (game_input->move_up.is_set)     { player->accel.z =  1.0f; }
-    if (game_input->move_down.is_set)   { player->accel.z = -1.0f; }
-    if (game_input->move_left.is_set)   { player->accel.x = -1.0f; }
-    if (game_input->move_right.is_set)  { player->accel.x =  1.0f; }
-    if (player->accel.x != 0.0f &&
-        player->accel.z != 0.0f) 
-    {
-        player->accel *= 0.707106781187f;
-    }
-#endif
 
 #ifdef __DEBUG
     if (game_input->toggle_debug.is_set) 
@@ -676,15 +662,14 @@ GAME_MAIN(game_main)
     }
 #endif
 
-
     Chunk_Position camPos = Chunk_Position{};
     v3 camDim       = {100.0f, 50.0f, 5.0f};
     Chunk_Position minPos = camPos;
     Chunk_Position maxPos = camPos;
     minPos.offset -= 0.5f * camDim;
     maxPos.offset += 0.5f * camDim;
-    recalc_pos(&minPos, chunkDim);
-    recalc_pos(&maxPos, chunkDim);
+    recalc_pos(&minPos, chunk_dim);
+    recalc_pos(&maxPos, chunk_dim);
 
 
     //
@@ -728,16 +713,16 @@ GAME_MAIN(game_main)
     Game_Assets *game_assets = &trans_state->game_assets;
 
 #if 1
-    for (s32 Z = minPos.chunkZ;
-         Z <= maxPos.chunkZ;
+    for (s32 Z = minPos.z;
+         Z <= maxPos.z;
          ++Z) 
     {
-        for (s32 Y = minPos.chunkY;
-             Y <= maxPos.chunkY;
+        for (s32 Y = minPos.y;
+             Y <= maxPos.y;
              ++Y) 
         {
-            for (s32 X = minPos.chunkX;
-                 X <= maxPos.chunkX;
+            for (s32 X = minPos.x;
+                 X <= maxPos.x;
                  ++X) 
             {
                 Chunk *chunk = get_chunk(&game_state->world_arena,
@@ -748,11 +733,9 @@ GAME_MAIN(game_main)
                      entity = entity->next) 
                 {
 
-                    v3 base = v3 {
-                        entity->pos.chunkX * game_state->world->chunkDim.x + entity->pos.offset.x,
-                            entity->pos.chunkY * game_state->world->chunkDim.y + entity->pos.offset.y,
-                            entity->pos.chunkZ * game_state->world->chunkDim.z + entity->pos.offset.z,
-                    };
+                    m4x4 world_transform = trs_to_transform(entity->world_translation,
+                                                            entity->world_rotation,
+                                                            entity->world_scaling);
 
                     switch (entity->type) 
                     {
@@ -775,9 +758,6 @@ GAME_MAIN(game_main)
                                         entity->anim_dt = 0.0f;
                                     }
 
-                                    m4x4 world_transform = trs_to_transform(tmp_world_translation,
-                                                                            tmp_world_rotation,
-                                                                            tmp_world_scaling);
                                     for (u32 mesh_idx = 0;
                                          mesh_idx < model->mesh_count;
                                          ++mesh_idx)

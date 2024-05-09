@@ -43,7 +43,7 @@ struct qt
 };
 
 inline v4
-V4(f32 r, f32 g, f32 b, f32 a)
+_v4_(f32 r, f32 g, f32 b, f32 a)
 {
     v4 result;
     result.r = r;

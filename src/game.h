@@ -56,10 +56,17 @@ struct WorkMemory_Arena
 
 struct Chunk_Position 
 {
-    s32     chunkX;
-    s32     chunkY;
-    s32     chunkZ;
-    v3      offset;
+    union
+    {
+        struct 
+        {
+            s32 x;
+            s32 y;
+            s32 z;
+        };
+        v3i xyz;
+    };
+    v3 offset;
 };
 
 enum Entity_Type 
@@ -74,7 +81,11 @@ enum EntityFlag
 struct Entity 
 {
     Entity_Type         type;
-    Chunk_Position      pos;
+    Chunk_Position      chunk_pos;
+
+    v3                  world_translation;
+    qt                  world_rotation;
+    v3                  world_scaling;
 
 #if 1
     v3                  dim;
@@ -92,53 +103,38 @@ struct Entity
 
 struct EntityList 
 {
-    Entity *head;
+    Entity  *head;
 };
 
 struct Chunk 
 {
-    s32 chunkX;
-    s32 chunkY;
-    s32 chunkZ;
-    EntityList entities;
-    Chunk *next;
+    s32         x;
+    s32         y;
+    s32         z;
+    EntityList  entities;
+    Chunk       *next;
 };
 
-struct ChunkList 
+struct Chunk_List 
 {
-    Chunk *head;
-    u32 count;
+    Chunk   *head;
+    u32     count;
 };
 
-struct ChunkHashmap 
+struct Chunk_Hashmap 
 {
-    ChunkList chunks[4096];
+    Chunk_List   chunks[4096];
 };
 
 struct World 
 {
-    ChunkHashmap chunkHashmap;
-    v3 chunkDim;
+    Chunk_Hashmap   chunkHashmap;
+    v3              chunk_dim;
 
-    Entity entities[1024];
-    u32 entityCount;
+    Entity          entities[1024];
+    u32             entityCount;
 };
 
-struct Particle 
-{
-    v3 P;
-    v3 V;
-    v3 A;
-    f32 alpha;
-    f32 dAlpha;
-};
-
-struct ParticleCel 
-{
-    f32 density;
-    v3 VSum;
-    v3 V;
-};
 
 struct Kerning 
 {

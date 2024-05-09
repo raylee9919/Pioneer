@@ -6,11 +6,7 @@
    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
-/*
-    TODO: - bone hierarchy and animation are 'model'-specific, I guess...?
- */
-
-#include <cstdio>
+#include <stdio.h>
 #include <vector>
 #include <unordered_map>
 #include <string>
@@ -28,14 +24,6 @@
 #define max(A, B) (A > B ? A : B)
 #define min(A, B) (A < B ? A : B)
 #define assert(EXP) if (!(EXP)) { *(volatile int *)0 = 0; }
-#define KNRM  "\x1B[0m"
-#define KRED  "\x1B[31m"
-#define KGRN  "\x1B[32m"
-#define KYEL  "\x1B[33m"
-#define KBLU  "\x1B[34m"
-#define KMAG  "\x1B[35m"
-#define KCYN  "\x1B[36m"
-#define KWHT  "\x1B[37m"
 
 #include "types.h"
 #include "assimp.h"
@@ -231,18 +219,18 @@ int
 main(int argc, char **argv)
 {
     Memory_Arena arena      = init_memory_arena();
-    Asset_Model asset_model = {};
+    Assimp::Importer importer;
 
-    for (u32 file_count = 0;
-         file_count < 1;
-         ++file_count)
+    for (u32 file_idx = 0;
+         file_idx < 1;
+         ++file_idx)
     {
         const char *file_name = "xbot.dae";
-        Assimp::Importer importer;
         const aiScene *model = importer.ReadFile(file_name, aiProcessPreset_TargetRealtime_Quality);
 
         if (model)
         {
+            Asset_Model asset_model = {};
             // print_nodes(model->mRootNode, 0);
             printf("success: load model '%s'.\n", file_name);
             printf("  mesh count      : %d\n", model->mNumMeshes);
@@ -319,7 +307,7 @@ main(int argc, char **argv)
                             }
                             else
                             {
-                                asset_vertex->color = V4(1.0f, 1.0f, 1.0f, 1.0f);
+                                asset_vertex->color = _v4_(1.0f, 1.0f, 1.0f, 1.0f);
                             }
 
                             for (u32 i = 0; i < MAX_BONE_PER_VERTEX; ++i)
@@ -400,10 +388,6 @@ main(int argc, char **argv)
                                 }
                             }
 
-                        }
-                        else
-                        {
-                            printf("LOG: no bones found in the mesh.\n");
                         }
 
                         u32 triangle_count              = mesh->mNumFaces;
@@ -500,7 +484,6 @@ main(int argc, char **argv)
                 {
                 }
 
-                build_skeleton(model->mRootNode, -1);
 
                 //
                 // Animation
@@ -573,6 +556,10 @@ main(int argc, char **argv)
                         }
                     }
                 }
+
+
+                build_skeleton(model->mRootNode, -1);
+
 
                 printf("success: written '%s'\n", model_file_name);
                 fclose(model_out);
