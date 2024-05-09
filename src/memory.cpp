@@ -35,12 +35,12 @@ init_sub_arena(Memory_Arena *sub_arena, Memory_Arena *mom_arena, size_t size)
     mom_arena->used += size;
 }
 
-internal TemporaryMemory
+internal Temporary_Memory
 begin_temporary_memory(Memory_Arena *memoryArena)
 {
     memoryArena->tempCount++;
 
-    TemporaryMemory result = {};
+    Temporary_Memory result = {};
     result.memoryArena = memoryArena;
     result.used = memoryArena->used;
 
@@ -48,7 +48,7 @@ begin_temporary_memory(Memory_Arena *memoryArena)
 }
 
 internal void
-end_temporary_memory(TemporaryMemory *temporaryMemory) 
+end_temporary_memory(Temporary_Memory *temporaryMemory) 
 {
     Memory_Arena *arena = temporaryMemory->memoryArena;
     Assert(arena->used >= temporaryMemory->used);
@@ -58,7 +58,7 @@ end_temporary_memory(TemporaryMemory *temporaryMemory)
 }
 
 internal WorkMemory_Arena *
-begin_work_memory(TransientState *transState)
+begin_work_memory(Transient_State *transState)
 {
     WorkMemory_Arena *result = 0;
     for (s32 idx = 0;
@@ -83,3 +83,18 @@ end_work_memory(WorkMemory_Arena *workMemory_Arena)
     __WRITE_BARRIER__
     workMemory_Arena->isUsed = false;
 }
+
+internal void
+memcpy(void *dst, void *src, size_t size)
+{
+    if (size)
+    {
+        u8 *dst_at = (u8 *)dst;
+        u8 *src_at = (u8 *)src;
+        for (size_t i = 0; i < size; ++i)
+        {
+            *dst_at++ = *src_at++;
+        }
+    }
+}
+

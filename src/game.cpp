@@ -16,6 +16,10 @@
 #include "memory.cpp"
 #include "render_group.cpp"
 
+#if __DEBUG
+#include "windows.h"
+#endif
+
 #include "sim.cpp"
 
 internal void
@@ -29,35 +33,24 @@ end_debug_log(Debug_Log *debug_log);
 
 
 internal void
-memcpy(void *dst, void *src, size_t size)
+load_model(Asset_Model **asset_model, const char *file_name,
+           Memory_Arena *arena, Read_Entire_File *read_entire_file)
 {
-    if (size)
-    {
-        u8 *dst_at = (u8 *)dst;
-        u8 *src_at = (u8 *)src;
-        for (size_t i = 0; i < size; ++i)
-        {
-            *dst_at++ = *src_at++;
-        }
-    }
-}
-
-global_var Asset_Model xbot_model;
-internal void
-load_xbot(Memory_Arena *arena, Read_Entire_File *read_entire_file)
-{
-    Entire_File entire_file = read_entire_file("models.pack");
+    *asset_model = push_struct(arena, Asset_Model);
+    Entire_File entire_file = read_entire_file(file_name);
     u8 *at                  = (u8 *)entire_file.contents;
     u8 *end                 = at + entire_file.content_size;
 
-    xbot_model.mesh_count = *(u32 *)at;
-    at += sizeof(xbot_model.mesh_count);
+    Asset_Model *model = *asset_model;
 
-    xbot_model.meshes = push_array(arena, Asset_Mesh, xbot_model.mesh_count);
-    Asset_Mesh *mesh = xbot_model.meshes;
+    model->mesh_count = *(u32 *)at;
+    at += sizeof(model->mesh_count);
+
+    model->meshes = push_array(arena, Asset_Mesh, model->mesh_count);
+    Asset_Mesh *mesh = model->meshes;
     size_t tmp_size;
     for (u32 mesh_idx = 0;
-         mesh_idx < xbot_model.mesh_count;
+         mesh_idx < model->mesh_count;
          ++mesh_idx)
     {
         mesh->vertex_count = *(u32 *)at;
@@ -79,19 +72,89 @@ load_xbot(Memory_Arena *arena, Read_Entire_File *read_entire_file)
         ++mesh;
     }
 
-    xbot_model.root_transform = *(m4x4 *)at;
-    at += sizeof(m4x4);
 
-    xbot_model.bone_count = *(u32 *)at;
+    // SKELETAL
+    model->bone_count = *(u32 *)at;
     at += sizeof(u32);
 
-    xbot_model.root_bone_id = *(s32 *)at;
-    at += sizeof(s32);
+    if (model->bone_count)
+    {
+        model->root_bone_id = *(s32 *)at;
+        at += sizeof(s32);
 
-    tmp_size = sizeof(Asset_Bone) * xbot_model.bone_count;
-    xbot_model.bones = (Asset_Bone *)push_size(arena, tmp_size);
-    memcpy(xbot_model.bones, at, tmp_size);
-    at += tmp_size;
+        model->root_transform = *(m4x4 *)at;
+        at += sizeof(m4x4);
+
+        tmp_size = sizeof(Asset_Bone) * model->bone_count;
+        model->bones = (Asset_Bone *)push_size(arena, tmp_size);
+        memcpy(model->bones, at, tmp_size);
+        at += tmp_size;
+    }
+
+    // ANIMATION
+    model->anim_count = *(u32 *)at;
+    at += sizeof(u32);
+
+    if (model->anim_count)
+    {
+        model->anims = push_array(arena, Asset_Animation, model->anim_count);
+        for (u32 anim_idx = 0;
+             anim_idx < model->anim_count;
+             ++anim_idx)
+        {
+            Asset_Animation *anim = model->anims + anim_idx;
+            
+            anim->id = *(s32 *)at;
+            at += sizeof(s32);
+
+            anim->duration = *(f32 *)at;
+            at += sizeof(f32);
+
+            anim->bone_count = *(u32 *)at;
+            at += sizeof(u32);
+
+            if (anim->bone_count)
+            {
+                anim->bones = push_array(arena, Asset_Animation_Bone, anim->bone_count);
+            }
+
+            for (u32 bone_idx = 0;
+                 bone_idx < anim->bone_count;
+                 ++bone_idx)
+            {
+                Asset_Animation_Bone *anim_bone = anim->bones + bone_idx;
+
+                anim_bone->bone_id = *(s32 *)at;
+                at += sizeof(s32);
+
+                anim_bone->translation_count = *(u32 *)at;
+                at += sizeof(u32);
+
+                anim_bone->rotation_count = *(u32 *)at;
+                at += sizeof(u32);
+
+                anim_bone->scaling_count = *(u32 *)at;
+                at += sizeof(u32);
+
+                tmp_size = sizeof(dt_v3_Pair) * anim_bone->translation_count;
+                anim_bone->translations = (dt_v3_Pair *)push_size(arena, tmp_size);
+                memcpy(anim_bone->translations, at, tmp_size);
+                at += tmp_size;
+
+                tmp_size = sizeof(dt_qt_Pair) * anim_bone->rotation_count;
+                anim_bone->rotations = (dt_qt_Pair *)push_size(arena, tmp_size);
+                memcpy(anim_bone->rotations, at, tmp_size);
+                at += tmp_size;
+
+                tmp_size = sizeof(dt_v3_Pair) * anim_bone->scaling_count;
+                anim_bone->scalings = (dt_v3_Pair *)push_size(arena, tmp_size);
+                memcpy(anim_bone->scalings, at, tmp_size);
+                at += tmp_size;
+            }
+        }
+
+
+    }
 
     Assert(at == end);
 }
@@ -124,76 +187,6 @@ load_bone_hierarchy(Memory_Arena *arena, Read_Entire_File *read_entire_file)
 
     Assert(at == end);
 }
-
-global_var Asset_Animation g_anim;
-internal void
-load_animation(Memory_Arena *arena, Read_Entire_File *read_entire_file)
-{
-    Entire_File entire_file = read_entire_file("animations.pack");
-    u8 *at                  = (u8 *)entire_file.contents;
-    u8 *end                 = at + entire_file.content_size;
-
-    g_anim.id = *(s32 *)at;
-    at += sizeof(s32);
-
-    g_anim.duration = *(f32 *)at;
-    at += sizeof(f32);
-
-    g_anim.bone_count = *(u32 *)at;
-    at += sizeof(u32);
-
-    g_anim.bones = push_array(arena, Asset_Animation_Bone, g_anim.bone_count);
-
-    for (u32 bone_idx = 0;
-         bone_idx < g_anim.bone_count;
-         ++bone_idx)
-    {
-        Asset_Animation_Bone *bone = g_anim.bones + bone_idx;
-
-        bone->bone_id = *(s32 *)at;
-        at += sizeof(s32);
-
-        bone->translation_count = *(u32 *)at;
-        at += sizeof(u32);
-
-        bone->rotation_count = *(u32 *)at;
-        at += sizeof(u32);
-
-        bone->scaling_count = *(u32 *)at;
-        at += sizeof(u32);
-
-        bone->translations  = push_array(arena, dt_v3_Pair, bone->translation_count);
-        bone->rotations     = push_array(arena, dt_qt_Pair, bone->rotation_count);
-        bone->scalings      = push_array(arena, dt_v3_Pair, bone->scaling_count);
-
-        for (dt_v3_Pair *t = bone->translations;
-             t < bone->translations + bone->translation_count;
-             ++t)
-        {
-            *t = *(dt_v3_Pair *)at;
-            at += sizeof(dt_v3_Pair);
-        }
-
-        for (dt_qt_Pair *r = bone->rotations;
-             r < bone->rotations + bone->rotation_count;
-             ++r)
-        {
-            *r = *(dt_qt_Pair *)at;
-            at += sizeof(dt_qt_Pair);
-        }
-
-        for (dt_v3_Pair *s = bone->scalings;
-             s < bone->scalings + bone->scaling_count;
-             ++s)
-        {
-            *s = *(dt_v3_Pair *)at;
-            at += sizeof(dt_v3_Pair);
-        }
-    }
-
-    Assert(at == end);
-}
-
 
 internal void
 build_animation_transform(Asset_Model *model, s32 bone_id,
@@ -440,28 +433,28 @@ load_bmp(Memory_Arena *arena, Read_Entire_File *read_file, const char *filename)
 PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work)
 {
     Load_Asset_Work_Data *workData = (Load_Asset_Work_Data *)data;
-    workData->gameAssets->bitmaps[workData->assetID] = load_bmp(workData->assetArena, workData->gameAssets->debug_platform_read_file, workData->fileName);
-    workData->gameAssets->bitmapStates[workData->assetID] = Asset_State_Loaded;
+    workData->game_assets->bitmaps[workData->assetID] = load_bmp(workData->assetArena, workData->game_assets->read_entire_file, workData->fileName);
+    workData->game_assets->bitmapStates[workData->assetID] = Asset_State_Loaded;
     end_work_memory(workData->workSlot);
 }
 
 internal Bitmap *
-GetBitmap(TransientState *transState, Asset_ID assetID,
+GetBitmap(Transient_State *trans_state, Asset_ID assetID,
           PlatformWorkQueue *queue, Platform_API *platform)
 {
-    Bitmap *result = transState->gameAssets.bitmaps[assetID];
+    Bitmap *result = trans_state->game_assets.bitmaps[assetID];
 
     if (!result) 
     {
-        if (atomic_compare_exchange_u32((u32 *)&transState->gameAssets.bitmapStates[assetID],
+        if (atomic_compare_exchange_u32((u32 *)&trans_state->game_assets.bitmapStates[assetID],
                                         Asset_State_Queued, Asset_State_Unloaded)) 
         {
-            WorkMemory_Arena *workSlot = begin_work_memory(transState);
+            WorkMemory_Arena *workSlot = begin_work_memory(trans_state);
             if (workSlot) 
             {
                 Load_Asset_Work_Data *workData = push_struct(&workSlot->memoryArena, Load_Asset_Work_Data);
-                workData->gameAssets = &transState->gameAssets;
-                workData->assetArena = &transState->assetArena;
+                workData->game_assets = &trans_state->game_assets;
+                workData->assetArena = &trans_state->assetArena;
                 workData->assetID = assetID;
                 workData->workSlot = workSlot;
 
@@ -486,88 +479,76 @@ GetBitmap(TransientState *transState, Asset_ID assetID,
                 load_asset_work(queue, workData);
                 return 0; // todo: no bmp...?
 #endif
-            } else {
+            } 
+            else 
+            {
                 return result;
             }
-        } else {
+        } 
+        else 
+        {
             return result;
         }
-    } else {
+    } 
+    else 
+    {
         return result;
     }
 }
 
 
-extern "C"
-GAME_MAIN(GameMain)
+internal void
+str_format(u32 dst_size, char *dst_init, va_list arg_list)
 {
-    if (!gameState->is_init) 
+}
+
+
+extern "C"
+GAME_MAIN(game_main)
+{
+    if (!game_state->is_init) 
     {
-        gameState->particleRandomSeries = seed(254);
+        init_arena(&game_state->world_arena,
+                   game_memory->permanent_memory_size - sizeof(Game_State),
+                   (u8 *)game_memory->permanent_memory + sizeof(Game_State));
 
-        init_arena(&gameState->worldArena,
-                   gameMemory->permanent_memory_size - sizeof(Game_State),
-                   (u8 *)gameMemory->permanent_memory + sizeof(Game_State));
-        gameState->world = push_struct(&gameState->worldArena, World);
-        World *world = gameState->world;
-        world->chunkDim = {17.0f, 9.0f, 3.0f};
-        Memory_Arena *world_arena = &gameState->worldArena;
-        ChunkHashmap *chunk_hashmap = &gameState->world->chunkHashmap;
+        game_state->world           = push_struct(&game_state->world_arena, World);
+        World *world                = game_state->world;
+        world->chunkDim             = {17.0f, 9.0f, 3.0f};
+        Memory_Arena *world_arena   = &game_state->world_arena;
+        ChunkHashmap *chunk_hashmap = &game_state->world->chunkHashmap;
 
-
-        gameState->player = push_entity(world_arena, chunk_hashmap, eEntity_Player, Position{});
-
-        push_entity(world_arena, chunk_hashmap, eEntity_Familiar, {0, 0, 0, v3{3.0f, 0.0f, 0.0f}});
-
-
-#if 1
-        Chunk *chunk = get_chunk(&gameState->worldArena, chunk_hashmap, gameState->player->pos);
+        Chunk *chunk = get_chunk(&game_state->world_arena, chunk_hashmap, Chunk_Position{});
         v3 dim = {1.0f, 1.0f, 1.0f};
 
-        for (s32 X = -8; X <= 8; ++X) {
-            for (s32 Y = -4; Y <= 4; ++Y) {
-                Position tile_pos = {chunk->chunkX, chunk->chunkY, chunk->chunkZ};
+        for (s32 X = -8; X <= 8; ++X) 
+        {
+            for (s32 Y = -4; Y <= 4; ++Y) 
+            {
+                Chunk_Position tile_pos = {chunk->chunkX, chunk->chunkY, chunk->chunkZ};
                 tile_pos.offset.x += dim.x * X;
                 tile_pos.offset.y += dim.y * Y;
-                recalc_pos(&tile_pos, gameState->world->chunkDim);
+                recalc_pos(&tile_pos, game_state->world->chunkDim);
                 Entity *tile1 = push_entity(world_arena, chunk_hashmap,
-                                           eEntity_Tile, tile_pos);
-#if 1
+                                            eEntity_Tile, tile_pos);
                 Entity *tile2 = push_entity(world_arena, chunk_hashmap,
-                                           eEntity_Tile, tile_pos);
-                tile2->pos.chunkZ--;
-#endif
-                if (X == -8 || X == 8 || Y == -4 || Y == 4) {
-                    if (X != 0 && Y != 0) {
-                    // if (X == -8 && Y == -4) {
-                        Position pos1 = {chunk->chunkX, chunk->chunkY, chunk->chunkZ};
-                        Position pos2 = {chunk->chunkX, chunk->chunkY, chunk->chunkZ - 1};
-                        pos1.offset.x += dim.x * X;
-                        pos1.offset.y += dim.y * Y;
-                        pos2.offset.x += dim.x * X;
-                        pos2.offset.y += dim.y * Y;
-                        recalc_pos(&pos1, gameState->world->chunkDim);
-                        recalc_pos(&pos2, gameState->world->chunkDim);
-                        Entity *tree1 = push_entity(world_arena, chunk_hashmap, eEntity_Tree, pos1);
-                        Entity *tree2 = push_entity(world_arena, chunk_hashmap, eEntity_Tree, pos2);
-                        tree1->dim = dim;
-                        tree2->dim = dim;
-                    }
-                }
+                                            eEntity_Tile, tile_pos);
+                --tile2->pos.chunkZ;
             }
         }
-#endif
 
 #ifdef __DEBUG
         // debug memory.
-        init_arena(&gameState->debug_arena, gameMemory->debug_memory_size, (u8 *)gameMemory->debug_memory);
-        init_debug(&g_debug_log, &gameState->debug_arena);
+        init_arena(&game_state->debug_arena, game_memory->debug_memory_size, (u8 *)game_memory->debug_memory);
+        init_debug(&g_debug_log, &game_state->debug_arena);
 #endif
 
-        load_xbot(&gameState->worldArena, gameMemory->platform.debug_platform_read_file);
-        load_bone_hierarchy(&gameState->worldArena, gameMemory->platform.debug_platform_read_file);
-        load_animation(&gameState->worldArena, gameMemory->platform.debug_platform_read_file);
-        gameState->is_init = true;
+        Entity *xbot = push_entity(world_arena, chunk_hashmap, eEntity_XBot, Chunk_Position{});
+        game_state->player = xbot;
+
+        load_bone_hierarchy(&game_state->world_arena, game_memory->platform.debug_platform_read_file);
+
+        game_state->is_init = true;
     }
 
     TIMED_BLOCK();
@@ -577,126 +558,155 @@ GAME_MAIN(GameMain)
     //
     // Init Transient Memory
     //
-    void *transMem = gameMemory->transient_memory;
-    u64 transMemCap = gameMemory->transient_memory_size;
-    Assert(sizeof(TransientState) < transMemCap);
-    TransientState *transState = (TransientState *)transMem;
+    void *transMem  = game_memory->transient_memory;
+    u64 transMemCap = game_memory->transient_memory_size;
+    Assert(sizeof(Transient_State) < transMemCap);
+    Transient_State *trans_state = (Transient_State *)transMem;
 
-    if (!transState->isInit)
+    if (!trans_state->is_init)
     {
-
         // transient arena.
-        init_arena(&transState->transientArena,
-                MB(100),
-                (u8 *)transMem + sizeof(TransientState));
+        init_arena(&trans_state->transient_arena,
+                   MB(100),
+                   (u8 *)transMem + sizeof(Transient_State));
         
         // reserved memory for multi-thread work data.
         for (u32 idx = 0;
-             idx < array_count(transState->workArena);
+             idx < array_count(trans_state->workArena);
              ++idx) 
         {
-            WorkMemory_Arena *workSlot = transState->workArena + idx;
-            init_sub_arena(&workSlot->memoryArena, &transState->transientArena, MB(4));
+            WorkMemory_Arena *workSlot = trans_state->workArena + idx;
+            init_sub_arena(&workSlot->memoryArena, &trans_state->transient_arena, MB(4));
         }
         
         // asset arena.
-        init_arena(&transState->assetArena, MB(20),
-                   (u8 *)transMem + sizeof(TransientState) + transState->transientArena.size);
+        init_arena(&trans_state->assetArena,
+                   MB(20),
+                   (u8 *)transMem + sizeof(Transient_State) + trans_state->transient_arena.size);
 
-        transState->highPriorityQueue = gameMemory->highPriorityQueue;
-        transState->lowPriorityQueue = gameMemory->lowPriorityQueue;
-        // TODO: Ain't thrilled about it.
-        transState->gameAssets.debug_platform_read_file = gameMemory->platform.debug_platform_read_file;
+        trans_state->highPriorityQueue  = game_memory->highPriorityQueue;
+        trans_state->lowPriorityQueue   = game_memory->lowPriorityQueue;
+        Game_Assets *game_assets        = &trans_state->game_assets; // TODO: Ain't thrilled about it.
+        game_assets->read_entire_file   = game_memory->platform.debug_platform_read_file;
 
-        transState->gameAssets.playerBmp[0] = load_bmp(&gameState->worldArena, gameMemory->platform.debug_platform_read_file, "hero_red_right.bmp");
-        transState->gameAssets.playerBmp[1] = load_bmp(&gameState->worldArena, gameMemory->platform.debug_platform_read_file, "hero_red_left.bmp");
-        transState->gameAssets.familiarBmp[0] = load_bmp(&gameState->worldArena, gameMemory->platform.debug_platform_read_file, "hero_blue_right.bmp");
-        transState->gameAssets.familiarBmp[1] = load_bmp(&gameState->worldArena, gameMemory->platform.debug_platform_read_file, "hero_blue_left.bmp");
+        load_model(&game_assets->xbot_model, "xbot.3d", &game_state->world_arena, game_memory->platform.debug_platform_read_file);
+        load_model(&game_assets->cube_model, "cube.3d", &game_state->world_arena, game_memory->platform.debug_platform_read_file);
+        load_font(&game_state->world_arena, game_memory->platform.debug_platform_read_file, &trans_state->game_assets);
 
-        load_font(&gameState->worldArena, gameMemory->platform.debug_platform_read_file, &transState->gameAssets);
-
-        transState->isInit = true;  
+        trans_state->is_init = true;  
    }
 
-    Bitmap draw_buffer   = {};
-    draw_buffer.width    = gameScreenBuffer->width;
-    draw_buffer.height   = gameScreenBuffer->height;
-    draw_buffer.pitch    = gameScreenBuffer->pitch;
-    draw_buffer.memory   = gameScreenBuffer->memory;
+    f32 aspect_ratio = safe_ratio((f32)game_screen_buffer->width,
+                                  (f32)game_screen_buffer->height);
 
-    f32 aspect_ratio = safe_ratio((f32)draw_buffer.width,
-                                  (f32)draw_buffer.height);
-
-    TemporaryMemory renderMemory = begin_temporary_memory(&transState->transientArena);
+    Temporary_Memory render_memory = begin_temporary_memory(&trans_state->transient_arena);
 
 
 
-    Render_Group *render_group = alloc_render_group(&transState->transientArena,
+    Render_Group *render_group = alloc_render_group(&trans_state->transient_arena,
                                                     false,
                                                     aspect_ratio);
 
-    v3 chunkDim = gameState->world->chunkDim;
-    f32 dt = gameInput->dt_per_frame;
+    v3 chunkDim = game_state->world->chunkDim;
+    f32 dt = game_input->dt_per_frame;
 
     //
     // Process Input
     //
-    Entity *player = gameState->player;
+    local_persist v3    tmp_world_translation   = _v3_(0, 0, 0);
+    local_persist qt    tmp_world_rotation      = _qt_(1, 0, 0, 0);
+    local_persist v3    tmp_world_scaling       = _v3_(1, 1, 1);
+    local_persist f32   theta                   = 0.0f;
+    Entity *player = game_state->player;
     player->accel = {};
-    if (gameInput->move_up.is_set) { player->accel.y = 1.0f; }
-    if (gameInput->move_down.is_set) { player->accel.y = -1.0f; }
-    if (gameInput->move_left.is_set) { player->accel.x = -1.0f; }
-    if (gameInput->move_right.is_set) { player->accel.x = 1.0f; }
-    if (player->accel.x != 0.0f && player->accel.y != 0.0f) 
+    if (game_input->move_up.is_set)
+    {
+        m4x4 rotation = to_m4x4(tmp_world_rotation);
+        v3 d = rotation * _v3_(0, 0, dt * 2.0f);
+        tmp_world_translation += d;
+    }
+    if (game_input->move_down.is_set)
+    {
+        m4x4 rotation = to_m4x4(tmp_world_rotation);
+        v3 d = rotation * _v3_(0, 0, dt * 2.0f);
+        tmp_world_translation -= d;
+    }
+    if (game_input->move_right.is_set)
+    {
+        theta -= dt * 1.0f;
+        tmp_world_rotation = _qt_(cos(theta), 0, sin(theta), 0);
+    }
+    if (game_input->move_left.is_set)
+    {
+        theta += dt * 1.0f;
+        tmp_world_rotation = _qt_(cos(theta), 0, sin(theta), 0);
+    }
+#if 0
+    if (game_input->move_up.is_set)     { player->accel.z =  1.0f; }
+    if (game_input->move_down.is_set)   { player->accel.z = -1.0f; }
+    if (game_input->move_left.is_set)   { player->accel.x = -1.0f; }
+    if (game_input->move_right.is_set)  { player->accel.x =  1.0f; }
+    if (player->accel.x != 0.0f &&
+        player->accel.z != 0.0f) 
     {
         player->accel *= 0.707106781187f;
     }
+#endif
 
 #ifdef __DEBUG
-    if (gameInput->toggle_debug.is_set) {
-        if (gameState->debug_toggle_delay == 0.0f) {
-            gameState->debug_toggle_delay = 0.1f;
-            if (gameState->debug_mode) {
-                gameState->debug_mode = false;
-            } else {
-                gameState->debug_mode = true;
+    if (game_input->toggle_debug.is_set) 
+    {
+        if (game_state->debug_toggle_delay == 0.0f) 
+        {
+            game_state->debug_toggle_delay = 0.1f;
+            if (game_state->debug_mode) 
+            {
+                game_state->debug_mode = false;
+            } 
+            else 
+            {
+                game_state->debug_mode = true;
             }
         }
     }
-    gameState->debug_toggle_delay -= dt;
-    if (gameState->debug_toggle_delay < 0.0f) {
-        gameState->debug_toggle_delay = 0.0f;
+    game_state->debug_toggle_delay -= dt;
+    if (game_state->debug_toggle_delay < 0.0f) 
+    {
+        game_state->debug_toggle_delay = 0.0f;
     }
 #endif
 
 
-
-    Position camPos = Position{};
-    v3 camDim = {100.0f, 50.0f, 5.0f};
-    Position minPos = camPos;
-    Position maxPos = camPos;
+    Chunk_Position camPos = Chunk_Position{};
+    v3 camDim       = {100.0f, 50.0f, 5.0f};
+    Chunk_Position minPos = camPos;
+    Chunk_Position maxPos = camPos;
     minPos.offset -= 0.5f * camDim;
     maxPos.offset += 0.5f * camDim;
     recalc_pos(&minPos, chunkDim);
     recalc_pos(&maxPos, chunkDim);
 
+
     //
     // Update entities
     //
-    update_entities(gameState, dt, minPos, maxPos);
+    update_entities(game_state, dt, minPos, maxPos);
 
 
     //
     // Render entities
     //
-    gameState->time += 0.01f;
+    game_state->time += 0.01f;
 
 #if __DEBUG
-    if (gameInput->alt.is_set) {
-        Mouse_Input *mouse = &gameInput->mouse;
+    if (game_input->alt.is_set) 
+    {
+        Mouse_Input *mouse = &game_input->mouse;
         f32 c = 2.0f;
-        if (mouse->is_down[eMouse_Left]) {
-            if (mouse->toggle[eMouse_Left]) {
+        if (mouse->is_down[eMouse_Left]) 
+        {
+            if (mouse->toggle[eMouse_Left]) 
+            {
                 g_debug_cam_last_mouse_p = mouse->P;
             }
             g_debug_cam_orbital_yaw     += (g_debug_cam_last_mouse_p.x - mouse->P.x) * c;
@@ -704,20 +714,20 @@ GAME_MAIN(GameMain)
             g_debug_cam_last_mouse_p    = mouse->P;
         }
 
-        if (mouse->wheel_delta) {
+        if (mouse->wheel_delta) 
+        {
             c = 0.5f;
             g_debug_cam_z -= c * mouse->wheel_delta;
         }
     }
-
 #endif
 
     //
     // @draw
     //
-    Game_Assets *gameAssets = &transState->gameAssets;
+    Game_Assets *game_assets = &trans_state->game_assets;
 
-#if 0
+#if 1
     for (s32 Z = minPos.chunkZ;
          Z <= maxPos.chunkZ;
          ++Z) 
@@ -730,206 +740,63 @@ GAME_MAIN(GameMain)
                  X <= maxPos.chunkX;
                  ++X) 
             {
-                Chunk *chunk = get_chunk(&gameState->worldArena,
-                                        &gameState->world->chunkHashmap, {X, Y, Z});
+                Chunk *chunk = get_chunk(&game_state->world_arena,
+                                         &game_state->world->chunkHashmap,
+                                         Chunk_Position{X, Y, Z});
                 for (Entity *entity = chunk->entities.head;
                      entity != 0;
                      entity = entity->next) 
                 {
 
                     v3 base = v3 {
-                        entity->pos.chunkX * gameState->world->chunkDim.x + entity->pos.offset.x,
-                            entity->pos.chunkY * gameState->world->chunkDim.y + entity->pos.offset.y,
-                            entity->pos.chunkZ * gameState->world->chunkDim.z + entity->pos.offset.z,
+                        entity->pos.chunkX * game_state->world->chunkDim.x + entity->pos.offset.x,
+                            entity->pos.chunkY * game_state->world->chunkDim.y + entity->pos.offset.y,
+                            entity->pos.chunkZ * game_state->world->chunkDim.z + entity->pos.offset.z,
                     };
-
-                    const f32 tilt_angle_z = 0.16f * pi32;
-                    const f32 tilt_angle_y = 0.01f * pi32;
 
                     switch (entity->type) 
                     {
-                        case eEntity_Player: 
+                        case eEntity_XBot: 
                         {
-                            s32 face = entity->face;
-                            v2 bmp_dim = v2{(f32)gameAssets->playerBmp[face]->width, (f32)gameAssets->playerBmp[face]->height};
-                            f32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
-                            f32 card_h = 1.8f;
-                            f32 card_w = card_h * bmp_height_over_width;
-                            push_quad(render_group,
-                                        v3{base.x - card_w * 0.5f, base.y, base.z},
-                                        v3{card_w * cos(tilt_angle_y), card_w * sin(tilt_angle_y), 0.0f},
-                                        v3{0.0f, card_h, sin(tilt_angle_z) * card_h},
-                                        gameAssets->playerBmp[face]);
+                            Asset_Model *model = game_assets->xbot_model;
+                            if (model)
+                            {
+                                if (entity->cur_anim)
+                                {
+                                    m4x4 *final_transforms = push_array(&trans_state->transient_arena, m4x4, MAX_BONE_PER_MESH);
+                                    build_animation_transform(model, model->root_bone_id,
+                                                              entity->cur_anim, entity->anim_dt,
+                                                              &g_bone_hierarchy,
+                                                              final_transforms,
+                                                              model->root_transform);
+                                    entity->anim_dt += dt;
+                                    if (entity->anim_dt > entity->cur_anim->duration)
+                                    {
+                                        entity->anim_dt = 0.0f;
+                                    }
 
-#if 0
-                            ///////////////////////////////////////////////////////
-                            //
-                            // Particle System Demo
-                            //
-                            v2 O = v2{cen.x, cen.y + 0.5f * bmpDim.y};
-                            v2 particleDim = ppm * v2{0.5f, 0.5f}; 
-                            f32 restitutionC = 0.8f;
-                            f32 gridSide = 0.2f;
-                            f32 gridSideInPixel = gridSide * ppm;
-                            v2 gridO = v2{O.x - (GRID_X / 2.0f) * gridSideInPixel, O.y};
-                            f32 invMax = 1.0f / 15.0f;
-
-
-#if 0
-                            // Draw debug grids showing density.
-                            for (s32 gridY = 0;
-                                 gridY < GRID_Y;
-                                 ++gridY) {
-                                for (s32 gridX = 0;
-                                     gridX < GRID_X;
-                                     ++gridX) {
-                                    PushRect(renderGroup,
-                                             v2{gridO.x + (f32)gridX * gridSideInPixel, gridO.y - (f32)(gridY + 1) * gridSideInPixel},
-                                             v2{gridO.x + (f32)(gridX + 1) * gridSideInPixel, gridO.y - (f32)gridY * gridSideInPixel},
-                                             v4{gameState->particleGrid[gridY][gridX].density * invMax, 0.0f, 0.0f, 1.0f});
+                                    m4x4 world_transform = trs_to_transform(tmp_world_translation,
+                                                                            tmp_world_rotation,
+                                                                            tmp_world_scaling);
+                                    for (u32 mesh_idx = 0;
+                                         mesh_idx < model->mesh_count;
+                                         ++mesh_idx)
+                                    {
+                                        push_skeletal_mesh(render_group, model->meshes + mesh_idx,
+                                                           world_transform, final_transforms);
+                                    }
                                 }
-                            }
-#endif
-
-                            zero_struct(gameState->particleGrid);
-
-                            // Create
-                            for (s32 cnt = 0;
-                                 cnt < 4; // TODO: This actually has to be particles per frame.
-                                 ++cnt) {
-                                Particle *particle = gameState->particles + gameState->particleNextIdx++;
-                                if (gameState->particleNextIdx >= array_count(gameState->particles)) {
-                                    gameState->particleNextIdx = 0; 
-                                }
-
-                                particle->P = v3{RandRange(&gameState->particleRandomSeries, -0.2f, 0.2f), 0.0f, 0.0f};
-                                particle->V = v3{RandRange(&gameState->particleRandomSeries, -0.5f, 0.5f), RandRange(&gameState->particleRandomSeries, 7.0f, 8.0f), 0.0f};
-                                particle->alpha = 0.01f;
-                                particle->dAlpha = 1.0f;
-                            }
-
-                            // Simulate and Render
-                            for (s32 particleIdx = 0;
-                                 particleIdx < array_count(gameState->particles);
-                                 ++particleIdx) {
-                                Particle *particle = gameState->particles + particleIdx; 
-
-                                // Integrate gravity.
-                                particle->A = v3{0.0f, -9.81f, 0.0f};
-                                particle->V += dt * particle->A;
-
-                                // Iterate particles and add grid info.
-                                v2 P = O + v2{particle->P.x * ppm, -particle->P.y * ppm} - gridO;
-                                s32 gridX = Clamp(FloorR32ToS32(P.x) / (s32)gridSideInPixel, 0, GRID_X - 1);
-                                s32 gridY = Clamp(FloorR32ToS32(-P.y) / (s32)gridSideInPixel, 0, GRID_Y - 1);
-                                f32 density = particle->alpha;
-                                ParticleCel *cel = &gameState->particleGrid[gridY][gridX];
-                                cel->density += density;
-                                cel->V = particle->V;
-                            }
-
-                            for (u32 gridY = 0;
-                                 gridY < GRID_Y - 1;
-                                 ++gridY) {
-                                for (u32 gridX = 0;
-                                     gridX < GRID_X - 1;
-                                     ++gridX) {
-                                    // Projection
-                                    ParticleCel *cel = &gameState->particleGrid[gridY][gridX];
-                                    ParticleCel *right   = &gameState->particleGrid[gridY][gridX + 1];
-                                    ParticleCel *up      = &gameState->particleGrid[gridY + 1][gridX];
-
-                                    f32 overRelaxation = 1.9f;
-                                    f32 div = overRelaxation * (
-                                                                -cel->V.x
-                                                                -cel->V.y
-                                                                +right->V.x
-                                                                +up->V.y);
-                                    f32 quarterD = div * 0.25f;
-                                    cel->V.x   += 0.25f * quarterD;
-                                    cel->V.y   += 0.25f * quarterD;
-                                    right->V.x -= 0.25f * quarterD;
-                                    up->V.y    -= 0.25f * quarterD;
-                                }
-                            }
-
-                            for (s32 particleIdx = 0;
-                                 particleIdx < array_count(gameState->particles);
-                                 ++particleIdx) {
-                                Particle *particle = gameState->particles + particleIdx;
-                                v2 P = O + v2{particle->P.x * ppm, -particle->P.y * ppm} - gridO;
-                                s32 gridX = Clamp(FloorR32ToS32(P.x) / (s32)gridSideInPixel, 0, GRID_X - 1);
-                                s32 gridY = Clamp(FloorR32ToS32(-P.y) / (s32)gridSideInPixel, 0, GRID_Y - 1);
-                                particle->V = gameState->particleGrid[gridY][gridX].V;
-
-                                particle->P += dt * particle->V;
-                                if (particle->alpha > 0.9f) {
-                                    particle->dAlpha *= -1.0f;
-                                }
-                                particle->alpha += dt * particle->dAlpha;
-                                if (particle->alpha <= 0.0f) {
-                                    particle->alpha = 0.01f;
-                                }
-
-                                // Bounce
-                                if (particle->P.y < -0.0f) {
-                                    particle->P.y = 0.0f;
-                                    particle->V.y *= -restitutionC;
-                                }
-
-                                // Render Particle
-                                v2 particleCen = cen + ppm * v2{particle->P.x, -particle->P.y};
-                                particleCen.y += bmpDim.y * 0.5f;
-                                f32 scale = 0.3f;
-                                Bitmap *bitmap = GetBitmap(transState, GAI_Particle, transState->lowPriorityQueue, &gameMemory->platform);
-                                if (bitmap) {
-                                    push_quad(renderGroup, base,
-                                                particleCen - 0.5f * particleDim,
-                                                v2{particleDim.x * scale, 0}, v2{0, particleDim.y * scale},
-                                                bitmap, v4{1.0f, 1.0f, 1.0f, particle->alpha});
+                                else
+                                {
+                                    // TODO: for now.
+                                    entity->cur_anim = model->anims;
                                 }
 
                             }
-#endif
-
-                        } break;
-
-                        case eEntity_Tree: 
-                        {
-                            Bitmap *bitmap = GetBitmap(transState, GAI_Tree, transState->lowPriorityQueue, &gameMemory->platform);
-                            if (bitmap) {
-                                v2 bmp_dim = v2{(f32)bitmap->width, (f32)bitmap->height};
-                                f32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
-                                f32 card_h = 2.0f;
-                                f32 card_w = card_h * bmp_height_over_width;
-                                push_quad(render_group,
-                                            v3{base.x - card_w * 0.5f, base.y, base.z},
-                                            v3{card_w * cos(tilt_angle_y), card_w * sin(tilt_angle_y), 0.0f},
-                                            v3{0.0f, card_h, sin(tilt_angle_z) * card_h},
-                                            bitmap);
-                            }
-                        } break;
-
-                        case eEntity_Familiar: 
-                        {
-                            s32 face = entity->face;
-                            v2 bmp_dim = v2{(f32)gameAssets->familiarBmp[face]->width, (f32)gameAssets->familiarBmp[face]->height};
-                            f32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
-                            f32 card_h = 1.8f;
-                            f32 card_w = card_h * bmp_height_over_width;
-                            push_quad(render_group,
-                                        v3{base.x - card_w * 0.5f, base.y, base.z},
-                                        v3{card_w * cos(tilt_angle_y), card_w * sin(tilt_angle_y), 0.0f},
-                                        v3{0.0f, card_h, sin(tilt_angle_z) * card_h},
-                                        gameAssets->familiarBmp[face]);
                         } break;
 
                         case eEntity_Tile: 
                         {
-                            f32 radius = entity->dim.x * 0.5f;
-                            f32 height = entity->dim.z;
-                            push_cube(render_group, base, radius, height,
-                                      V4(0.2f, 0.3f, 0.1f, 1.0f));
                         } break;
 
                         INVALID_DEFAULT_CASE
@@ -941,52 +808,30 @@ GAME_MAIN(GameMain)
     }
 #endif
 
-#if 1
-    //
-    // play debug animation
-    //
-    local_persist f32 anim_dt = 0.0f;
-    Asset_Mesh *mesh = xbot_model.meshes;
-    m4x4 *final_transforms = push_array(&transState->transientArena, m4x4, MAX_BONE_PER_MESH);
-    m4x4 *at = final_transforms;
-    build_animation_transform(&xbot_model, xbot_model.root_bone_id,
-                              &g_anim, anim_dt,
-                              &g_bone_hierarchy,
-                              final_transforms,
-                              xbot_model.root_transform);
-    anim_dt += dt;
-    if (anim_dt > g_anim.duration)
-    {
-        anim_dt = 0.0f;
-    }
-    push_mesh(render_group, mesh, final_transforms);
-    push_mesh(render_group, mesh + 1, final_transforms);
-#endif
 
 
 
-    render_group_to_output_batch(render_group, &gameMemory->render_batch);
-    end_temporary_memory(&renderMemory);
+    render_group_to_output_batch(render_group, &game_memory->render_batch);
+    end_temporary_memory(&render_memory);
 
 
     //
     // Debug Overlay
     //
 #ifdef __DEBUG
-    TemporaryMemory debug_render_memory = begin_temporary_memory(&gameState->debug_arena);
-    Render_Group *debug_render_group = alloc_render_group(&gameState->debug_arena, true, aspect_ratio);
+    Temporary_Memory debug_render_memory = begin_temporary_memory(&game_state->debug_arena);
+    Render_Group *debug_render_group = alloc_render_group(&game_state->debug_arena, true, aspect_ratio);
 
-    if (gameState->debug_mode)
+    if (game_state->debug_mode)
     {
-        display_debug_info(&g_debug_log, debug_render_group, gameAssets, &gameState->debug_arena);
+        display_debug_info(&g_debug_log, debug_render_group, game_assets, &game_state->debug_arena);
     }
     end_debug_log(&g_debug_log);
 
-    render_group_to_output_batch(debug_render_group, &gameMemory->render_batch);
+    render_group_to_output_batch(debug_render_group, &game_memory->render_batch);
     end_temporary_memory(&debug_render_memory);
 #endif
 }
-
 
 internal void
 init_debug(Debug_Log *debug_log, Memory_Arena *arena)
@@ -1014,17 +859,17 @@ display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets
 {
     for (u32 record_idx = 0;
             record_idx < debug_log->record_width;
-            ++record_idx) {
+            ++record_idx) 
+    {
         Debug_Info *info = g_debug_log.debug_infos + record_idx;
         size_t size = 1024;
         char *buf = push_array(arena, char, size);
-        // TODO: remove CRT.
         _snprintf(buf, size,
                   "%20s(%4d): %10I64uavg_cyc",
                   info->function,
                   info->line,
                   info->avg_cycles);
-        // push_text(render_group, v3{0.0f, 0.0f, 0.0f}, buf, game_assets);
+        // push_text(render_group, _v3_(0.0f, 0.0f, 0.0f), buf, game_assets);
 
 #if 1
         // draw graph.
@@ -1032,7 +877,8 @@ display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets
         f32 max_height = (f32)game_assets->v_advance;
         f32 width = 2.0f;
         f32 inv_max_cycles = 0.0f;
-        if (info->max_cycles != 0.0f) {
+        if (info->max_cycles != 0.0f) 
+        {
             inv_max_cycles = 1.0f / info->max_cycles;
         }
 

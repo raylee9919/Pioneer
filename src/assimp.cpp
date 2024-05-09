@@ -6,6 +6,10 @@
    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
+/*
+    TODO: - bone hierarchy and animation are 'model'-specific, I guess...?
+ */
+
 #include <cstdio>
 #include <vector>
 #include <unordered_map>
@@ -24,6 +28,14 @@
 #define max(A, B) (A > B ? A : B)
 #define min(A, B) (A < B ? A : B)
 #define assert(EXP) if (!(EXP)) { *(volatile int *)0 = 0; }
+#define KNRM  "\x1B[0m"
+#define KRED  "\x1B[31m"
+#define KGRN  "\x1B[32m"
+#define KYEL  "\x1B[33m"
+#define KBLU  "\x1B[34m"
+#define KMAG  "\x1B[35m"
+#define KCYN  "\x1B[36m"
+#define KWHT  "\x1B[37m"
 
 #include "types.h"
 #include "assimp.h"
@@ -31,11 +43,8 @@
 
 static std::unordered_map<std::string, s32> g_bone_map;
 static u32 g_bone_map_used;
-static std::unordered_map<std::string, u32> g_anim_map;
-static u32 g_anim_map_used;
 static std::vector<s32> g_bone_hierarchy[MAX_BONE_PER_MESH];
 static std::unordered_map<s32, u8> g_bone_visited;
-static std::vector<Asset_Animation> g_animations;
 
 static Memory_Arena
 init_memory_arena()
@@ -203,15 +212,25 @@ get_bone_id(aiString ai_bone_name)
     return id;
 }
 
-//
-// IMPORTANT: This program assumes that,
-//            if an identical bone-name exists between two models,
-//            they have identical set of bones and a hierarchy.
-//
+static void
+parse_model_file_name(char *model_file_name, const char *file_name)
+{
+    const char *src_at = file_name;
+    char *dst_at = model_file_name;
+    while (*src_at != '.')
+    {
+        *dst_at++ = *src_at++;
+    }
+    *dst_at++ = '.';
+    *dst_at++ = '3';
+    *dst_at++ = 'd';
+    *dst_at++ = 0;
+}
+
 int
 main(int argc, char **argv)
 {
-    Memory_Arena arena = init_memory_arena();
+    Memory_Arena arena      = init_memory_arena();
     Asset_Model asset_model = {};
 
     for (u32 file_count = 0;
@@ -224,14 +243,15 @@ main(int argc, char **argv)
 
         if (model)
         {
-            print_nodes(model->mRootNode, 0);
+            // print_nodes(model->mRootNode, 0);
             printf("success: load model '%s'.\n", file_name);
             printf("  mesh count      : %d\n", model->mNumMeshes);
             printf("  texture count   : %d\n", model->mNumTextures);
             printf("  animation count : %d\n", model->mNumAnimations);
 
 
-            const char *model_file_name = "models.pack";
+            char model_file_name[32];
+            parse_model_file_name(model_file_name, file_name);
             FILE *model_out = fopen(model_file_name, "wb");
             if (model_out)
             {
@@ -426,21 +446,22 @@ main(int argc, char **argv)
                         fwrite(asset_mesh->indices, sizeof(u32) * asset_mesh->index_count, 1, model_out);
                     }
 
-                    m4x4 model_root_transform           = ai_m4x4_to_m4x4(model->mRootNode->mTransformation);
                     u32  model_bone_count               = (u32)model_bones.size();
-                    s32  model_root_bone_id             = get_bone_id(find_root_bone_node(model->mRootNode)->mName);
-                    fwrite(&model_root_transform, sizeof(m4x4), 1, model_out);
                     fwrite(&model_bone_count, sizeof(u32), 1, model_out);
-                    fwrite(&model_root_bone_id, sizeof(s32), 1, model_out);
-                    for (auto &[id, model_bone] : model_bones)
+                    if (model_bone_count)
                     {
-                        fwrite(&model_bone.bone_id, sizeof(s32), 1, model_out);
-                        fwrite(&model_bone.offset, sizeof(m4x4), 1, model_out);
-                        fwrite(&model_bone.transform, sizeof(m4x4), 1, model_out);
+                        s32  model_root_bone_id     = get_bone_id(find_root_bone_node(model->mRootNode)->mName);
+                        m4x4 model_root_transform   = ai_m4x4_to_m4x4(model->mRootNode->mTransformation);
+                        fwrite(&model_root_bone_id, sizeof(s32), 1, model_out);
+                        fwrite(&model_root_transform, sizeof(m4x4), 1, model_out);
+                        for (auto &[id, model_bone] : model_bones)
+                        {
+                            fwrite(&model_bone.bone_id, sizeof(s32), 1, model_out);
+                            fwrite(&model_bone.offset, sizeof(m4x4), 1, model_out);
+                            fwrite(&model_bone.transform, sizeof(m4x4), 1, model_out);
+                        }
                     }
 
-                    printf("success: written '%s'\n", model_file_name);
-                    fclose(model_out);
                 }
                 else
                 {
@@ -481,7 +502,80 @@ main(int argc, char **argv)
 
                 build_skeleton(model->mRootNode, -1);
 
+                //
+                // Animation
+                //
+                u32 anim_count = model->mNumAnimations;
+                fwrite(&anim_count, sizeof(u32), 1, model_out);
+                if (anim_count)
+                {
+                    for (s32 anim_id = 0;
+                         anim_id < (s32)anim_count;
+                         ++anim_id)
+                    {
+                        aiAnimation *anim       = model->mAnimations[anim_id];
+                        f32 spt                 = 1.0f / (f32)anim->mTicksPerSecond;
+                        f32 anim_duration       = (f32)(anim->mDuration / anim->mTicksPerSecond);
+                        u32 bone_count          = anim->mNumChannels;
 
+                        fwrite(&anim_id, sizeof(s32), 1, model_out);
+                        fwrite(&anim_duration, sizeof(f32), 1, model_out);
+                        fwrite(&bone_count, sizeof(u32), 1, model_out);
+
+                        for (u32 bone_idx = 0;
+                             bone_idx < bone_count;
+                             ++bone_idx)
+                        {
+                            aiNodeAnim *bone                 = anim->mChannels[bone_idx];
+
+                            s32 bone_id = get_bone_id(bone->mNodeName);
+                            fwrite(&bone_id, sizeof(s32), 1, model_out);
+
+                            u32 translation_count = bone->mNumPositionKeys;
+                            fwrite(&translation_count, sizeof(u32), 1, model_out);
+
+                            u32 rotation_count = bone->mNumRotationKeys;
+                            fwrite(&rotation_count, sizeof(u32), 1, model_out);
+
+                            u32 scaling_count = bone->mNumScalingKeys;
+                            fwrite(&scaling_count, sizeof(u32), 1, model_out);
+
+                            for (u32 idx = 0;
+                                 idx < translation_count;
+                                 ++idx)
+                            {
+                                aiVectorKey *key = bone->mPositionKeys + idx;
+                                f32 dt = (f32)key->mTime * spt;
+                                v3 vec = aiv3_to_v3(key->mValue);
+                                fwrite(&dt, sizeof(f32), 1, model_out);
+                                fwrite(&vec, sizeof(v3), 1, model_out);
+                            }
+                            for (u32 idx = 0;
+                                 idx < rotation_count;
+                                 ++idx)
+                            {
+                                aiQuatKey *key = bone->mRotationKeys + idx;
+                                f32 dt = (f32)key->mTime * spt;
+                                qt q   = aiqt_to_qt(key->mValue);
+                                fwrite(&dt, sizeof(f32), 1, model_out);
+                                fwrite(&q, sizeof(qt), 1, model_out);
+                            }
+                            for (u32 idx = 0;
+                                 idx < scaling_count;
+                                 ++idx)
+                            {
+                                aiVectorKey *key = bone->mScalingKeys + idx;
+                                f32 dt = (f32)key->mTime * spt;
+                                v3 vec = aiv3_to_v3(key->mValue);
+                                fwrite(&dt, sizeof(f32), 1, model_out);
+                                fwrite(&vec, sizeof(v3), 1, model_out);
+                            }
+                        }
+                    }
+                }
+
+                printf("success: written '%s'\n", model_file_name);
+                fclose(model_out);
             }
             else
             {
@@ -490,79 +584,6 @@ main(int argc, char **argv)
             }
 
 
-            //
-            // Animation
-            //
-            if (model->HasAnimations())
-            {
-                for (u32 anim_idx = 0;
-                     anim_idx < model->mNumAnimations;
-                     ++anim_idx)
-                {
-                    aiAnimation *anim = model->mAnimations[anim_idx];
-                    std::string anim_name(anim->mName.data);
-                    Asset_Animation stub_anim = {};
-                    g_animations.push_back(stub_anim);
-                    Asset_Animation *asset_anim = &g_animations.back();
-                    f32 spt = 1.0f / (f32)anim->mTicksPerSecond;
-
-                    if (g_anim_map.find(anim_name) == g_anim_map.end())
-                    {
-                        s32 anim_id             = g_anim_map_used;
-                        g_anim_map[anim_name]   = g_anim_map_used++;
-                        f32 anim_duration       = (f32)(anim->mDuration / anim->mTicksPerSecond);
-                        asset_anim->id          = anim_id;
-                        asset_anim->duration    = anim_duration;
-                        asset_anim->bone_count  = anim->mNumChannels;
-                        asset_anim->bones       = push_array(&arena, Asset_Animation_Bone, asset_anim->bone_count);
-
-                        for (u32 bone_idx = 0;
-                             bone_idx < anim->mNumChannels;
-                             ++bone_idx)
-                        {
-                            aiNodeAnim *bone = anim->mChannels[bone_idx];
-                            Asset_Animation_Bone *asset_bone = (asset_anim->bones + bone_idx);
-                            asset_bone->bone_id             = get_bone_id(bone->mNodeName);
-                            asset_bone->translation_count   = bone->mNumPositionKeys;
-                            asset_bone->rotation_count      = bone->mNumRotationKeys;
-                            asset_bone->scaling_count       = bone->mNumScalingKeys;
-                            asset_bone->translations        = push_array(&arena, dt_v3_Pair, asset_bone->translation_count);
-                            asset_bone->rotations           = push_array(&arena, dt_qt_Pair, asset_bone->rotation_count);
-                            asset_bone->scalings            = push_array(&arena, dt_v3_Pair, asset_bone->scaling_count);
-                            for (u32 idx = 0;
-                                 idx < asset_bone->translation_count;
-                                 ++idx)
-                            {
-                                dt_v3_Pair *asset_translation = (asset_bone->translations + idx);
-                                aiVectorKey *key = bone->mPositionKeys + idx;
-                                asset_translation->dt   = (f32)key->mTime * spt;
-                                asset_translation->vec  = aiv3_to_v3(key->mValue);
-                            }
-                            for (u32 idx = 0;
-                                 idx < asset_bone->rotation_count;
-                                 ++idx)
-                            {
-                                dt_qt_Pair *asset_rotation = (asset_bone->rotations + idx);
-                                aiQuatKey *key = bone->mRotationKeys + idx;
-                                asset_rotation->dt  = (f32)key->mTime * spt;
-                                asset_rotation->q   = aiqt_to_qt(key->mValue);
-                            }
-                            for (u32 idx = 0;
-                                 idx < asset_bone->scaling_count;
-                                 ++idx)
-                            {
-                                dt_v3_Pair *asset_scaling = (asset_bone->scalings + idx);
-                                aiVectorKey *key = bone->mScalingKeys + idx;
-                                asset_scaling->dt   = (f32)key->mTime * spt;
-                                asset_scaling->vec  = aiv3_to_v3(key->mValue);
-                            }
-                        }
-                    }
-                    else
-                    {
-                    }
-                }
-            }
 
 
         }
@@ -617,6 +638,13 @@ main(int argc, char **argv)
         exit(1);
     }
 
+    printf("*** SUCCESSFUL! ***\n");
+    return 0;
+}
+
+
+
+#if 0
     //
     // Global Animations
     //
@@ -654,7 +682,4 @@ main(int argc, char **argv)
         printf("error: couldn't open file '%s' to write.\n", anim_file_name);
         exit(1);
     }
-
-    printf("*** SUCCESSFUL! ***\n");
-    return 0;
-}
+#endif

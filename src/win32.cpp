@@ -853,7 +853,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     FILETIME game_dll_time_last = {};
     FILETIME game_dll_time = {};
 
-    GameMain_ *game_main = 0;
+    Game_Main *game_main = 0;
     Game_Input game_input = {};
 
     //
@@ -871,9 +871,12 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             }
             CopyFileA(game_dll_abs_path, game_dll_load_abs_path, FALSE);
             game_dll = LoadLibraryA(game_dll_load_filename);
-            if (game_dll) { 
-                game_main = (GameMain_*)GetProcAddress(game_dll, "GameMain");
-            } else {
+            if (game_dll) 
+            { 
+                game_main = (Game_Main *)GetProcAddress(game_dll, "game_main");
+            } 
+            else 
+            {
                 // TODO: Diagnostic 
             }
             game_dll_time_last = game_dll_time;

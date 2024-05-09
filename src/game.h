@@ -12,9 +12,11 @@
 #define array_count(array) ( sizeof(array) / sizeof(array[0]) )
 #define zero_struct(Struct) clear_to_zero(sizeof(Struct), Struct)
 internal void
-clear_to_zero(size_t size, void *data) {
+clear_to_zero(size_t size, void *data) 
+{
     u8 *at = (u8 *)data;
-    while (size--) {
+    while (size--) 
+    {
         *at++ = 0;
     }
 }
@@ -37,7 +39,7 @@ struct Memory_Arena
     u32 tempCount;
 };
 
-struct TemporaryMemory 
+struct Temporary_Memory 
 {
     Memory_Arena *memoryArena;
     // simply stores what was the used amount before.
@@ -47,46 +49,45 @@ struct TemporaryMemory
 
 struct WorkMemory_Arena 
 {
-    b32 isUsed;
-    Memory_Arena memoryArena;
-    TemporaryMemory flush;
+    b32                 isUsed;
+    Memory_Arena        memoryArena;
+    Temporary_Memory    flush;
 };
 
-
-struct Position 
+struct Chunk_Position 
 {
-    s32 chunkX;
-    s32 chunkY;
-    s32 chunkZ;
-    v3  offset;
+    s32     chunkX;
+    s32     chunkY;
+    s32     chunkZ;
+    v3      offset;
 };
 
 enum Entity_Type 
 {
-    eEntity_Player,
-    eEntity_Familiar,
-    eEntity_Tree,
+    eEntity_XBot,
     eEntity_Tile,
-    eEntity_XBot
 };
-
 enum EntityFlag 
 {
     EntityFlag_Collides = 1
 };
-
 struct Entity 
 {
-    Entity_Type type;
-    Position    pos;
-    v3          dim;
-    v3          velocity;
-    v3          accel;
-    f32         u;
-    Bitmap      bmp;
-    u32         flags;
-    u32         face;
-    Entity      *next;
+    Entity_Type         type;
+    Chunk_Position      pos;
+
+#if 1
+    v3                  dim;
+    v3                  velocity;
+    v3                  accel;
+    f32                 u;
+    u32                 flags;
+#endif
+
+    Asset_Animation     *cur_anim;
+    f32                 anim_dt;
+
+    Entity              *next;
 };
 
 struct EntityList 
@@ -169,13 +170,16 @@ push_kerning(Kerning_Hashmap *hashmap, Kerning *kern, u32 entry_idx)
 {
     Assert(entry_idx < array_count(hashmap->entries));
     Kerning_List *list = hashmap->entries + entry_idx;
-    if (list->first) {
+    if (list->first) 
+    {
         list->last->next = kern;
         kern->prev = list->last;
         kern->next = 0;
         list->last = kern;
         ++list->count;
-    } else {
+    } 
+    else 
+    {
         list->first = kern;
         list->last = kern;
         kern->prev = 0;
@@ -183,87 +187,83 @@ push_kerning(Kerning_Hashmap *hashmap, Kerning *kern, u32 entry_idx)
         ++list->count;
     }
 }
+
 internal s32
-get_kerning(Kerning_Hashmap *hashmap, u32 first, u32 second) {
+get_kerning(Kerning_Hashmap *hashmap, u32 first, u32 second) 
+{
     s32 result = 0;
     u32 entry_idx = kerning_hash(hashmap, first, second);
     Assert(entry_idx < array_count(hashmap->entries));
     for (Kerning *at = hashmap->entries[entry_idx].first;
             at;
-            at = at->next) {
-        if (at->first == first && at->second == second) {
+            at = at->next) 
+    {
+        if (at->first == first && at->second == second) 
+        {
             result = at->value;
         }
     }
     return result;
 }
 
-struct Game_Assets {
-    Asset_State bitmapStates[GAI_Count];
-    Bitmap *bitmaps[GAI_Count];
+struct Game_Assets 
+{
+    Asset_State         bitmapStates[GAI_Count];
+    Bitmap              *bitmaps[GAI_Count];
 
-    Bitmap *playerBmp[2];
-    Bitmap *familiarBmp[2];
+    u32                 v_advance;
+    Kerning_Hashmap     kern_hashmap;
+    Asset_Glyph         *glyphs[256];
 
-    u32 v_advance;
-    Kerning_Hashmap kern_hashmap;
-    Asset_Glyph *glyphs[256];
+    Asset_Model         *xbot_model;
+    Asset_Model         *cube_model;
 
-    Read_Entire_File *debug_platform_read_file;
+    Read_Entire_File    *read_entire_file;
 };
 
-struct Load_Asset_Work_Data {
-    Game_Assets         *gameAssets;
+struct Load_Asset_Work_Data 
+{
+    Game_Assets         *game_assets;
     Memory_Arena        *assetArena;
     Asset_ID            assetID;
     const char          *fileName;
     WorkMemory_Arena    *workSlot;
 };
 
-struct Game_State {
-    b32 is_init;
-    f32 time;
+struct Game_State 
+{
+    b32             is_init;
+    f32             time;
 
-    Random_Series particleRandomSeries;
+    Entity          *player;
 
-    World *world;
-    Memory_Arena worldArena;
-
-    Memory_Arena renderArena;
-
-
-    Bitmap drawBuffer;
-
-    Entity *player;
-
-    Particle particles[512];
-    s32 particleNextIdx;
-
-#define GRID_X 30
-#define GRID_Y 20
-
-    ParticleCel particleGrid[GRID_Y][GRID_X];
+    World           *world;
+    Memory_Arena    world_arena;
+    Memory_Arena    renderArena;
 
     // debug.
-    f32 debug_toggle_delay;
-    b32 debug_mode;
-    Memory_Arena debug_arena;
+    f32             debug_toggle_delay;
+    b32             debug_mode;
+    Memory_Arena    debug_arena;
 };
 
-struct TransientState {
-    b32 isInit;
-    Memory_Arena transientArena;
-    PlatformWorkQueue *highPriorityQueue;
-    PlatformWorkQueue *lowPriorityQueue;
+struct Transient_State 
+{
+    b32                 is_init;
+    Memory_Arena        transient_arena;
+    PlatformWorkQueue   *highPriorityQueue;
+    PlatformWorkQueue   *lowPriorityQueue;
 
-    WorkMemory_Arena workArena[4];
+    WorkMemory_Arena    workArena[4];
 
-    Memory_Arena assetArena;
-    Game_Assets gameAssets;
+    Memory_Arena        assetArena;
+    Game_Assets         game_assets;
 };
 
 
 
-#define GAME_MAIN(name) void name(Game_Memory *gameMemory, Game_State *gameState, \
-        Game_Input *gameInput, Game_Screen_Buffer *gameScreenBuffer)
-typedef GAME_MAIN(GameMain_);
+#define GAME_MAIN(name) void name(Game_Memory *game_memory,                 \
+                                  Game_State *game_state,                   \
+                                  Game_Input *game_input,                   \
+                                  Game_Screen_Buffer *game_screen_buffer)
+typedef GAME_MAIN(Game_Main);

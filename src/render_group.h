@@ -6,13 +6,15 @@
     $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
     ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
-enum Render_Type {
+enum Render_Type 
+{
     eRender_Quad,
     eRender_Text,
-    eRender_Mesh,
+    eRender_Skeletal_Mesh,
 };
 
-struct Render_Entity_Header {
+struct Render_Entity_Header 
+{
     Render_Type type;
     u32         size;
     v3          base;
@@ -40,11 +42,12 @@ struct Render_Text
     v4 color;
 };
 
-struct Render_Mesh
+struct Render_Skeletal_Mesh
 {
-    Render_Entity_Header header;
-    Asset_Mesh  *mesh;
-    m4x4        *animation_transforms;
+    Render_Entity_Header    header;
+    Asset_Mesh              *mesh;
+    m4x4                    world_transform;
+    m4x4                    *animation_transforms;
 };
 
 struct Camera 

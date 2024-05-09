@@ -392,17 +392,6 @@ _v4_(f32 r, f32 g, f32 b, f32 a)
     return v;
 }
 
-inline v4
-V4(f32 r, f32 g, f32 b, f32 a)
-{
-    v4 result;
-    result.r = r;
-    result.g = g;
-    result.b = b;
-    result.a = a;
-    return result;
-}
-
 //
 // @quaternion
 //
@@ -474,7 +463,7 @@ operator * (f32 b, qt a)
 }
 
 inline qt
-operator - (const qt &in)
+operator - (qt in)
 {
     qt q = {};
     q.w = -in.w;
@@ -524,7 +513,13 @@ slerp(qt q1, f32 t, qt q2)
     }
 
     f32 sclp, sclq;
-    if (1.0f - cosom > epsilon_f32)
+#if 0
+    f32 threshold = epsilon_f32;
+#else
+    f32 threshold = 0.8f;
+#endif
+
+    if (1.0f - cosom > threshold)
     {
         f32 omega, sinom;
         omega = acos(cosom);
@@ -706,9 +701,9 @@ translate(m4x4 m, v3 t)
 }
 
 static m4x4
-rotate(m4x4 m, qt q) 
+to_m4x4(qt q) 
 {
-    m4x4 result = m;
+    m4x4 result = identity();
     f32 w = q.w;
     f32 x = q.x;
     f32 y = q.y;
@@ -800,7 +795,7 @@ inline m4x4
 trs_to_transform(v3 translation, qt rotation, v3 scaling)
 {
     m4x4 T = translate(identity(), translation);
-    m4x4 R = rotate(identity(), rotation);
+    m4x4 R = to_m4x4(rotation);
     m4x4 S = scale(identity(), scaling);
     m4x4 result = T * R * S;
     return result;

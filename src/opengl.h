@@ -36,6 +36,7 @@ struct GL
 {
     s32     program;
 
+    s32     world_transform_id;
     s32     mvp_id;
     s32     texture_sampler_id;
     s32     cam_pos_id;

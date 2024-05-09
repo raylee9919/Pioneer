@@ -1,10 +1,10 @@
-/* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
+/* ========================================================================
    $File: $
    $Date: $
    $Revision: $
    $Creator: Sung Woo Lee $
    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-   ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
+   ======================================================================== */
 
 #define KB(N) (    N  * 1024ll )
 #define MB(N) ( KB(N) * 1024ll )
@@ -52,12 +52,14 @@ init_memory()
 }
 
 inline void
-deinit_memory() {
+deinit_memory() 
+{
     free(g_main_arena.base);
 }
 
 inline void
-flush(Memory_Arena *arena) {
+flush(Memory_Arena *arena) 
+{
     arena->used = 0;
 }
 ///////////////////////////////////////////////////////////////////////////////
@@ -66,7 +68,8 @@ flush(Memory_Arena *arena) {
 // Bitmap
 //
 static void
-write_bmp(const char *filename, FILE *out_file) {
+write_bmp(const char *filename, FILE *out_file) 
+{
     FILE *file = fopen(filename, "rb");
 
     if(file) {
@@ -138,17 +141,21 @@ write_bmp(const char *filename, FILE *out_file) {
 }
 
 static void *
-read_entire_file(const char *filename) {
+read_entire_file(const char *filename) 
+{
     void *result = 0;
     FILE *file = fopen(filename, "rb");
-    if (file) {
+    if (file) 
+    {
         fseek(file, 0, SEEK_END);
         size_t filesize = ftell(file);
         fseek(file, 0, SEEK_SET);
         result = push_size(filesize);
         Assert(fread(result, filesize, 1, file) == 1);
         fclose(file);
-    } else {
+    } 
+    else 
+    {
         printf("ERROR: Couldn't open file %s.\n", filename);
     }
     return result;
@@ -160,7 +167,8 @@ read_entire_file(const char *filename) {
 // Font Asset
 //
 static Asset_Glyph *
-bake_glyph(HDC hdc, u32 codepoint, void *bits, s32 bi_width, s32 bi_height, TEXTMETRIC metric) {
+bake_glyph(HDC hdc, u32 codepoint, void *bits, s32 bi_width, s32 bi_height, TEXTMETRIC metric) 
+{
     Asset_Glyph *result = push_struct(Asset_Glyph);
     wchar_t utf_codepoint = (wchar_t)codepoint;
     SIZE size;
@@ -307,14 +315,16 @@ bake_glyph(HDC hdc, u32 codepoint, void *bits, s32 bi_width, s32 bi_height, TEXT
 }
 
 static void
-error_handling(const char *str) {
+error_handling(const char *str) 
+{
     fputs(str, stderr);
     fputc('\n', stderr);
     exit(1);
 }
 
 static void
-bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_height) {
+bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_height) 
+{
     s32 bi_width = 1024;
     s32 bi_height = 1024;
     static HDC hdc = 0;
@@ -405,11 +415,12 @@ bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_heig
         fwrite(glyph->bitmap.memory, glyph->bitmap.size, 1, out);
     }
     
-    flush(&g_main_arena); // important: danger if you will use multi-threading.
+    flush(&g_main_arena); // IMPORTANT: danger if you will use multi-threading.
 }
 
 int
-main(int argc, char **argv) {
+main(int argc, char **argv) 
+{
     init_memory();
 
     Package package = {};
@@ -420,13 +431,14 @@ main(int argc, char **argv) {
 
 
     FILE *out = fopen("../data/asset.pack", "wb");
-    if (out) {
+    if (out) 
+    {
         bake_font("C:/Windows/Fonts/cour.ttf", "Courier New", out, 30);
-
-
         fclose(out);
         printf("*** SUCCESSFUL! ***\n");
-    } else {
+    } 
+    else 
+    {
         printf("ERROR: Couldn't open file.\n");
     }
 

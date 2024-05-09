@@ -242,3 +242,51 @@ draw_bitmap_fast(Bitmap *buffer, v2 origin, v2 axisX, v2 axisY, Bitmap *bmp, v4 
 
 }
 */
+
+#if 0
+                        case eEntity_Player: 
+                        {
+                            s32 face = entity->face;
+                            v2 bmp_dim = v2{(f32)game_assets->playerBmp[face]->width, (f32)game_assets->playerBmp[face]->height};
+                            f32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
+                            f32 card_h = 1.8f;
+                            f32 card_w = card_h * bmp_height_over_width;
+                            push_quad(render_group,
+                                      v3{base.x - card_w * 0.5f, base.y, base.z},
+                                      v3{card_w * cos(tilt_angle_y), card_w * sin(tilt_angle_y), 0.0f},
+                                      v3{0.0f, card_h, sin(tilt_angle_z) * card_h},
+                                      game_assets->playerBmp[face]);
+
+
+                        } break;
+
+                        case eEntity_Tree: 
+                        {
+                            Bitmap *bitmap = GetBitmap(trans_state, GAI_Tree, trans_state->lowPriorityQueue, &gameMemory->platform);
+                            if (bitmap) {
+                                v2 bmp_dim = v2{(f32)bitmap->width, (f32)bitmap->height};
+                                f32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
+                                f32 card_h = 2.0f;
+                                f32 card_w = card_h * bmp_height_over_width;
+                                push_quad(render_group,
+                                            v3{base.x - card_w * 0.5f, base.y, base.z},
+                                            v3{card_w * cos(tilt_angle_y), card_w * sin(tilt_angle_y), 0.0f},
+                                            v3{0.0f, card_h, sin(tilt_angle_z) * card_h},
+                                            bitmap);
+                            }
+                        } break;
+
+                        case eEntity_Familiar: 
+                        {
+                            s32 face = entity->face;
+                            v2 bmp_dim = v2{(f32)game_assets->familiarBmp[face]->width, (f32)gameAssets->familiarBmp[face]->height};
+                            f32 bmp_height_over_width = safe_ratio(bmp_dim.x, bmp_dim.y);
+                            f32 card_h = 1.8f;
+                            f32 card_w = card_h * bmp_height_over_width;
+                            push_quad(render_group,
+                                        v3{base.x - card_w * 0.5f, base.y, base.z},
+                                        v3{card_w * cos(tilt_angle_y), card_w * sin(tilt_angle_y), 0.0f},
+                                        v3{0.0f, card_h, sin(tilt_angle_z) * card_h},
+                                        game_assets->familiarBmp[face]);
+                        } break;
+#endif

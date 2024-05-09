@@ -8,7 +8,8 @@
 
 #include "render_group.h"
 
-#define push_render_entity(GROUP, STRUCT)  (STRUCT *)__push_render_entity(GROUP, sizeof(STRUCT), e##STRUCT)
+#define push_render_entity(GROUP, STRUCT)  \
+    (STRUCT *)__push_render_entity(GROUP, sizeof(STRUCT), e##STRUCT)
 internal Render_Entity_Header *
 __push_render_entity(Render_Group *renderGroup, u32 size, Render_Type type)
 {
@@ -23,6 +24,17 @@ __push_render_entity(Render_Group *renderGroup, u32 size, Render_Type type)
     return header;
 }
 
+
+internal void
+push_skeletal_mesh(Render_Group *group, Asset_Mesh *mesh,
+                   m4x4 world_transform, m4x4 *animation_transforms)
+{
+    Render_Skeletal_Mesh *piece = push_render_entity(group, Render_Skeletal_Mesh);
+    piece->mesh                 = mesh;
+    piece->world_transform      = world_transform;
+    piece->animation_transforms = animation_transforms;
+}
+
 #if 0
 internal void
 push_vertex(Render_Group *group, v3 P, v2 uv, v4 color, v3 normal)
@@ -32,15 +44,6 @@ push_vertex(Render_Group *group, v3 P, v2 uv, v4 color, v3 normal)
     group->vertices[group->vertex_count++] = vertex;
 }
 #endif
-
-internal void
-push_mesh(Render_Group *group, Asset_Mesh *mesh, m4x4 *animtion_transforms = 0)
-{
-    Render_Mesh *piece          = push_render_entity(group, Render_Mesh);
-    piece->mesh                 = mesh;
-    piece->animation_transforms = animtion_transforms;
-}
-
 
 #if 0
 internal void
@@ -62,13 +65,11 @@ push_quad(Render_Group *group, v3 O, v3 ax, v3 ay,
     push_vertex(group, V[2], v2{0, 1}, color, normal);
     push_vertex(group, V[3], v2{1, 1}, color, normal);
 
-    if (piece) 
-    {
-        piece->bitmap = bitmap;
-    }
+    piece->bitmap = bitmap;
 }
+#endif
 
-
+#if 0
 internal void
 push_cube(Render_Group *group,
           v3 base, f32 radius, f32 height, v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f})
@@ -96,17 +97,19 @@ push_cube(Render_Group *group,
     push_quad(group, V[0], V[1] - V[0], V[3] - V[0], 0, color);
     push_quad(group, V[5], V[4] - V[5], V[6] - V[5], 0, color);
 }
+#endif
 
+#if 0
 global_var f32 cen_y = 100.0f;
 internal void
 push_text(Render_Group *render_group, v3 base,
           const char *str, Game_Assets *game_assets,
           v4 color = v4{1.0f, 1.0f, 1.0f, 1.0f})
 {
-    f32 left_x = 40.0f;
-    f32 kern = 0.0f;
-    f32 C = 0.0f;
-    f32 A = 0.0f;
+    f32 left_x  = 40.0f;
+    f32 kern    = 0.0f;
+    f32 C       = 0.0f;
+    f32 A       = 0.0f;
 
     for (const char *ch = str;
          *ch;
@@ -121,7 +124,8 @@ push_text(Render_Group *render_group, v3 base,
                 Bitmap *bitmap = &glyph->bitmap;
                 f32 w = (f32)bitmap->width;
                 f32 h = (f32)bitmap->height;
-                // push_bitmap(render_group, v3{0.0f, 0.0f, 0.0f}, v2{left_x, cen_y - glyph->ascent}, v2{w, 0.0f}, v2{0.0f, h}, bitmap);
+                push_bitmap(render_group, _v3_(0.0f, 0.0f, 0.0f),
+                            _v2_(left_x, cen_y - glyph->ascent), _v2_(w, 0.0f), v2(0.0f, h), bitmap);
             }
             if (*(ch + 1))
             {
@@ -159,28 +163,37 @@ draw_text(Bitmap *buffer, Render_Text *info)
     f32 A = 0.0f;
     for (const char *ch = info->str;
             *ch;
-            ++ch) {
+            ++ch) 
+    {
         Asset_Glyph *glyph = info->game_assets->glyphs[*ch];
         Bitmap *bitmap = &glyph->bitmap;
-        if (info->game_assets->glyphs[*ch]) {
+        if (info->game_assets->glyphs[*ch]) 
+        {
             C = (f32)info->game_assets->glyphs[*ch]->C;
         }
-        if (glyph) {
+        if (glyph) 
+        {
             f32 w = (f32)bitmap->width;
             f32 h = (f32)bitmap->height;
             draw_bitmap_slow(buffer, v2{left_x, cen_y - glyph->ascent}, bitmap, info->color);
-            if (*(ch + 1)) {
+            if (*(ch + 1)) 
+            {
                 kern = (f32)get_kerning(&info->game_assets->kern_hashmap, *ch, *(ch + 1));
-                if (info->game_assets->glyphs[*(ch + 1)]) {
+                if (info->game_assets->glyphs[*(ch + 1)]) 
+                {
                     A = (f32)info->game_assets->glyphs[*(ch + 1)]->A;
                 }
                 f32 advance_x = (glyph->B + C + A + kern);
                 left_x += advance_x;
             }
-        } else if (*ch == ' ') {
+        } 
+        else if (*ch == ' ') 
+        {
             // TODO: horizontal advance info in asset.
             left_x += C + 10.0f;
-        } else {
+        } 
+        else 
+        {
 
         }
     }
