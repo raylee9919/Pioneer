@@ -540,12 +540,13 @@ GAME_MAIN(game_main)
                 Chunk_Position tile_pos = {chunk->x, chunk->y, chunk->z};
                 tile_pos.offset.x += dim.x * X;
                 tile_pos.offset.y += dim.y * Y;
+                Chunk_Position tile_pos2 = tile_pos;
+                tile_pos.z--;
                 recalc_pos(&tile_pos, game_state->world->chunk_dim);
                 Entity *tile1 = push_entity(world_arena, chunk_hashmap,
                                             eEntity_Tile, tile_pos, world->chunk_dim);
                 Entity *tile2 = push_entity(world_arena, chunk_hashmap,
-                                            eEntity_Tile, tile_pos, world->chunk_dim);
-                --tile2->chunk_pos.z;
+                                            eEntity_Tile, tile_pos2, world->chunk_dim);
             }
         }
 

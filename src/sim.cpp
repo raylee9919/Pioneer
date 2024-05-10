@@ -369,10 +369,17 @@ update_entities(Game_State *game_state, f32 dt,
                         case eEntity_XBot: 
                         {
                             update_entity_pos(game_state, entity, dt, sim_min, sim_max);
-                        }
+                        } break;
 
                         case eEntity_Tile: 
                         {
+                            f32 theta = acos(entity->world_rotation.w);
+                            theta += dt;
+                            if (theta > pi32)
+                            {
+                                theta -= pi32;
+                            }
+                            entity->world_rotation = _qt_(cos(theta), 0, 0, sin(theta));
                         } break;
 
                         INVALID_DEFAULT_CASE
