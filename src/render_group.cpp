@@ -36,6 +36,18 @@ push_skeletal_mesh(Render_Group *group, Asset_Mesh *mesh, Asset_Material *materi
     piece->animation_transforms = animation_transforms;
 }
 
+internal void
+push_static_mesh(Render_Group *group,
+                 Asset_Mesh *mesh,
+                 Asset_Material *material,
+                 m4x4 world_transform)
+{
+    Render_Static_Mesh *piece   = push_render_entity(group, Render_Static_Mesh);
+    piece->mesh                 = mesh;
+    piece->material             = material;
+    piece->world_transform      = world_transform;
+}
+
 #if 0
 internal void
 push_vertex(Render_Group *group, v3 P, v2 uv, v4 color, v3 normal)
@@ -203,10 +215,14 @@ draw_text(Bitmap *buffer, Render_Text *info)
 #endif
 
 internal Render_Group *
-alloc_render_group(Memory_Arena *arena, b32 ortho, f32 aspect_ratio)
+alloc_render_group(Render_Group_Type type,
+                   Memory_Arena *arena,
+                   b32 ortho,
+                   f32 aspect_ratio)
 {
     Render_Group *result = push_struct(arena, Render_Group);
     *result = {};
+    result->type                = type;
     result->capacity            = MB(4);
     result->base                = (u8 *)push_size(arena, result->capacity);
     result->used                = 0;

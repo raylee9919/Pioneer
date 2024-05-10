@@ -11,13 +11,14 @@ enum Render_Type
     eRender_Quad,
     eRender_Text,
     eRender_Skeletal_Mesh,
+    eRender_Static_Mesh
 };
 
 struct Render_Entity_Header 
 {
-    Render_Type type;
-    u32         size;
-    v3          base;
+    Render_Type     type;
+    u32             size;
+    v3              base;
 };
 
 //
@@ -51,6 +52,14 @@ struct Render_Skeletal_Mesh
     m4x4                    *animation_transforms;
 };
 
+struct Render_Static_Mesh
+{
+    Render_Entity_Header    header;
+    Asset_Mesh              *mesh;
+    Asset_Material          *material;
+    m4x4                    world_transform;
+};
+
 struct Camera 
 {
     b32     orthographic;
@@ -68,14 +77,26 @@ struct Textured_Vertex
     v3      normal;
 };
 
-struct Render_Group {
-    size_t          capacity;
-    size_t          used;
-    u8              *base;
-    Camera          camera;
+enum Render_Group_Type
+{
+    eRender_Group_Skeletal_Mesh,
+    eRender_Group_Static_Mesh,
+    eRender_Group_Text,
 
-    Textured_Vertex *vertices;
-    size_t          vertex_count;
-    size_t          varray_size;
+    eRender_Group_Count
+};
+
+struct Render_Group 
+{
+    Render_Group_Type   type;
+
+    size_t              capacity;
+    size_t              used;
+    u8                  *base;
+    Camera              camera;
+
+    Textured_Vertex     *vertices;
+    size_t              vertex_count;
+    size_t              varray_size;
 };
 

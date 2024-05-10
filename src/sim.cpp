@@ -84,25 +84,25 @@ internal Entity *
 push_entity(Memory_Arena *arena, Chunk_Hashmap *hashmap,
             Entity_Type type, Chunk_Position chunk_pos, v3 chunk_dim) 
 {
-    Entity *entity      = push_struct(arena, Entity);
-    entity->type        = type;
-    entity->chunk_pos   = chunk_pos;
+    Entity *entity              = push_struct(arena, Entity);
+    entity->type                = type;
+    entity->chunk_pos           = chunk_pos;
+    entity->world_translation   = _v3_(chunk_pos.x * chunk_dim.x + chunk_pos.offset.x,
+                                       chunk_pos.y * chunk_dim.y + chunk_pos.offset.y,
+                                       chunk_pos.z * chunk_dim.z + chunk_pos.offset.z);
+    entity->world_rotation      = _qt_(1, 0, 0, 0);
+    entity->world_scaling       = _v3_(1, 1, 1);
 
     switch (type) 
     {
         case eEntity_XBot: 
         {
-            entity->world_translation   = _v3_(chunk_pos.x * chunk_dim.y,
-                                             chunk_pos.y * chunk_dim.y,
-                                             chunk_pos.z * chunk_dim.z);
-            entity->world_rotation      = _qt_(1, 0, 0, 0);
-            entity->world_scaling       = _v3_(1, 1, 1);
-            entity->u                   = 80.0f;
+            entity->u                   = 100.0f;
         } break;
 
         case eEntity_Tile: 
         {
-            entity->dim = {0.9f, 0.9f, 0.7f};
+            entity->world_scaling       = 0.4f * _v3_(1, 1, 1);
         } break;
 
         INVALID_DEFAULT_CASE
@@ -373,7 +373,6 @@ update_entities(Game_State *game_state, f32 dt,
 
                         case eEntity_Tile: 
                         {
-
                         } break;
 
                         INVALID_DEFAULT_CASE

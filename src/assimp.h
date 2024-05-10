@@ -21,8 +21,22 @@ union v3
     {
         f32 x, y, z;
     };
+    struct
+    {
+        f32 r, g, b;
+    };
     f32 e[3];
 };
+
+inline v3
+_v3_(f32 x, f32 y, f32 z)
+{
+    v3 result;
+    result.x = x;
+    result.y = y;
+    result.z = z;
+    return result;
+}
 
 union v4
 {

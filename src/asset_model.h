@@ -37,7 +37,9 @@ struct Asset_Mesh
 
 struct Asset_Material
 {
-    v4  color_diffuse;
+    v3  color_ambient;
+    v3  color_diffuse;
+    v3  color_specular;
 };
 
 struct Asset_Bone

@@ -56,11 +56,13 @@ extern "C"
     #define PLATFORM_READ_ENTIRE_FILE(name) Entire_File name(const char *filename)
     typedef PLATFORM_READ_ENTIRE_FILE(Read_Entire_File);
 
-    typedef struct Game_Key {
+    typedef struct Game_Key 
+    {
         b32 is_set;
     } Game_Key;
 
-    enum Mouse_Enum {
+    enum Mouse_Enum 
+    {
         eMouse_Left,
         eMouse_Middle,
         eMouse_Right,
@@ -69,16 +71,18 @@ extern "C"
     };
 
     // these are following game coordinates.
-    typedef struct Mouse_Input {
-        v2  P;
-        b32 is_down[eMouse_Count];
-        b32 toggle[eMouse_Count];
-        v2  click_p[eMouse_Count];
-        s32 wheel_delta;
+    typedef struct Mouse_Input 
+    {
+        v2      P;
+        b32     is_down[eMouse_Count];
+        b32     toggle[eMouse_Count];
+        v2      click_p[eMouse_Count];
+        s32     wheel_delta;
     } Mouse_Input;
 
-    typedef struct Game_Input {
-        f32 dt_per_frame;
+    typedef struct Game_Input 
+    {
+        f32         dt_per_frame;
         Game_Key    move_up;
         Game_Key    move_down;
         Game_Key    move_left;
@@ -97,7 +101,8 @@ extern "C"
     typedef void Platform_Add_Entry(PlatformWorkQueue *queue, PlatformWorkQueueCallback *callback, void *data);
     typedef void Platform_Complete_All_Work(PlatformWorkQueue *queue);
 
-    typedef struct Platform_API {
+    typedef struct Platform_API 
+    {
         Platform_Add_Entry          *platform_add_entry;
         Platform_Complete_All_Work  *platform_complete_all_work;
 
@@ -108,37 +113,40 @@ extern "C"
 
     } Platform_API;
 
-    typedef struct Render_Batch {
+    typedef struct Render_Batch 
+    {
         size_t  size;
         void    *base;
         size_t  used;
     } Render_Batch;
 
-    typedef struct Game_Memory {
+    typedef struct Game_Memory 
+    {
         // NOTE: Spec memory to be initialized to zero.
-        void *permanent_memory;
-        u64 permanent_memory_size;
+        void                *permanent_memory;
+        u64                 permanent_memory_size;
 
-        void *transient_memory;
-        u64 transient_memory_size;
+        void                *transient_memory;
+        u64                 transient_memory_size;
 
-        void *debug_memory;
-        u64 debug_memory_size;
+        void                *debug_memory;
+        u64                 debug_memory_size;
 
-        PlatformWorkQueue *highPriorityQueue;
-        PlatformWorkQueue *lowPriorityQueue;
+        PlatformWorkQueue   *highPriorityQueue;
+        PlatformWorkQueue   *lowPriorityQueue;
 
         Platform_API platform;
 
         Render_Batch render_batch;
     } Game_Memory;
 
-    typedef struct Game_Screen_Buffer{
-        void *memory;
-        u32 width;
-        u32 height;
-        u32 bpp;
-        u32 pitch;
+    typedef struct Game_Screen_Buffer
+    {
+        void    *memory;
+        u32     width;
+        u32     height;
+        u32     bpp;
+        u32     pitch;
     } Game_Screen_Buffer;
 
 }

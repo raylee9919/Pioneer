@@ -392,47 +392,42 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
          ++group)
     {
 
-#if 1
-        // TODO: change program for text rendering?
-        glUseProgram(gl.program);
-        glUniformMatrix4fv(gl.mvp_id, 1, GL_TRUE, &group->camera.projection.e[0][0]);
-        glUniform3fv(gl.cam_pos_id, 1, (GLfloat *)&group->camera.world_pos);
-
-
-        u32 vidx = 0;
-        for (u8 *at = group->base;
-             at < group->base + group->used;)
+        switch (group->type)
         {
-            Render_Entity_Header *entity =(Render_Entity_Header *)at;
-
-            switch (entity->type) 
+            case eRender_Group_Skeletal_Mesh:
             {
-                case eRender_Quad: 
-                {
-                    Render_Quad *piece = (Render_Quad *)entity;
-                    at += sizeof(Render_Quad);
-                    gl_bind_texture(piece->bitmap);
-                    glDrawArrays(GL_TRIANGLE_STRIP, vidx, 4);
-                    vidx += 4;
-                } break;
+                Skeletal_Mesh_Program *program = &gl.skeletal_mesh_program;
+                s32 pid = program->id;
+                glUseProgram(pid);
 
-                case eRender_Text: 
-                {
-                    Render_Text *piece = (Render_Text *)entity;
-                    at += sizeof(Render_Text);
-                } break;
+                glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera.projection.e[0][0]);
+                glUniform3fv(program->cam_pos, 1, (GLfloat *)&group->camera.world_pos);
 
-                case eRender_Skeletal_Mesh: 
+                glEnableVertexAttribArray(0);
+                glEnableVertexAttribArray(1);
+                glEnableVertexAttribArray(2);
+                glEnableVertexAttribArray(3);
+                glEnableVertexAttribArray(4);
+                glEnableVertexAttribArray(5);
+
+                glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, pos)));
+                glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, normal)));
+                glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, uv)));
+                glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, color)));
+
+                glVertexAttribIPointer(4, MAX_BONE_PER_VERTEX, GL_INT, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, bone_ids)));
+                glVertexAttribPointer(5, MAX_BONE_PER_VERTEX, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, bone_weights)));
+
+                for (u8 *at = group->base;
+                     at < group->base + group->used;)
                 {
+                    Render_Entity_Header *entity =(Render_Entity_Header *)at;
                     Render_Skeletal_Mesh *piece = (Render_Skeletal_Mesh *)entity;
                     at += sizeof(Render_Skeletal_Mesh);
-#if 0
-                    gl_bind_texture(piece->bitmap);
-                    glDrawArrays(GL_TRIANGLES, vidx, piece->vertex_count);
-                    vidx += piece->vertex_count;
-#endif
+
                     Asset_Mesh *mesh    = piece->mesh;
                     Asset_Material *mat = piece->material;
+
                     glBufferData(GL_ARRAY_BUFFER,
                                  mesh->vertex_count * sizeof(Asset_Vertex),
                                  mesh->vertices,
@@ -443,45 +438,92 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                                  mesh->indices,
                                  GL_STREAM_DRAW);
 
-                    glEnableVertexAttribArray(0);
-                    glEnableVertexAttribArray(1);
-                    glEnableVertexAttribArray(2);
-                    glEnableVertexAttribArray(3);
-                    glEnableVertexAttribArray(4);
-                    glEnableVertexAttribArray(5);
 
-                    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, pos)));
-                    glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, normal)));
-                    glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, uv)));
-                    glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, color)));
 
-                    glVertexAttribIPointer(4, MAX_BONE_PER_VERTEX, GL_INT, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, bone_ids)));
-                    glVertexAttribPointer(5, MAX_BONE_PER_VERTEX, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, bone_weights)));
+                    glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
+                    glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
 
-                    glUniformMatrix4fv(gl.world_transform_id, 1, true, &piece->world_transform.e[0][0]);
-                    glUniformMatrix4fv(gl.bone_transforms_id, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
-
-                    glUniform4fv(gl.color_diffuse_id, 1, (GLfloat *)&mat->color_diffuse);
+                    glUniform3fv(program->color_ambient, 1, (GLfloat *)&mat->color_ambient);
+                    glUniform3fv(program->color_diffuse, 1, (GLfloat *)&mat->color_diffuse);
+                    glUniform3fv(program->color_specular, 1, (GLfloat *)&mat->color_specular);
 
                     glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0);
 
-                    glDisableVertexAttribArray(0);
-                    glDisableVertexAttribArray(1);
-                    glDisableVertexAttribArray(2);
-                    glDisableVertexAttribArray(3);
-                    glDisableVertexAttribArray(4);
-                    glDisableVertexAttribArray(5);
-                } break;
+                }
 
-                INVALID_DEFAULT_CASE
-            }
+                glDisableVertexAttribArray(0);
+                glDisableVertexAttribArray(1);
+                glDisableVertexAttribArray(2);
+                glDisableVertexAttribArray(3);
+                glDisableVertexAttribArray(4);
+                glDisableVertexAttribArray(5);
+            } break;
+
+            case eRender_Group_Static_Mesh:
+            {
+                Static_Mesh_Program *program = &gl.static_mesh_program;
+                s32 pid = program->id;
+                glUseProgram(pid);
+
+                glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera.projection.e[0][0]);
+                glUniform3fv(program->cam_pos, 1, (GLfloat *)&group->camera.world_pos);
+
+                glEnableVertexAttribArray(0);
+                glEnableVertexAttribArray(1);
+                glEnableVertexAttribArray(2);
+                glEnableVertexAttribArray(3);
+
+                glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, pos)));
+                glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, normal)));
+                glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, uv)));
+                glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, color)));
+
+                for (u8 *at = group->base;
+                     at < group->base + group->used;)
+                {
+                    Render_Entity_Header *entity =(Render_Entity_Header *)at;
+                    Render_Static_Mesh *piece = (Render_Static_Mesh *)entity;
+                    at += sizeof(Render_Static_Mesh);
+
+                    Asset_Mesh *mesh    = piece->mesh;
+                    Asset_Material *mat = piece->material;
+
+                    glBufferData(GL_ARRAY_BUFFER,
+                                 mesh->vertex_count * sizeof(Asset_Vertex),
+                                 mesh->vertices,
+                                 GL_STREAM_DRAW);
+
+                    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                                 mesh->index_count * sizeof(u32),
+                                 mesh->indices,
+                                 GL_STREAM_DRAW);
+
+                    glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
+
+                    glUniform3fv(program->color_ambient, 1, (GLfloat *)&mat->color_ambient);
+                    glUniform3fv(program->color_diffuse, 1, (GLfloat *)&mat->color_diffuse);
+                    glUniform3fv(program->color_specular, 1, (GLfloat *)&mat->color_specular);
+
+                    glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0);
+
+                }
+
+                glDisableVertexAttribArray(0);
+                glDisableVertexAttribArray(1);
+                glDisableVertexAttribArray(2);
+                glDisableVertexAttribArray(3);
+            } break;
+
+            case eRender_Group_Text:
+            {
+                glUseProgram(gl.skeletal_mesh_program.id);
+            } break;
+
+            INVALID_DEFAULT_CASE
         }
-
-
 
         glUseProgram(0);
 
-#endif
     }
             
     batch->used = 0;
@@ -506,141 +548,46 @@ gl_init()
     //
     // @shader
     //
-    const char *header = R"FOO(
-            #version 330 core
-            #define s32 int
-            #define f32 float
-            #define MAX_BONE_PER_VERTEX         4
-            #define MAX_BONE_PER_MESH           100
-            )FOO";
+    const char *header = 
+#include "shader.header"
+    ;
 
-    const char *vshader = R"FOO(
-            uniform mat4x4  world_transform;
-            uniform mat4x4  mvp;
+    const char *skeletal_mesh_vshader = 
+#include "skeletal_mesh.vert"
+    ;
 
-            // vertex info.
-            layout (location = 0) in vec3 vP;
-            layout (location = 1) in vec3 vN;
-            layout (location = 2) in vec2 vUV;
-            layout (location = 3) in vec4 vC;
-            
-            // animation info.
-            uniform mat4x4                  bone_transforms[MAX_BONE_PER_MESH];
-            layout (location = 4) in s32    bone_ids[MAX_BONE_PER_VERTEX];
-            layout (location = 5) in f32    bone_weights[MAX_BONE_PER_VERTEX];
+    const char *static_mesh_vshader = 
+#include "static_mesh.vert"
+    ;
 
-            // material for mesh.
-            uniform vec4 color_diffuse;
+    const char *mesh_fshader = 
+#include "mesh.frag"
+    ;
 
-            smooth out vec3 fP;
-            smooth out vec3 fN;
-            smooth out vec2 fUV;
-            smooth out vec4 fC;
 
-            mat4x4 identity()
-            {
-                return mat4(
-                    1, 0, 0, 0,
-                    0, 1, 0, 0,
-                    0, 0, 1, 0,
-                    0, 0, 0, 1
-                );
-            }
+    gl.skeletal_mesh_program.id = gl_create_program(header,
+                                                    skeletal_mesh_vshader,
+                                                    mesh_fshader);
+    gl.skeletal_mesh_program.world_transform  = glGetUniformLocation(gl.skeletal_mesh_program.id, "world_transform");
+    gl.skeletal_mesh_program.mvp              = glGetUniformLocation(gl.skeletal_mesh_program.id, "mvp");
+    gl.skeletal_mesh_program.texture_sampler  = glGetUniformLocation(gl.skeletal_mesh_program.id, "texture_sampler");
+    gl.skeletal_mesh_program.cam_pos          = glGetUniformLocation(gl.skeletal_mesh_program.id, "cam_pos");
+    gl.skeletal_mesh_program.bone_transforms  = glGetUniformLocation(gl.skeletal_mesh_program.id, "bone_transforms");
+    gl.skeletal_mesh_program.color_ambient    = glGetUniformLocation(gl.skeletal_mesh_program.id, "color_ambient");
+    gl.skeletal_mesh_program.color_diffuse    = glGetUniformLocation(gl.skeletal_mesh_program.id, "color_diffuse");
+    gl.skeletal_mesh_program.color_specular   = glGetUniformLocation(gl.skeletal_mesh_program.id, "color_specular");
 
-            void main()
-            {
-                mat4x4 bone_transform;
-                if (bone_ids[0] != -1)
-                {
-                    bone_transform = bone_transforms[bone_ids[0]] * bone_weights[0];
-                    for (s32 idx = 1;
-                         idx < MAX_BONE_PER_VERTEX;
-                         ++idx)
-                    {
-                        s32 bone_id = bone_ids[idx];
-                        if (bone_id != -1)
-                        {
-                            bone_transform += bone_transforms[bone_id] * bone_weights[idx];
-                        }
-                        else
-                        {
-                            break;
-                        }
-                    }
-                }
-                else
-                {
-                    bone_transform = identity();
-                }
+    gl.static_mesh_program.id = gl_create_program(header,
+                                                  static_mesh_vshader,
+                                                  mesh_fshader);
 
-                mat4x4 final_transform = world_transform * bone_transform;
-                vec4 result_pos = final_transform * vec4(vP, 1.0f);
-                fP  = result_pos.xyz;
-                fN  = normalize(mat3x3(final_transform) * vN);
-                fUV = vUV;
-                fC  = color_diffuse * vC;
-
-                gl_Position = mvp * result_pos;
-            }
-            )FOO";
-
-    const char *fshader = R"FOO(
-            uniform sampler2D   texture_sampler;
-            uniform vec3        cam_pos;
-
-            smooth in vec3 fP;
-            smooth in vec3 fN;
-            smooth in vec2 fUV;
-            smooth in vec4 fC;
-
-            out vec4 C;
-
-            void main()
-            {
-                C = texture(texture_sampler, fUV) * fC;
-
-                float light_strength    = 5.0f;
-                vec3 light_pos          = vec3(0.0f, 0.0f, 2.0f);
-                vec3 light_sum          = vec3(0.1f, 0.1f, 0.1f);
-                vec3 to_light           = normalize(light_pos - fP);
-                vec3 from_cam           = normalize(fP - cam_pos);
-
-                // ambient
-                vec3 ambient_light = vec3(0.4f, 0.4f, 0.4f);
-
-                // distance falloff
-                float d = distance(light_pos, fP);
-                light_strength /= (d * d);
-
-                // diffuse
-                float diffuse_c  = 0.0f;
-                float cos_falloff = clamp(dot(fN, to_light), 0.0f, 1.0f);
-                float diffuse_light = diffuse_c * cos_falloff * light_strength;
-
-                // specular
-                float specular_c = 1.0f;
-                vec3 ref = normalize(from_cam - 2 * dot(fN, from_cam) * fN);
-                float cos_ref = clamp(dot(ref, to_light), 0.0f, 1.0f);
-                float specular_light = specular_c * cos_ref * light_strength;
-
-                light_sum += ambient_light + diffuse_light + specular_light;
-
-                C.xyz *= light_sum;
-
-                if (C.a == 0.0f) 
-                {
-                    discard;
-                }
-            }
-            )FOO";
-
-    gl.program              = gl_create_program(header, vshader, fshader);
-    gl.world_transform_id   = glGetUniformLocation(gl.program, "world_transform");
-    gl.mvp_id               = glGetUniformLocation(gl.program, "mvp");
-    gl.texture_sampler_id   = glGetUniformLocation(gl.program, "texture_sampler");
-    gl.cam_pos_id           = glGetUniformLocation(gl.program, "cam_pos");
-    gl.bone_transforms_id   = glGetUniformLocation(gl.program, "bone_transforms");
-    gl.color_diffuse_id     = glGetUniformLocation(gl.program, "color_diffuse");
+    gl.static_mesh_program.world_transform  = glGetUniformLocation(gl.static_mesh_program.id, "world_transform");
+    gl.static_mesh_program.mvp              = glGetUniformLocation(gl.static_mesh_program.id, "mvp");
+    gl.static_mesh_program.texture_sampler  = glGetUniformLocation(gl.static_mesh_program.id, "texture_sampler");
+    gl.static_mesh_program.cam_pos          = glGetUniformLocation(gl.static_mesh_program.id, "cam_pos");
+    gl.static_mesh_program.color_ambient    = glGetUniformLocation(gl.static_mesh_program.id, "color_ambient");
+    gl.static_mesh_program.color_diffuse    = glGetUniformLocation(gl.static_mesh_program.id, "color_diffuse");
+    gl.static_mesh_program.color_specular   = glGetUniformLocation(gl.static_mesh_program.id, "color_specular");
 
     gl.white_bitmap.width   = 4;
     gl.white_bitmap.height  = 4;

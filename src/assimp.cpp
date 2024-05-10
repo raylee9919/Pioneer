@@ -430,8 +430,14 @@ main(int argc, char **argv)
                             aiMaterial *mat = model->mMaterials[mat_idx];
 
                             aiColor3D c;
+                            mat->Get(AI_MATKEY_COLOR_AMBIENT, c);
+                            asset_mat->color_ambient = _v3_(c.r, c.g, c.b);
+
                             mat->Get(AI_MATKEY_COLOR_DIFFUSE, c);
-                            asset_mat->color_diffuse = _v4_(c.r, c.g, c.b, 1.0f);
+                            asset_mat->color_diffuse = _v3_(c.r, c.g, c.b);
+
+                            mat->Get(AI_MATKEY_COLOR_SPECULAR, c);
+                            asset_mat->color_specular = _v3_(c.r, c.g, c.b);
 
                             printf("msvc piece of shit\n");
                         }

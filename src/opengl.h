@@ -31,17 +31,38 @@ struct GL_Info
     b32     has_ext[GL_EXT_COUNT];
 };
 
+struct Skeletal_Mesh_Program
+{
+    s32     id;
+
+    s32     world_transform;
+    s32     mvp;
+    s32     texture_sampler;
+    s32     cam_pos;
+    s32     bone_transforms;
+    s32     color_ambient;
+    s32     color_diffuse;
+    s32     color_specular;
+};
+
+struct Static_Mesh_Program
+{
+    s32     id;
+
+    s32     world_transform;
+    s32     mvp;
+    s32     texture_sampler;
+    s32     cam_pos;
+    s32     color_ambient;
+    s32     color_diffuse;
+    s32     color_specular;
+};
+
 
 struct GL 
 {
-    s32     program;
-
-    s32     world_transform_id;
-    s32     mvp_id;
-    s32     texture_sampler_id;
-    s32     cam_pos_id;
-    s32     bone_transforms_id;
-    s32     color_diffuse_id;
+    Skeletal_Mesh_Program   skeletal_mesh_program;
+    Static_Mesh_Program     static_mesh_program;
 
     GLuint  vao;
     GLuint  vbo;

@@ -579,7 +579,7 @@ GAME_MAIN(game_main)
     {
         // transient arena.
         init_arena(&trans_state->transient_arena,
-                   MB(100),
+                   MB(200),
                    (u8 *)transMem + sizeof(Transient_State));
         
         // reserved memory for multi-thread work data.
@@ -612,12 +612,14 @@ GAME_MAIN(game_main)
                                   (f32)game_screen_buffer->height);
 
     Temporary_Memory render_memory = begin_temporary_memory(&trans_state->transient_arena);
-
-
-
-    Render_Group *render_group = alloc_render_group(&trans_state->transient_arena,
-                                                    false,
-                                                    aspect_ratio);
+    Render_Group *skeletal_mesh_render_group = alloc_render_group(eRender_Group_Skeletal_Mesh,
+                                                                  &trans_state->transient_arena,
+                                                                  false,
+                                                                  aspect_ratio);
+    Render_Group *static_mesh_render_group   = alloc_render_group(eRender_Group_Static_Mesh,
+                                                                  &trans_state->transient_arena,
+                                                                  false,
+                                                                  aspect_ratio);
 
     v3 chunk_dim = game_state->world->chunk_dim;
     f32 dt = game_input->dt_per_frame;
@@ -776,7 +778,7 @@ GAME_MAIN(game_main)
                                     {
                                         Asset_Mesh *mesh    = model->meshes + mesh_idx;
                                         Asset_Material *mat = model->materials + mesh->material_idx;
-                                        push_skeletal_mesh(render_group, mesh, mat,
+                                        push_skeletal_mesh(skeletal_mesh_render_group, mesh, mat,
                                                            world_transform, final_transforms);
                                     }
                                 }
@@ -791,6 +793,18 @@ GAME_MAIN(game_main)
 
                         case eEntity_Tile: 
                         {
+                            Asset_Model *model = game_assets->cube_model;
+                            if (model)
+                            {
+                                for (u32 mesh_idx = 0;
+                                     mesh_idx < model->mesh_count;
+                                     ++mesh_idx)
+                                {
+                                    Asset_Mesh *mesh = model->meshes + mesh_idx;
+                                    Asset_Material *mat = model->materials + mesh->material_idx;
+                                    push_static_mesh(static_mesh_render_group, mesh, mat, world_transform);
+                                }
+                            }
                         } break;
 
                         INVALID_DEFAULT_CASE
@@ -805,7 +819,8 @@ GAME_MAIN(game_main)
 
 
 
-    render_group_to_output_batch(render_group, &game_memory->render_batch);
+    render_group_to_output_batch(skeletal_mesh_render_group, &game_memory->render_batch);
+    render_group_to_output_batch(static_mesh_render_group, &game_memory->render_batch);
     end_temporary_memory(&render_memory);
 
 
@@ -814,7 +829,7 @@ GAME_MAIN(game_main)
     //
 #ifdef __DEBUG
     Temporary_Memory debug_render_memory = begin_temporary_memory(&game_state->debug_arena);
-    Render_Group *debug_render_group = alloc_render_group(&game_state->debug_arena, true, aspect_ratio);
+    Render_Group *debug_render_group = alloc_render_group(eRender_Group_Text, &game_state->debug_arena, true, aspect_ratio);
 
     if (game_state->debug_mode)
     {

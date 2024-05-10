@@ -1,0 +1,19 @@
+R"MULTILINE(
+
+#version 330 core
+
+#define s32     int
+#define f32     float
+#define v2      vec2
+#define v3      vec3
+#define v4      vec4
+
+mat4x4 identity()
+{
+    return mat4(1, 0, 0, 0,
+                0, 1, 0, 0,
+                0, 0, 1, 0,
+                0, 0, 0, 1);
+}
+
+)MULTILINE"
