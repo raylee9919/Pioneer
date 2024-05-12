@@ -83,11 +83,13 @@ extern "C"
     typedef struct Game_Input 
     {
         f32         dt_per_frame;
-        Game_Key    move_up;
-        Game_Key    move_down;
-        Game_Key    move_left;
-        Game_Key    move_right;
+        Game_Key    W;
+        Game_Key    S;
+        Game_Key    A;
+        Game_Key    D;
         Game_Key    alt;
+        Game_Key    Q;
+        Game_Key    E;
 
         Game_Key    toggle_debug;
 

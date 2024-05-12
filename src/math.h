@@ -473,19 +473,6 @@ operator - (qt in)
     return q;
 }
 
-inline qt
-normalize(qt q)
-{
-    qt result = q;
-    f32 magnitude = sqrt(q.w * q.w +
-                         q.x * q.x +
-                         q.y * q.y +
-                         q.z * q.z);
-    result = result * (1.0f / magnitude);
-    return result;
-}
-
-
 inline f32
 dot(qt a, qt b)
 {

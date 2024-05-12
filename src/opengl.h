@@ -58,15 +58,29 @@ struct Static_Mesh_Program
     s32     color_specular;
 };
 
+struct Grass_Program
+{
+    s32     id;
+
+    s32     mvp;
+    s32     texture_sampler;
+    s32     cam_pos;
+    s32     color_ambient;
+    s32     color_diffuse;
+    s32     color_specular;
+};
 
 struct GL 
 {
     Skeletal_Mesh_Program   skeletal_mesh_program;
     Static_Mesh_Program     static_mesh_program;
+    Grass_Program           grass_program;
 
     GLuint  vao;
     GLuint  vbo;
     GLuint  vio;
+
+    GLuint  grass_bo;
 
     Bitmap  white_bitmap;
     u32     white[4][4];

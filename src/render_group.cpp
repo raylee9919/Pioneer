@@ -215,14 +215,13 @@ draw_text(Bitmap *buffer, Render_Text *info)
 #endif
 
 internal Render_Group *
-alloc_render_group(Render_Group_Type type,
+alloc_render_group(Render_Group_Type render_group_type,
                    Memory_Arena *arena,
-                   b32 ortho,
-                   f32 aspect_ratio)
+                   Camera *cam)
 {
     Render_Group *result = push_struct(arena, Render_Group);
     *result = {};
-    result->type                = type;
+    result->type                = render_group_type;
     result->capacity            = MB(4);
     result->base                = (u8 *)push_size(arena, result->capacity);
     result->used                = 0;
@@ -230,34 +229,19 @@ alloc_render_group(Render_Group_Type type,
     result->vertices            = push_array(arena, Textured_Vertex, VARRAY_SIZE);
     result->vertex_count        = 0;
     result->varray_size         = VARRAY_SIZE;
+    result->camera              = cam;
 
-    Camera *cam = &result->camera;
-    cam->orthographic       = ortho;
-    cam->focal_length       = 0.5f;
-
-    if (cam->orthographic) 
+    if (cam->type == eCamera_Type_Perspective) 
     {
-        f32 a = aspect_ratio;
-        cam->projection = m4x4{{
-            { 1,  0,  0,  0},
-            { 0,  a,  0,  0},
-            { 0,  0,  1,  0},
-            { 0,  0,  0,  1}
-        }};
-    } 
-    else 
-    {
-        cam->w_over_h = aspect_ratio;
-
+        m4x4 cam_rotation = to_m4x4(cam->world_rotation);
+#if 0
         m4x4 cam_o = (x_rotation(g_debug_cam_orbital_pitch) *
                       y_rotation(g_debug_cam_orbital_yaw));
-        v3 cam_translation = v3{0.0f, 0.0f, g_debug_cam_z};
-        m4x4 cam_c = camera_transform(get_column(cam_o, 0),
-                                      get_column(cam_o, 1),
-                                      get_column(cam_o, 2),
-                                      cam_o * cam_translation); // always focus on origin.
-
-        cam->world_pos = cam_o * cam_translation;
+#endif
+        m4x4 V = camera_transform(get_column(cam_rotation, 0),
+                                  get_column(cam_rotation, 1),
+                                  get_column(cam_rotation, 2),
+                                  cam->world_translation);
 
         f32 f = cam->focal_length;
         f32 a = cam->w_over_h * f;
@@ -265,14 +249,23 @@ alloc_render_group(Render_Group_Type type,
         f32 F = 500.0f;
         f32 b = (N + F) / (N - F);
         f32 c = (2 * N * F) / (N - F);
-        m4x4 proj = {{
+        m4x4 P = {{
             { f,  0,  0,  0},
             { 0,  a,  0,  0},
             { 0,  0,  b,  c},
             { 0,  0, -1,  0}
         }};
-
-        cam->projection = proj * cam_c;
+        cam->projection = P * V;
+    } 
+    else
+    {
+        f32 a = cam->w_over_h;
+        cam->projection = m4x4{{
+            { 1,  0,  0,  0},
+            { 0,  a,  0,  0},
+            { 0,  0,  1,  0},
+            { 0,  0,  0,  1}
+        }};
     }
 
     return result;

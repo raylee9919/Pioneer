@@ -6,7 +6,7 @@
     $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
     ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
-u32 RandomTable[] = {
+u32 random_table[] = {
     0X785FD252, 0XC76E9A98, 0X3D9A5C28, 0XDDF7F80D, 0XDDA5C366, 0XF50D03B6, 0X1CEE0954, 0XCFDD36C9,
     0XF0914186, 0X91B2B160, 0X367BB303, 0X9C4377DE, 0X9C1D475B, 0XA7C9D2C8, 0XC90015E2, 0X3F8D6706,
     0X3C1B023A, 0X315D117E, 0XD1386694, 0XB2D985C8, 0XA875C6D5, 0X234CC6C6, 0X789A740C, 0X154E434C,
@@ -137,26 +137,28 @@ u32 RandomTable[] = {
     0X0A513FD4, 0X51A7823A, 0X1AB3C467, 0XE8E73333, 0X8FAAE1AD, 0X1423205F, 0X2E06FE4F, 0X0EFF3F00,
 };
 
-u32 maxInRandomTable = 0XFFB7D659; 
+u32 max_in_random_table = 0XFFB7D659; 
 
-struct Random_Series {
-    u32 nextIdx;
+struct Random_Series 
+{
+    u32 next_idx;
 };
 
 inline Random_Series
 seed(u32 seed) 
 {
     Random_Series result = {};
-    result.nextIdx = (seed % array_count(RandomTable));
+    result.next_idx = (seed % array_count(random_table));
     return result;
 }
 
 inline u32
 rand_next(Random_Series *series)
 {
-    u32 result = RandomTable[series->nextIdx++];
-    if (series->nextIdx > array_count(RandomTable)) {
-        series->nextIdx = 0;
+    u32 result = random_table[series->next_idx++];
+    if (series->next_idx > array_count(random_table)) 
+    {
+        series->next_idx = 0;
     }
     return result;
 }
@@ -164,7 +166,7 @@ rand_next(Random_Series *series)
 inline f32
 rand_unilateral(Random_Series *series)
 {
-    f32 div = 1.0f / (f32)maxInRandomTable;
+    f32 div = 1.0f / (f32)max_in_random_table;
     f32 result = (f32)rand_next(series) * div;
     return result;
 }

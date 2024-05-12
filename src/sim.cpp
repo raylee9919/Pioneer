@@ -68,13 +68,13 @@ get_chunk(Memory_Arena *arena, Chunk_Hashmap *hashmap, Chunk_Position pos)
 }
 
 inline void
-set_flag(Entity *entity, EntityFlag flag) 
+set_flag(Entity *entity, Entity_Flag flag) 
 {
     entity->flags |= flag;
 }
 
 inline b32
-is_set(Entity *entity, EntityFlag flag) 
+is_set(Entity *entity, Entity_Flag flag) 
 {
     b32 result = (entity->flags & flag);
     return result;
@@ -97,12 +97,18 @@ push_entity(Memory_Arena *arena, Chunk_Hashmap *hashmap,
     {
         case eEntity_XBot: 
         {
-            entity->u                   = 100.0f;
+            entity->u                   = 200.0f;
         } break;
 
         case eEntity_Tile: 
         {
-            entity->world_scaling       = 0.4f * _v3_(1, 1, 1);
+            entity->world_translation.y -= 0.25f;
+            entity->world_scaling       = _v3_(0.48f, 0.25f, 0.48f);
+        } break;
+
+        case eEntity_Grass: 
+        {
+            entity->world_scaling       = _v3_(1, 1, 1);
         } break;
 
         INVALID_DEFAULT_CASE
@@ -130,7 +136,8 @@ recalc_pos(Chunk_Position *pos, v3 chunk_dim)
     f32 boundY = chunk_dim.y * 0.5f;
     f32 boundZ = chunk_dim.z * 0.5f;
 
-    while (pos->offset.x < -boundX || pos->offset.x >= boundX) 
+    while (pos->offset.x < -boundX ||
+           pos->offset.x >= boundX) 
     {
         if (pos->offset.x < -boundX) 
         {
@@ -186,26 +193,32 @@ MapEntityToChunk(Memory_Arena *arena, Chunk_Hashmap *hashmap, Entity *entity,
          E != 0;
          E = E->next) 
     { 
-        if (E == entity) { 
+        if (E == entity) 
+        {
             oldEntities->head = E->next;
             break;
-        } else if (E->next == entity) { 
+        }
+        else if (E->next == entity) 
+        { 
             E->next = entity->next;
             break; 
         }
     }
 
-    if (!newEntities->head) {
+    if (!newEntities->head) 
+    {
         newEntities->head = entity;
         entity->next = 0;
-    } else {
+    } 
+    else 
+    {
         entity->next = newEntities->head;
         newEntities->head = entity;
     }
 }
 
 internal v3
-Subtract(Chunk_Position A, Chunk_Position B, v3 chunk_dim) 
+subtract(Chunk_Position A, Chunk_Position B, v3 chunk_dim) 
 {
     v3 diff = {};
     diff.x = (f32)(A.x - B.x) * chunk_dim.x;
@@ -236,8 +249,8 @@ update_entity_pos(Game_State *game_state, Entity *self, f32 dt, Chunk_Position s
     f32 eps = 0.001f;
     v3 v_total = self->velocity;
     for (s32 count = 0;
-            count < 4 && t_remain > 0.0f;
-            ++count) 
+         count < 4 && t_remain > 0.0f;
+         ++count) 
     {
         for (s32 Z = simMin.z;
              Z <= simMax.z;
@@ -258,8 +271,8 @@ update_entity_pos(Game_State *game_state, Entity *self, f32 dt, Chunk_Position s
                             other = other->next) 
                     {
                         if (self != other && 
-                            is_set(self, EntityFlag_Collides) && 
-                            is_set(other, EntityFlag_Collides)) 
+                            is_set(self, eEntity_Flag_Collides) && 
+                            is_set(other, eEntity_Flag_Collides)) 
                         {
                             // NOTE: For now, we will test entities on same level.
                             if (self->chunk_pos.z == other->chunk_pos.z) 
@@ -268,9 +281,9 @@ update_entity_pos(Game_State *game_state, Entity *self, f32 dt, Chunk_Position s
                                 Rect3 box = {v3{0, 0, 0}, boxDim};
                                 v3 min = -0.5f * boxDim;
                                 v3 max = 0.5f * boxDim;
-                                v3 oldRelP = Subtract(old_chunk_pos, other->chunk_pos, game_state->world->chunk_dim);
-                                v3 newRelP = Subtract(new_chunk_pos, other->chunk_pos, game_state->world->chunk_dim);
-                                f32 tUsed = 0.0f;
+                                v3 oldRelP = subtract(old_chunk_pos, other->chunk_pos, game_state->world->chunk_dim);
+                                v3 newRelP = subtract(new_chunk_pos, other->chunk_pos, game_state->world->chunk_dim);
+                                f32 t_used = 0.0f;
                                 u32 axis = 0;
                                 if (in_rect(newRelP, box)) 
                                 {
@@ -279,13 +292,13 @@ update_entity_pos(Game_State *game_state, Entity *self, f32 dt, Chunk_Position s
                                         f32 t = (min.x - oldRelP.x) / v_total.x;
                                         if (t >= 0 && t <= t_remain) 
                                         {
-                                            tUsed = t;
+                                            t_used = t;
                                             axis = 0;
                                         }
                                         t = (max.x - oldRelP.x) / v_total.x;
                                         if (t >= 0 && t <= t_remain) 
                                         {
-                                            tUsed = t;
+                                            t_used = t;
                                             axis = 0;
                                         }
                                     }
@@ -294,20 +307,20 @@ update_entity_pos(Game_State *game_state, Entity *self, f32 dt, Chunk_Position s
                                         f32 t = (min.y - oldRelP.y) / v_total.y;
                                         if (t >= 0 && t <= t_remain) 
                                         {
-                                            tUsed = t;
+                                            t_used = t;
                                             axis = 1;
                                         }
                                         t = (max.y - oldRelP.y) / v_total.y;
                                         if (t >= 0 && t <= t_remain) 
                                         {
-                                            tUsed = t;
+                                            t_used = t;
                                             axis = 1;
                                         }
                                     }
 
-                                    tUsed -= eps;
-                                    v3 vUsed = tUsed * v_total;
-                                    t_remain -= tUsed;
+                                    t_used -= eps;
+                                    v3 vUsed = t_used * v_total;
+                                    t_remain -= t_used;
                                     v3 vRemain = t_remain * v_total;
                                     if (axis == 0) 
                                     {
@@ -373,13 +386,19 @@ update_entities(Game_State *game_state, f32 dt,
 
                         case eEntity_Tile: 
                         {
+#if 0
                             f32 theta = acos(entity->world_rotation.w);
                             theta += dt;
                             if (theta > pi32)
                             {
                                 theta -= pi32;
                             }
-                            entity->world_rotation = _qt_(cos(theta), 0, 0, sin(theta));
+                            entity->world_rotation = _qt_(cos(theta), 0, sin(theta), 0);
+#endif
+                        } break;
+
+                        case eEntity_Grass: 
+                        {
                         } break;
 
                         INVALID_DEFAULT_CASE

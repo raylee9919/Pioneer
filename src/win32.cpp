@@ -885,46 +885,72 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
 
         game_input.mouse.wheel_delta = 0;
         MSG msg;
-        while (PeekMessageA(&msg, hwnd, 0, 0, PM_REMOVE)) {
-            switch(msg.message) {
-                case WM_QUIT: {
+        while (PeekMessageA(&msg, hwnd, 0, 0, PM_REMOVE)) 
+        {
+            switch(msg.message) 
+            {
+                case WM_QUIT: 
+                {
                     g_running = false;
                 } break;
                 case WM_SYSKEYDOWN:
                 case WM_SYSKEYUP:
                 case WM_KEYDOWN:
-                case WM_KEYUP: {
+                case WM_KEYUP: 
+                {
                     u64 vk_code  = msg.wParam;
                     b32 is_down  = ((msg.lParam & (1 << 31)) == 0);
                     b32 was_down = ((msg.lParam & (1 << 30)) != 0);
-                    if (was_down != is_down) {
-                        switch (vk_code) {
-                            case 'W': {
-                                win32_process_keyboard(&game_input.move_up, is_down);
+                    if (was_down != is_down) 
+                    {
+                        switch (vk_code) 
+                        {
+                            // TODO: compressable I guess?
+                            case 'Q': 
+                            {
+                                win32_process_keyboard(&game_input.Q, is_down);
                             } break;
-                            case 'A': {
-                                win32_process_keyboard(&game_input.move_left, is_down);
+                            case 'E': 
+                            {
+                                win32_process_keyboard(&game_input.E, is_down);
                             } break;
-                            case 'S': {
-                                win32_process_keyboard(&game_input.move_down, is_down);
+                            case 'W': 
+                            {
+                                win32_process_keyboard(&game_input.W, is_down);
                             } break;
-                            case 'D': {
-                                win32_process_keyboard(&game_input.move_right, is_down);
+                            case 'A': 
+                            {
+                                win32_process_keyboard(&game_input.A, is_down);
                             } break;
-                            case VK_MENU: { // alt
+                            case 'S': 
+                            {
+                                win32_process_keyboard(&game_input.S, is_down);
+                            } break;
+                            case 'D': 
+                            {
+                                win32_process_keyboard(&game_input.D, is_down);
+                            } break;
+                            case VK_MENU: // Alt
+                            {
                                 win32_process_keyboard(&game_input.alt, is_down);
                             } break;
 #ifdef __DEBUG
                             // tilde key.
-                            case VK_OEM_3: {
+                            case VK_OEM_3: 
+                            {
                                 win32_process_keyboard(&game_input.toggle_debug, is_down);
                             } break;
 
-                            case 'L': {
-                                if (is_down) {
-                                    if (!win32_state.is_recording) {
+                            case 'L': 
+                            {
+                                if (is_down) 
+                                {
+                                    if (!win32_state.is_recording) 
+                                    {
                                         Win32BeginRecordingInput(&win32_state);
-                                    } else {
+                                    } 
+                                    else 
+                                    {
                                         Win32EndInputRecording(&win32_state);
                                         Win32BeginInputPlayback(&win32_state);
                                     }
@@ -933,13 +959,17 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
 #endif
                         }
 
-                        if (is_down) {
+                        if (is_down) 
+                        {
                             bool32 altWasDown = (msg.lParam & (1 << 29));
-                            if ((vk_code == VK_F4) && altWasDown) {
+                            if ((vk_code == VK_F4) && altWasDown) 
+                            {
                                 g_running = false;
                             }
-                            if ((vk_code == VK_RETURN) && altWasDown) {
-                                if (msg.hwnd) {
+                            if ((vk_code == VK_RETURN) && altWasDown) 
+                            {
+                                if (msg.hwnd) 
+                                {
                                     win32_toggle_fullscreen(msg.hwnd);
                                 }
                             }
@@ -947,7 +977,8 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
 
                     }
                 } break;
-                case WM_MOUSEWHEEL: {
+                case WM_MOUSEWHEEL: 
+                {
                     s16 z_delta = (GET_WHEEL_DELTA_WPARAM(msg.wParam) / WHEEL_DELTA);
                     game_input.mouse.wheel_delta = z_delta;
                 } break;
@@ -968,45 +999,38 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
         win32_process_mouse_click(VK_MBUTTON, mouse);
         win32_process_mouse_click(VK_RBUTTON, mouse);
 
-#if 0
-        char buf[256];
-        _snprintf(buf, 256,
-                  "L: %x, Lx: %f, Ly: %f, x: %f, y:%f \n",
-                  // game_input.mouse.l_down,
-                  mouse->is_down[eMouse_Left],
-                  mouse->click_p[eMouse_Left].x,
-                  mouse->click_p[eMouse_Left].y,
-                  mouse->P.x,
-                  mouse->P.y);
-        OutputDebugStringA(buf);
-#endif
-
-
         DWORD result;    
         for(DWORD idx = 0;
             idx < XUSER_MAX_COUNT;
-            idx++) {
+            idx++) 
+        {
             XINPUT_STATE state;
             ZeroMemory(&state, sizeof(XINPUT_STATE));
             result = xinput_get_state(idx, &state);
             win32_xinput_handle_deadzone(&state);
-            if (result == ERROR_SUCCESS) {
+            if (result == ERROR_SUCCESS) 
+            {
 
-            } else {
+            } 
+            else 
+            {
                 // TODO: Diagnostic
             }
         }
 
-        if (win32_state.is_recording) {
+        if (win32_state.is_recording) 
+        {
             Win32RecordInput(&win32_state, &game_input);
         }
-        if (win32_state.is_playing) {
+        if (win32_state.is_playing) 
+        {
             Win32PlaybackInput(&win32_state, &game_input);
         }
 
         game_input.dt_per_frame = desired_mspf / 1000.0f;
 
-        if (game_main) {
+        if (game_main) 
+        {
             game_main(&game_memory, game_state, &game_input, &gameScreenBuffer);
         }
 
@@ -1019,11 +1043,14 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
         LARGE_INTEGER counter_end = win32_get_clock();
         f32 actual_mspf = win32_get_elapsed_ms(counter_begin, counter_end);
 
-        if (actual_mspf < desired_mspf) {
+        if (actual_mspf < desired_mspf) 
+        {
             DWORD ms_to_sleep = (DWORD)(desired_mspf - actual_mspf);
             Sleep(ms_to_sleep);
             actual_mspf = win32_get_elapsed_ms(counter_begin, win32_get_clock());
-        } else {
+        } 
+        else 
+        {
             // TODO: Missed framerate handling
         }
 

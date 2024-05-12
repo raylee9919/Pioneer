@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <contributor>
+      <author/>
+      <authoring_tool>FBX COLLADA exporter</authoring_tool>
+      <comments/>
+    </contributor>
+    <created>2024-05-12T17:47:30Z</created>
+    <keywords/>
+    <modified>2024-05-12T17:47:30Z</modified>
+    <revision/>
+    <subject/>
+    <title/>
+    <unit meter="0.010000" name="centimeter"/>
+    <up_axis>Y_UP</up_axis>
+  </asset>
+  <library_materials>
+    <material id="standardSurface1" name="standardSurface1">
+      <instance_effect url="#standardSurface1-fx"/>
+    </material>
+  </library_materials>
+  <library_effects>
+    <effect id="standardSurface1-fx" name="standardSurface1">
+      <profile_COMMON>
+        <technique sid="standard">
+          <phong>
+            <emission>
+              <color sid="emission">0.000000  0.000000 0.000000 1.000000</color>
+            </emission>
+            <ambient>
+              <color sid="ambient">0.000000  0.000000 0.000000 1.000000</color>
+            </ambient>
+            <diffuse>
+              <color sid="diffuse">0.000000  0.000000 0.000000 1.000000</color>
+            </diffuse>
+            <specular>
+              <color sid="specular">0.000000  0.000000 0.000000 1.000000</color>
+            </specular>
+          </phong>
+        </technique>
+      </profile_COMMON>
+    </effect>
+  </library_effects>
+  <library_geometries>
+    <geometry id="pPlane1-lib" name="pPlane1Mesh">
+      <mesh>
+        <source id="pPlane1-POSITION">
+          <float_array id="pPlane1-POSITION-array" count="33">
+-0.082963 0.001150 0.000000
+0.082963 0.001150 0.000000
+-0.076510 0.201150 0.000000
+0.076510 0.201150 0.000000
+-0.065811 0.401150 0.000000
+0.065811 0.401150 0.000000
+-0.053883 0.601150 0.000000
+0.053882 0.601150 0.000000
+-0.036216 0.801150 0.000000
+0.036217 0.801150 0.000000
+0.000011 1.001150 0.000000
+</float_array>
+          <technique_common>
+            <accessor source="#pPlane1-POSITION-array" count="11" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="pPlane1-Normal0">
+          <float_array id="pPlane1-Normal0-array" count="33">
+0.000000 0.000000 1.000000
+0.000000 0.000000 1.000000
+0.000000 0.000000 1.000000
+0.000000 0.000000 1.000000
+0.000000 0.000000 1.000000
+0.000000 0.000000 1.000000
+0.000000 0.000000 1.000000
+0.000000 0.000000 1.000000
+0.000000 0.000000 1.000000
+0.000000 0.000000 1.000000
+0.000000 0.000000 1.000000
+</float_array>
+          <technique_common>
+            <accessor source="#pPlane1-Normal0-array" count="11" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="pPlane1-UV0">
+          <float_array id="pPlane1-UV0-array" count="22">
+0.000000 0.000000
+1.000000 0.000000
+0.000000 0.200000
+1.000000 0.200000
+0.000000 0.400000
+1.000000 0.400000
+0.000000 0.600000
+1.000000 0.600000
+0.000000 0.800000
+1.000000 0.800000
+1.000000 1.000000
+</float_array>
+          <technique_common>
+            <accessor source="#pPlane1-UV0-array" count="11" stride="2">
+              <param name="S" type="float"/>
+              <param name="T" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="pPlane1-VERTEX">
+          <input semantic="POSITION" source="#pPlane1-POSITION"/>
+          <input semantic="NORMAL" source="#pPlane1-Normal0"/>
+        </vertices>
+        <triangles count="9" material="standardSurface1">
+          <input semantic="VERTEX" offset="0" source="#pPlane1-VERTEX"/>
+          <input semantic="TEXCOORD" offset="1" set="0" source="#pPlane1-UV0"/>
+          <p> 2 2 1 1 3 3 1 1 2 2 0 0 5 5 4 4 2 2 5 5 2 2 3 3 7 7 6 6 4 4 7 7 4 4 5 5 8 8 7 7 9 9 7 7 8 8 6 6 8 8 9 9 10 10</p>
+        </triangles>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_visual_scenes>
+    <visual_scene id="grass" name="grass">
+      <node name="pPlane1" id="pPlane1" sid="pPlane1">
+        <matrix sid="matrix">1.000000 0.000000 0.000000 0.000000 0.000000 1.000000 0.000000 0.000000 0.000000 0.000000 1.000000 0.000000 0.000000 0.000000 0.000000 1.000000</matrix>
+        <instance_geometry url="#pPlane1-lib">
+          <bind_material>
+            <technique_common>
+              <instance_material symbol="standardSurface1" target="#standardSurface1"/>
+            </technique_common>
+          </bind_material>
+        </instance_geometry>
+        <extra>
+          <technique profile="FCOLLADA">
+            <visibility>1.000000</visibility>
+          </technique>
+        </extra>
+      </node>
+      <extra>
+        <technique profile="MAX3D">
+          <frame_rate>24.000000</frame_rate>
+        </technique>
+        <technique profile="FCOLLADA">
+          <start_time>0.041667</start_time>
+          <end_time>8.333333</end_time>
+        </technique>
+      </extra>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#grass"/>
+  </scene>
+</COLLADA>

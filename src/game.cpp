@@ -526,27 +526,47 @@ GAME_MAIN(game_main)
 
         game_state->world               = push_struct(&game_state->world_arena, World);
         World *world                    = game_state->world;
-        world->chunk_dim                = {17.0f, 9.0f, 3.0f};
+        world->chunk_dim                = {17.0f, 3.0f, 9.0f};
         Memory_Arena *world_arena       = &game_state->world_arena;
         Chunk_Hashmap *chunk_hashmap    = &game_state->world->chunkHashmap;
 
+        game_state->random_series = seed(6974);
+
         Chunk *chunk = get_chunk(&game_state->world_arena, chunk_hashmap, Chunk_Position{0, 0, 0});
-        v3 dim = {1.0f, 1.0f, 1.0f};
+        v3 dim = _v3_(1.0f, 1.0f, 1.0f);
 
         for (s32 X = -8; X <= 8; ++X) 
         {
-            for (s32 Y = -4; Y <= 4; ++Y) 
+            for (s32 Z = -4; Z <= 4; ++Z) 
             {
                 Chunk_Position tile_pos = {chunk->x, chunk->y, chunk->z};
                 tile_pos.offset.x += dim.x * X;
-                tile_pos.offset.y += dim.y * Y;
-                Chunk_Position tile_pos2 = tile_pos;
-                tile_pos.z--;
+                tile_pos.offset.z += dim.z * Z;
                 recalc_pos(&tile_pos, game_state->world->chunk_dim);
                 Entity *tile1 = push_entity(world_arena, chunk_hashmap,
                                             eEntity_Tile, tile_pos, world->chunk_dim);
+#if 0
+                Chunk_Position tile_pos2 = tile_pos;
+                tile_pos.y++;
                 Entity *tile2 = push_entity(world_arena, chunk_hashmap,
                                             eEntity_Tile, tile_pos2, world->chunk_dim);
+#endif
+#if 0
+                for (s32 z = -2; z <= 2; ++z)
+                {
+                    for (s32 x = -2; x <= 2; ++x)
+                    {
+                        Chunk_Position grass_pos = tile_pos;
+                        grass_pos.offset.z += (0.25f * dim.z * z +
+                                               rand_range(&game_state->random_series, -0.05f, 0.05f));
+                        grass_pos.offset.x += (0.25f * dim.x * x + 
+                                               rand_range(&game_state->random_series, -0.05f, 0.05f));
+                        recalc_pos(&grass_pos, game_state->world->chunk_dim);
+                        Entity *grass = push_entity(world_arena, chunk_hashmap,
+                                                    eEntity_Grass, grass_pos, world->chunk_dim);
+                    }
+                }
+#endif
             }
         }
 
@@ -561,10 +581,20 @@ GAME_MAIN(game_main)
 
         load_bone_hierarchy(&game_state->world_arena, game_memory->platform.debug_platform_read_file);
 
+
+        game_state->debug_cam = push_struct(&game_state->world_arena, Camera);
+        Camera *cam = game_state->debug_cam;
+        cam->type = eCamera_Type_Perspective;
+        cam->focal_length = 0.5f;
+        f32 T = pi32 * 0.16666f;
+        f32 D = 5;
+        cam->world_translation = _v3_(0, D * sin(T * 2.0f), D * cos(T * 2.0f));
+        cam->world_rotation = _qt_(cos(T), -sin(T), 0, 0);
+
         game_state->is_init = true;
     }
-
     TIMED_BLOCK();
+    f32 dt = game_input->dt_per_frame;
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -604,58 +634,107 @@ GAME_MAIN(game_main)
 
         load_model(&game_assets->xbot_model, "xbot.3d", &game_state->world_arena, game_memory->platform.debug_platform_read_file);
         load_model(&game_assets->cube_model, "cube.3d", &game_state->world_arena, game_memory->platform.debug_platform_read_file);
+        load_model(&game_assets->grass_model, "grass.3d", &game_state->world_arena, game_memory->platform.debug_platform_read_file);
         load_font(&game_state->world_arena, game_memory->platform.debug_platform_read_file, &trans_state->game_assets);
 
         trans_state->is_init = true;  
    }
 
-    f32 aspect_ratio = safe_ratio((f32)game_screen_buffer->width,
-                                  (f32)game_screen_buffer->height);
+    f32 w_over_h = safe_ratio((f32)game_screen_buffer->width,
+                              (f32)game_screen_buffer->height);
+    game_state->debug_cam->w_over_h = w_over_h;
 
     Temporary_Memory render_memory = begin_temporary_memory(&trans_state->transient_arena);
-    Render_Group *skeletal_mesh_render_group = alloc_render_group(eRender_Group_Skeletal_Mesh,
-                                                                  &trans_state->transient_arena,
-                                                                  false,
-                                                                  aspect_ratio);
-    Render_Group *static_mesh_render_group   = alloc_render_group(eRender_Group_Static_Mesh,
-                                                                  &trans_state->transient_arena,
-                                                                  false,
-                                                                  aspect_ratio);
+    Render_Group *skeletal_mesh_render_group    = alloc_render_group(eRender_Group_Skeletal_Mesh,
+                                                                     &trans_state->transient_arena,
+                                                                     game_state->debug_cam);
+    Render_Group *static_mesh_render_group      = alloc_render_group(eRender_Group_Static_Mesh,
+                                                                     &trans_state->transient_arena,
+                                                                     game_state->debug_cam);
+    Render_Group *grass_render_group            = alloc_render_group(eRender_Group_Grass,
+                                                                     &trans_state->transient_arena,
+                                                                     game_state->debug_cam);
 
     v3 chunk_dim = game_state->world->chunk_dim;
-    f32 dt = game_input->dt_per_frame;
 
     //
     // Process Input
     //
     Entity *player = game_state->player;
     player->accel = _v3_(0, 0, 0);
-    if (game_input->move_up.is_set)
+    if (!game_state->debug_mode) 
     {
-        m4x4 rotation = to_m4x4(player->world_rotation);
-        player->accel = rotation * _v3_(0, 0, 1);
-    }
-    if (game_input->move_right.is_set)
-    {
-        f32 theta = acos(player->world_rotation.w) - dt;
-        if (theta < 0.0f)
+        if (game_input->W.is_set)
         {
-            theta += pi32;
+            m4x4 rotation = to_m4x4(player->world_rotation);
+            player->accel = rotation * _v3_(0, 0, 1);
         }
-        player->world_rotation = _qt_(cos(theta), 0, sin(theta), 0);
-    }
-    if (game_input->move_left.is_set)
-    {
-        f32 theta = acos(player->world_rotation.w) + dt;
-        if (theta > pi32)
+        if (game_input->D.is_set)
         {
-            theta -= pi32;
+            player->world_rotation = _qt_(cos(dt), 0,-sin(dt), 0) * player->world_rotation;
         }
-        player->world_rotation = _qt_(cos(theta), 0, sin(theta), 0);
+        if (game_input->A.is_set)
+        {
+            player->world_rotation = _qt_(cos(dt), 0, sin(dt), 0) * player->world_rotation;
+        }
+    }
+    else
+    {
+        Camera *cam = game_state->debug_cam;
+        f32 C = dt * 3.0f;
+        if (game_input->W.is_set)
+        {
+            m4x4 rotation = to_m4x4(cam->world_rotation);
+            cam->world_translation += rotation * _v3_(0, 0, -C);
+        }
+        if (game_input->S.is_set)
+        {
+            m4x4 rotation = to_m4x4(cam->world_rotation);
+            cam->world_translation += rotation * _v3_(0, 0, C);
+        }
+        if (game_input->D.is_set)
+        {
+            m4x4 rotation = to_m4x4(cam->world_rotation);
+            cam->world_translation += rotation * _v3_(C, 0, 0);
+        }
+        if (game_input->A.is_set)
+        {
+            m4x4 rotation = to_m4x4(cam->world_rotation);
+            cam->world_translation += rotation * _v3_(-C, 0, 0);
+        }
+
+        if (game_input->Q.is_set)
+        {
+            m4x4 rotation = to_m4x4(cam->world_rotation);
+            cam->world_translation += rotation * _v3_(0, -C, 0);
+        }
+        if (game_input->E.is_set)
+        {
+            m4x4 rotation = to_m4x4(cam->world_rotation);
+            cam->world_translation += rotation * _v3_(0, C, 0);
+        }
+
+        Mouse_Input *mouse = &game_input->mouse;
+        if (mouse->is_down[eMouse_Left]) 
+        {
+            if (mouse->toggle[eMouse_Left]) 
+            {
+                g_debug_cam_last_mouse_p = mouse->P;
+            }
+#if 1
+            f32 c = dt * 25.0f;
+            f32 Tx = (g_debug_cam_last_mouse_p.y - mouse->P.y) *-c;
+            f32 Ty = (g_debug_cam_last_mouse_p.x - mouse->P.x) * c;
+            qt qx = _qt_(cos(Tx), sin(Tx), 0, 0);
+            qt qy = _qt_(cos(Ty), 0, sin(Ty), 0);
+            cam->world_rotation = cam->world_rotation * qy * qx;
+#endif
+
+            g_debug_cam_last_mouse_p    = mouse->P;
+        }
     }
 
-#ifdef __DEBUG
-    if (game_input->toggle_debug.is_set) 
+    if (game_input->toggle_debug.is_set)
     {
         if (game_state->debug_toggle_delay == 0.0f) 
         {
@@ -675,10 +754,11 @@ GAME_MAIN(game_main)
     {
         game_state->debug_toggle_delay = 0.0f;
     }
-#endif
+
+
 
     Chunk_Position camPos = Chunk_Position{};
-    v3 camDim       = {100.0f, 50.0f, 5.0f};
+    v3 camDim       = {100.0f, 5.0f, 50.0f};
     Chunk_Position minPos = camPos;
     Chunk_Position maxPos = camPos;
     minPos.offset -= 0.5f * camDim;
@@ -697,30 +777,6 @@ GAME_MAIN(game_main)
     // Render entities
     //
     game_state->time += 0.01f;
-
-#if __DEBUG
-    if (game_input->alt.is_set) 
-    {
-        Mouse_Input *mouse = &game_input->mouse;
-        f32 c = 2.0f;
-        if (mouse->is_down[eMouse_Left]) 
-        {
-            if (mouse->toggle[eMouse_Left]) 
-            {
-                g_debug_cam_last_mouse_p = mouse->P;
-            }
-            g_debug_cam_orbital_yaw     += (g_debug_cam_last_mouse_p.x - mouse->P.x) * c;
-            g_debug_cam_orbital_pitch   -= (g_debug_cam_last_mouse_p.y - mouse->P.y) * c;
-            g_debug_cam_last_mouse_p    = mouse->P;
-        }
-
-        if (mouse->wheel_delta) 
-        {
-            c = 0.5f;
-            g_debug_cam_z -= c * mouse->wheel_delta;
-        }
-    }
-#endif
 
     //
     // @draw
@@ -808,6 +864,22 @@ GAME_MAIN(game_main)
                             }
                         } break;
 
+                        case eEntity_Grass: 
+                        {
+                            Asset_Model *model = game_assets->grass_model;
+                            if (model)
+                            {
+                                for (u32 mesh_idx = 0;
+                                     mesh_idx < model->mesh_count;
+                                     ++mesh_idx)
+                                {
+                                    Asset_Mesh *mesh = model->meshes + mesh_idx;
+                                    Asset_Material *mat = model->materials + mesh->material_idx;
+                                    push_static_mesh(grass_render_group, mesh, mat, world_transform);
+                                }
+                            }
+                        } break;
+
                         INVALID_DEFAULT_CASE
                     }
 
@@ -816,12 +888,13 @@ GAME_MAIN(game_main)
         }
     }
 #endif
-
+    
 
 
 
     render_group_to_output_batch(skeletal_mesh_render_group, &game_memory->render_batch);
     render_group_to_output_batch(static_mesh_render_group, &game_memory->render_batch);
+    render_group_to_output_batch(grass_render_group, &game_memory->render_batch);
     end_temporary_memory(&render_memory);
 
 
@@ -830,7 +903,7 @@ GAME_MAIN(game_main)
     //
 #ifdef __DEBUG
     Temporary_Memory debug_render_memory = begin_temporary_memory(&game_state->debug_arena);
-    Render_Group *debug_render_group = alloc_render_group(eRender_Group_Text, &game_state->debug_arena, true, aspect_ratio);
+    Render_Group *debug_render_group = alloc_render_group(eRender_Group_Text, &game_state->debug_arena, game_state->debug_cam);
 
     if (game_state->debug_mode)
     {

@@ -15,9 +15,6 @@
 #define DEBUG_LOG_FRAME_COUNT 120
 f32 inv_debug_log_frame_count = 1.0f / (f32)DEBUG_LOG_FRAME_COUNT;
 
-f32 g_debug_cam_orbital_pitch = -0.16f * pi32;
-f32 g_debug_cam_orbital_yaw;
-f32 g_debug_cam_z = 4.0f;
 v2  g_debug_cam_last_mouse_p;
 
 struct Debug_Record 
@@ -28,21 +25,21 @@ struct Debug_Record
 
 struct Debug_Info 
 {
-    const char *filename;
-    const char *function;
-    s32 line;
+    const char  *filename;
+    const char  *function;
+    s32         line;
 
-    u64 max_cycles;
-    u64 min_cycles;
-    u64 avg_cycles;
+    u64         max_cycles;
+    u64         min_cycles;
+    u64         avg_cycles;
 };
 
 struct Debug_Log 
 {
-    Debug_Record *debug_records;
-    Debug_Info *debug_infos;
-    s32 next_frame;
-    u32 record_width;
+    Debug_Record    *debug_records;
+    Debug_Info      *debug_infos;
+    s32             next_frame;
+    u32             record_width;
 };
 
 Debug_Log g_debug_log;

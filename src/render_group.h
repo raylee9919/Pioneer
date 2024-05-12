@@ -60,13 +60,22 @@ struct Render_Static_Mesh
     m4x4                    world_transform;
 };
 
+enum Camera_Type
+{
+    eCamera_Type_Perspective,
+    eCamera_Type_Orthographic,
+};
+
 struct Camera 
 {
-    b32     orthographic;
-    f32     focal_length;
-    f32     w_over_h;
-    v3      world_pos;
-    m4x4    projection;
+    Camera_Type     type;
+    f32             focal_length;
+    f32             w_over_h;
+
+    v3              world_translation;
+    qt              world_rotation;
+
+    m4x4            projection;
 };
 
 struct Textured_Vertex 
@@ -81,6 +90,7 @@ enum Render_Group_Type
 {
     eRender_Group_Skeletal_Mesh,
     eRender_Group_Static_Mesh,
+    eRender_Group_Grass,
     eRender_Group_Text,
 
     eRender_Group_Count
@@ -93,7 +103,7 @@ struct Render_Group
     size_t              capacity;
     size_t              used;
     u8                  *base;
-    Camera              camera;
+    Camera              *camera;
 
     Textured_Vertex     *vertices;
     size_t              vertex_count;

@@ -223,13 +223,13 @@ main(int argc, char **argv)
     Memory_Arena arena = init_memory_arena();
     Assimp::Importer importer;
 
-    b32 write_skeleton = 1; // (*)
+    b32 write_skeleton = 0; // (*)
 
     for (u32 file_idx = 0;
          file_idx < 1;
          ++file_idx)
     {
-        const char *file_name = "xbot.dae"; // (*)
+        const char *file_name = "grass.dae"; // (*)
         const aiScene *model = importer.ReadFile(file_name, aiProcessPreset_TargetRealtime_Quality);
 
         if (model)

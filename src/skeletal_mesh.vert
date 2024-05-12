@@ -12,7 +12,7 @@ layout (location = 1) in vec3 vN;
 layout (location = 2) in vec2 vUV;
 layout (location = 3) in vec4 vC;
 
-// animation info.
+// SKELETAL
 uniform mat4x4                  bone_transforms[MAX_BONE_PER_MESH];
 layout (location = 4) in s32    bone_ids[MAX_BONE_PER_VERTEX];
 layout (location = 5) in f32    bone_weights[MAX_BONE_PER_VERTEX];

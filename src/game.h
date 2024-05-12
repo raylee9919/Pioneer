@@ -11,6 +11,9 @@
 #define Min(a, b) ( (a < b) ? a : b )
 #define array_count(array) ( sizeof(array) / sizeof(array[0]) )
 #define zero_struct(Struct) clear_to_zero(sizeof(Struct), Struct)
+
+struct Camera;
+
 internal void
 clear_to_zero(size_t size, void *data) 
 {
@@ -29,6 +32,7 @@ clear_to_zero(size_t size, void *data)
 #include "asset_model.h"
 #include "asset.h"
 #include "random.h"
+
 
 struct Memory_Arena 
 {
@@ -73,10 +77,11 @@ enum Entity_Type
 {
     eEntity_XBot,
     eEntity_Tile,
+    eEntity_Grass,
 };
-enum EntityFlag 
+enum Entity_Flag 
 {
-    EntityFlag_Collides = 1
+    eEntity_Flag_Collides = 1
 };
 struct Entity 
 {
@@ -213,6 +218,7 @@ struct Game_Assets
 
     Asset_Model         *xbot_model;
     Asset_Model         *cube_model;
+    Asset_Model         *grass_model;
 
     Read_Entire_File    *read_entire_file;
 };
@@ -231,7 +237,10 @@ struct Game_State
     b32             is_init;
     f32             time;
 
+    Random_Series   random_series;
+
     Entity          *player;
+    Camera          *debug_cam;
 
     World           *world;
     Memory_Arena    world_arena;
