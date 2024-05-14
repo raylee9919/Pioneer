@@ -352,7 +352,6 @@ internal void
 update_entities(Game_State *game_state, f32 dt,
                 Chunk_Position sim_min, Chunk_Position sim_max) 
 {
-    TIMED_BLOCK();
     for (s32 Z = sim_min.z;
          Z <= sim_max.z;
          ++Z) 

@@ -1,6 +1,8 @@
 R"MULTILINE(
 
 uniform mat4x4  mvp;
+uniform f32     time;
+uniform f32     grass_max_vertex_y;
 
 // vertex info.
 layout (location = 0) in v3 vP;
@@ -17,8 +19,17 @@ smooth out v4 fC;
 
 void main()
 {
-    v4 result_pos = v4(world_translation + vP, 1.0f);
-    fP  = result_pos.xyz;
+    v3 mP = vP;
+    v3 wP = world_translation + mP;
+    f32 C = 0.6366197f; // 2/pi
+    if (mP.y > 0.2f)
+    {
+        f32 lerped_movement = mix(0.0f, 0.3f, mP.y / grass_max_vertex_y);
+        wP.x += lerped_movement * (sin(2.0f * C * (wP.x - time)) + 1);
+    }
+    
+    v4 result_pos = v4(wP, 1.0f);
+    fP  = wP;
     fN  = vN;
     fUV = vUV;
     fC  = vC;

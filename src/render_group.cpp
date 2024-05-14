@@ -52,12 +52,16 @@ internal void
 push_grass(Render_Group *group,
            Asset_Mesh *mesh,
            u32 count,
-           v3 *translations)
+           v3 *translations,
+           f32 time,
+           f32 grass_max_vertex_y)
 {
     Render_Grass *piece         = push_render_entity(group, Render_Grass);
     piece->mesh                 = mesh;
     piece->count                = count;
     piece->translations         = translations;
+    piece->time                 = time;
+    piece->grass_max_vertex_y   = grass_max_vertex_y;
 }
 
 #if 0
@@ -282,7 +286,6 @@ alloc_render_group(Render_Group_Type render_group_type,
 internal void
 render_group_to_output_batch(Render_Group *group, Render_Batch *batch)
 {
-    TIMED_BLOCK();
     Assert(batch->used + sizeof(Render_Group) <= batch->size);
     *(Render_Group *)((u8 *)batch->base + batch->used) = *group;
     batch->used += sizeof(Render_Group);

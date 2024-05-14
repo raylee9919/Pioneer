@@ -91,7 +91,6 @@ draw_bitmap_fast(Bitmap *buffer, v2 origin, v2 axisX, v2 axisY, Bitmap *bmp, v4 
             for (s32 X = minX;
                     X <= maxX;
                     X += 4) {
-                TIMED_BLOCK(4);
 
                 // NOTE: Clamp X
                 if (X + 3 > maxX) { X = maxX - 3; }

@@ -63,6 +63,8 @@ struct Grass_Program
     s32     id;
 
     s32     mvp;
+    s32     time;
+    s32     grass_max_vertex_y;
 };
 
 struct GL 

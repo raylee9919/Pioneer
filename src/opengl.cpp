@@ -99,6 +99,7 @@ typedef void        Type_glVertexAttribIPointer (GLuint index, GLint size, GLenu
 typedef void        Type_glUniform4fv (GLint location, GLsizei count, const GLfloat *value);
 typedef void        Type_glVertexAttribDivisor (GLuint index, GLuint divisor);
 typedef void        Type_glDrawElementsInstanced (GLenum mode, GLsizei count, GLenum type, const void *indices, GLsizei instancecount);
+typedef void        Type_glUniform1f (GLint location, GLfloat v0);
 
 #define GL_DECLARE_GLOBAL_FUNCTION(Name) global_var Type_##Name *Name
 GL_DECLARE_GLOBAL_FUNCTION(wglSwapIntervalEXT);
@@ -132,6 +133,7 @@ GL_DECLARE_GLOBAL_FUNCTION(glVertexAttribIPointer);
 GL_DECLARE_GLOBAL_FUNCTION(glUniform4fv);
 GL_DECLARE_GLOBAL_FUNCTION(glVertexAttribDivisor);
 GL_DECLARE_GLOBAL_FUNCTION(glDrawElementsInstanced);
+GL_DECLARE_GLOBAL_FUNCTION(glUniform1f);
 
 
 global_var GL gl;
@@ -553,6 +555,8 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                 glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, color)));
 
                 Render_Grass *piece = (Render_Grass *)group->base;
+                glUniform1f(program->time, piece->time);
+                glUniform1f(program->grass_max_vertex_y, piece->grass_max_vertex_y);
                 Asset_Mesh *mesh    = piece->mesh;
                 glBufferData(GL_ARRAY_BUFFER,
                              mesh->vertex_count * sizeof(Asset_Vertex),
@@ -666,7 +670,10 @@ gl_init()
     gl.grass_program.id = gl_create_program(header,
                                             grass_vshader,
                                             grass_fshader);
-    gl.grass_program.mvp              = glGetUniformLocation(gl.grass_program.id, "mvp");
+    gl.grass_program.mvp                = glGetUniformLocation(gl.grass_program.id, "mvp");
+    gl.grass_program.time               = glGetUniformLocation(gl.grass_program.id, "time");
+    gl.grass_program.grass_max_vertex_y = glGetUniformLocation(gl.grass_program.id, "grass_max_vertex_y");
+
 
     gl.white_bitmap.width   = 4;
     gl.white_bitmap.height  = 4;

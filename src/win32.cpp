@@ -170,6 +170,7 @@ win32_load_gl_extensions()
             WGL_GET_PROC_ADDRESS(wglCreateContextAttribsARB);
             WGL_GET_PROC_ADDRESS(wglSwapIntervalEXT);
 
+            // @wgl_get_proc
             WGL_GET_PROC_ADDRESS(glCreateShader);
             WGL_GET_PROC_ADDRESS(glShaderSource);
             WGL_GET_PROC_ADDRESS(glCompileShader);
@@ -200,6 +201,7 @@ win32_load_gl_extensions()
             WGL_GET_PROC_ADDRESS(glUniform4fv);
             WGL_GET_PROC_ADDRESS(glVertexAttribDivisor);
             WGL_GET_PROC_ADDRESS(glDrawElementsInstanced);
+            WGL_GET_PROC_ADDRESS(glUniform1f);
 
             wglMakeCurrent(0, 0);
         }

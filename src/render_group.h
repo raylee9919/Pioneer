@@ -67,6 +67,8 @@ struct Render_Grass
     Asset_Mesh              *mesh;
     u32                     count;
     v3                      *translations;
+    f32                     time;
+    f32                     grass_max_vertex_y;
 };
 
 enum Camera_Type
