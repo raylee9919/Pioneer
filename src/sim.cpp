@@ -106,11 +106,6 @@ push_entity(Memory_Arena *arena, Chunk_Hashmap *hashmap,
             entity->world_scaling       = _v3_(0.48f, 0.25f, 0.48f);
         } break;
 
-        case eEntity_Grass: 
-        {
-            entity->world_scaling       = _v3_(1, 1, 1);
-        } break;
-
         INVALID_DEFAULT_CASE
     }
 
@@ -395,10 +390,6 @@ update_entities(Game_State *game_state, f32 dt,
                             }
                             entity->world_rotation = _qt_(cos(theta), 0, sin(theta), 0);
 #endif
-                        } break;
-
-                        case eEntity_Grass: 
-                        {
                         } break;
 
                         INVALID_DEFAULT_CASE

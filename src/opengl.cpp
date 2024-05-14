@@ -6,6 +6,10 @@
    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 
+/*
+    STUDY: vertex attrib name stored in vao? multiple programs, no overlapping
+            vertex attrib...
+ */
 
 #include "render_group.h"
 #include "opengl.h"
@@ -93,6 +97,8 @@ typedef void        Type_glDisableVertexAttribArray (GLuint index);
 typedef void        Type_glUniform3fv (GLint location, GLsizei count, const GLfloat *value);
 typedef void        Type_glVertexAttribIPointer (GLuint index, GLint size, GLenum type, GLsizei stride, const void *pointer);
 typedef void        Type_glUniform4fv (GLint location, GLsizei count, const GLfloat *value);
+typedef void        Type_glVertexAttribDivisor (GLuint index, GLuint divisor);
+typedef void        Type_glDrawElementsInstanced (GLenum mode, GLsizei count, GLenum type, const void *indices, GLsizei instancecount);
 
 #define GL_DECLARE_GLOBAL_FUNCTION(Name) global_var Type_##Name *Name
 GL_DECLARE_GLOBAL_FUNCTION(wglSwapIntervalEXT);
@@ -124,11 +130,14 @@ GL_DECLARE_GLOBAL_FUNCTION(glDisableVertexAttribArray);
 GL_DECLARE_GLOBAL_FUNCTION(glUniform3fv);
 GL_DECLARE_GLOBAL_FUNCTION(glVertexAttribIPointer);
 GL_DECLARE_GLOBAL_FUNCTION(glUniform4fv);
+GL_DECLARE_GLOBAL_FUNCTION(glVertexAttribDivisor);
+GL_DECLARE_GLOBAL_FUNCTION(glDrawElementsInstanced);
 
 
 global_var GL gl;
 global_var GL_Info gl_info;
 global_var s32 g_texture_handle_idx = 1;
+
 
 //
 // Forward Declaration
@@ -365,6 +374,7 @@ gl_bind_texture(Bitmap *bitmap)
     }
 }
 
+
 // @batch
 internal void
 gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
@@ -392,6 +402,8 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         {
             case eRender_Group_Skeletal_Mesh:
             {
+                glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+
                 glEnable(GL_CULL_FACE);
                 glCullFace(GL_BACK);
                 glFrontFace(GL_CCW);
@@ -431,12 +443,12 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     glBufferData(GL_ARRAY_BUFFER,
                                  mesh->vertex_count * sizeof(Asset_Vertex),
                                  mesh->vertices,
-                                 GL_STREAM_DRAW);
+                                 GL_DYNAMIC_DRAW);
 
                     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
                                  mesh->index_count * sizeof(u32),
                                  mesh->indices,
-                                 GL_STREAM_DRAW);
+                                 GL_DYNAMIC_DRAW);
 
                     glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
                     glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
@@ -459,6 +471,8 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
             case eRender_Group_Static_Mesh:
             {
+                glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+
                 glEnable(GL_CULL_FACE);
                 glCullFace(GL_BACK);
                 glFrontFace(GL_CCW);
@@ -493,12 +507,12 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     glBufferData(GL_ARRAY_BUFFER,
                                  mesh->vertex_count * sizeof(Asset_Vertex),
                                  mesh->vertices,
-                                 GL_STREAM_DRAW);
+                                 GL_DYNAMIC_DRAW);
 
                     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
                                  mesh->index_count * sizeof(u32),
                                  mesh->indices,
-                                 GL_STREAM_DRAW);
+                                 GL_DYNAMIC_DRAW);
 
                     glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
 
@@ -518,59 +532,53 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
             case eRender_Group_Grass:
             {
+#if 1
+                glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+
                 glDisable(GL_CULL_FACE);
 
-                Static_Mesh_Program *program = &gl.static_mesh_program;
+                Grass_Program *program = &gl.grass_program;
                 s32 pid = program->id;
                 glUseProgram(pid);
 
                 glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->projection.e[0][0]);
-                glUniform3fv(program->cam_pos, 1, (GLfloat *)&group->camera->world_translation);
 
                 glEnableVertexAttribArray(0);
                 glEnableVertexAttribArray(1);
                 glEnableVertexAttribArray(2);
                 glEnableVertexAttribArray(3);
-
                 glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, pos)));
                 glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, normal)));
                 glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, uv)));
                 glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, color)));
 
-                for (u8 *at = group->base;
-                     at < group->base + group->used;)
-                {
-                    Render_Entity_Header *entity =(Render_Entity_Header *)at;
-                    Render_Static_Mesh *piece = (Render_Static_Mesh *)entity;
-                    at += sizeof(Render_Static_Mesh);
+                Render_Grass *piece = (Render_Grass *)group->base;
+                Asset_Mesh *mesh    = piece->mesh;
+                glBufferData(GL_ARRAY_BUFFER,
+                             mesh->vertex_count * sizeof(Asset_Vertex),
+                             mesh->vertices,
+                             GL_DYNAMIC_DRAW);
+                glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                             mesh->index_count * sizeof(u32),
+                             mesh->indices,
+                             GL_DYNAMIC_DRAW);
 
-                    Asset_Mesh *mesh    = piece->mesh;
-                    Asset_Material *mat = piece->material;
+                glBindBuffer(GL_ARRAY_BUFFER, gl.grass_vbo);
+                glEnableVertexAttribArray(6);
+                glVertexAttribPointer(6, 3, GL_FLOAT, false, sizeof(v3), (GLvoid *)0);
+                glVertexAttribDivisor(6, 1);
+                glBufferData(GL_ARRAY_BUFFER, sizeof(v3) * piece->count, piece->translations, GL_DYNAMIC_DRAW);
+                glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
 
-                    glBufferData(GL_ARRAY_BUFFER,
-                                 mesh->vertex_count * sizeof(Asset_Vertex),
-                                 mesh->vertices,
-                                 GL_STREAM_DRAW);
-
-                    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                                 mesh->index_count * sizeof(u32),
-                                 mesh->indices,
-                                 GL_STREAM_DRAW);
-
-                    glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
-
-                    glUniform3fv(program->color_ambient, 1, (GLfloat *)&mat->color_ambient);
-                    glUniform3fv(program->color_diffuse, 1, (GLfloat *)&mat->color_diffuse);
-                    glUniform3fv(program->color_specular, 1, (GLfloat *)&mat->color_specular);
-
-                    glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0);
-
-                }
+                glDrawElementsInstanced(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0, piece->count);
 
                 glDisableVertexAttribArray(0);
                 glDisableVertexAttribArray(1);
                 glDisableVertexAttribArray(2);
                 glDisableVertexAttribArray(3);
+                glDisableVertexAttribArray(6);
+
+#endif
             } break;
 
             case eRender_Group_Text:
@@ -587,6 +595,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
             
     batch->used = 0;
 }
+
 
 internal void
 gl_init()
@@ -607,23 +616,27 @@ gl_init()
     // @shader
     //
     const char *header = 
-#include "shader.header"
+#include "shader/shader.header"
     ;
 
     const char *skeletal_mesh_vshader = 
-#include "skeletal_mesh.vert"
+#include "shader/skeletal_mesh.vert"
     ;
 
     const char *static_mesh_vshader = 
-#include "static_mesh.vert"
+#include "shader/static_mesh.vert"
     ;
 
     const char *grass_vshader = 
-#include "grass.vert"
+#include "shader/grass.vert"
     ;
 
     const char *mesh_fshader = 
-#include "mesh.frag"
+#include "shader/mesh.frag"
+    ;
+
+    const char *grass_fshader = 
+#include "shader/grass.frag"
     ;
 
 
@@ -652,13 +665,8 @@ gl_init()
 
     gl.grass_program.id = gl_create_program(header,
                                             grass_vshader,
-                                            mesh_fshader);
+                                            grass_fshader);
     gl.grass_program.mvp              = glGetUniformLocation(gl.grass_program.id, "mvp");
-    gl.grass_program.texture_sampler  = glGetUniformLocation(gl.grass_program.id, "texture_sampler");
-    gl.grass_program.cam_pos          = glGetUniformLocation(gl.grass_program.id, "cam_pos");
-    gl.grass_program.color_ambient    = glGetUniformLocation(gl.grass_program.id, "color_ambient");
-    gl.grass_program.color_diffuse    = glGetUniformLocation(gl.grass_program.id, "color_diffuse");
-    gl.grass_program.color_specular   = glGetUniformLocation(gl.grass_program.id, "color_specular");
 
     gl.white_bitmap.width   = 4;
     gl.white_bitmap.height  = 4;
@@ -679,12 +687,10 @@ gl_init()
     glBindVertexArray(gl.vao);
 
     glGenBuffers(1, &gl.vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
 
     glGenBuffers(1, &gl.vio);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl.vio);
 
-
-    glGenBuffers(1, &gl.grass_bo);
-    glBindBuffer(GL_ARRAY_BUFFER, gl.grass_bo);
+    glGenBuffers(1, &gl.grass_vbo);
 }
+

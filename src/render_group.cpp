@@ -48,6 +48,18 @@ push_static_mesh(Render_Group *group,
     piece->world_transform      = world_transform;
 }
 
+internal void
+push_grass(Render_Group *group,
+           Asset_Mesh *mesh,
+           u32 count,
+           v3 *translations)
+{
+    Render_Grass *piece         = push_render_entity(group, Render_Grass);
+    piece->mesh                 = mesh;
+    piece->count                = count;
+    piece->translations         = translations;
+}
+
 #if 0
 internal void
 push_vertex(Render_Group *group, v3 P, v2 uv, v4 color, v3 normal)
@@ -225,10 +237,6 @@ alloc_render_group(Render_Group_Type render_group_type,
     result->capacity            = MB(4);
     result->base                = (u8 *)push_size(arena, result->capacity);
     result->used                = 0;
-#define VARRAY_SIZE MB(1)
-    result->vertices            = push_array(arena, Textured_Vertex, VARRAY_SIZE);
-    result->vertex_count        = 0;
-    result->varray_size         = VARRAY_SIZE;
     result->camera              = cam;
 
     if (cam->type == eCamera_Type_Perspective) 

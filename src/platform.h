@@ -38,7 +38,6 @@ struct Bitmap;
 
 #endif
 
-
 extern "C" 
 {
     typedef struct Entire_File 

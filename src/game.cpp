@@ -508,11 +508,12 @@ GetBitmap(Transient_State *trans_state, Asset_ID assetID,
     }
 }
 
-
-internal void
-str_format(u32 dst_size, char *dst_init, va_list arg_list)
-{
-}
+global_var v3 *grass_world_translations;
+global_var s32 grass_count;
+global_var Asset_Mesh *grass_mesh;
+#define GRASS_COUNT_MAX 100000
+#define GRASS_DENSITY 10
+#define GRASS_RANDOM_OFFSET 0.5f
 
 
 extern "C"
@@ -526,7 +527,7 @@ GAME_MAIN(game_main)
 
         game_state->world               = push_struct(&game_state->world_arena, World);
         World *world                    = game_state->world;
-        world->chunk_dim                = {17.0f, 3.0f, 9.0f};
+        world->chunk_dim                = _v3_(17.0f, 3.0f, 9.0f);
         Memory_Arena *world_arena       = &game_state->world_arena;
         Chunk_Hashmap *chunk_hashmap    = &game_state->world->chunkHashmap;
 
@@ -534,6 +535,8 @@ GAME_MAIN(game_main)
 
         Chunk *chunk = get_chunk(&game_state->world_arena, chunk_hashmap, Chunk_Position{0, 0, 0});
         v3 dim = _v3_(1.0f, 1.0f, 1.0f);
+
+        grass_world_translations = push_array(&game_state->world_arena, v3, GRASS_COUNT_MAX); 
 
         for (s32 X = -8; X <= 8; ++X) 
         {
@@ -545,25 +548,22 @@ GAME_MAIN(game_main)
                 recalc_pos(&tile_pos, game_state->world->chunk_dim);
                 Entity *tile1 = push_entity(world_arena, chunk_hashmap,
                                             eEntity_Tile, tile_pos, world->chunk_dim);
-#if 0
-                Chunk_Position tile_pos2 = tile_pos;
-                tile_pos.y++;
-                Entity *tile2 = push_entity(world_arena, chunk_hashmap,
-                                            eEntity_Tile, tile_pos2, world->chunk_dim);
-#endif
-#if 0
-                for (s32 z = -2; z <= 2; ++z)
+#if 1
+                for (s32 z = -GRASS_DENSITY; z <= GRASS_DENSITY; ++z)
                 {
-                    for (s32 x = -2; x <= 2; ++x)
+                    for (s32 x = -GRASS_DENSITY; x <= GRASS_DENSITY; ++x)
                     {
                         Chunk_Position grass_pos = tile_pos;
-                        grass_pos.offset.z += (0.25f * dim.z * z +
-                                               rand_range(&game_state->random_series, -0.05f, 0.05f));
-                        grass_pos.offset.x += (0.25f * dim.x * x + 
-                                               rand_range(&game_state->random_series, -0.05f, 0.05f));
+                        grass_pos.offset.z += ((1.0f / GRASS_DENSITY) * dim.z * z +
+                                               rand_range(&game_state->random_series, -GRASS_RANDOM_OFFSET, GRASS_RANDOM_OFFSET));
+                        grass_pos.offset.x += ((1.0f / GRASS_DENSITY) * dim.x * x + 
+                                               rand_range(&game_state->random_series, -GRASS_RANDOM_OFFSET, GRASS_RANDOM_OFFSET));
                         recalc_pos(&grass_pos, game_state->world->chunk_dim);
-                        Entity *grass = push_entity(world_arena, chunk_hashmap,
-                                                    eEntity_Grass, grass_pos, world->chunk_dim);
+                        v3 translation = _v3_(grass_pos.x * world->chunk_dim.x + grass_pos.offset.x,
+                                              grass_pos.y * world->chunk_dim.y + grass_pos.offset.y,
+                                              grass_pos.z * world->chunk_dim.z + grass_pos.offset.z);
+                        Assert(grass_count != (GRASS_COUNT_MAX - 1));
+                        grass_world_translations[grass_count++] = translation;
                     }
                 }
 #endif
@@ -635,6 +635,7 @@ GAME_MAIN(game_main)
         load_model(&game_assets->xbot_model, "xbot.3d", &game_state->world_arena, game_memory->platform.debug_platform_read_file);
         load_model(&game_assets->cube_model, "cube.3d", &game_state->world_arena, game_memory->platform.debug_platform_read_file);
         load_model(&game_assets->grass_model, "grass.3d", &game_state->world_arena, game_memory->platform.debug_platform_read_file);
+        grass_mesh = game_assets->grass_model->meshes;
         load_font(&game_state->world_arena, game_memory->platform.debug_platform_read_file, &trans_state->game_assets);
 
         trans_state->is_init = true;  
@@ -864,22 +865,6 @@ GAME_MAIN(game_main)
                             }
                         } break;
 
-                        case eEntity_Grass: 
-                        {
-                            Asset_Model *model = game_assets->grass_model;
-                            if (model)
-                            {
-                                for (u32 mesh_idx = 0;
-                                     mesh_idx < model->mesh_count;
-                                     ++mesh_idx)
-                                {
-                                    Asset_Mesh *mesh = model->meshes + mesh_idx;
-                                    Asset_Material *mat = model->materials + mesh->material_idx;
-                                    push_static_mesh(grass_render_group, mesh, mat, world_transform);
-                                }
-                            }
-                        } break;
-
                         INVALID_DEFAULT_CASE
                     }
 
@@ -888,6 +873,8 @@ GAME_MAIN(game_main)
         }
     }
 #endif
+
+    push_grass(grass_render_group, grass_mesh, grass_count, grass_world_translations);
     
 
 

@@ -1,4 +1,4 @@
- /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
+/* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
     $File: $
     $Date: $
     $Revision: $
@@ -11,7 +11,8 @@ enum Render_Type
     eRender_Quad,
     eRender_Text,
     eRender_Skeletal_Mesh,
-    eRender_Static_Mesh
+    eRender_Static_Mesh,
+    eRender_Grass
 };
 
 struct Render_Entity_Header 
@@ -30,17 +31,17 @@ struct Game_Assets;
 
 struct Render_Quad 
 {
-    Render_Entity_Header header;
-    Bitmap *bitmap;
+    Render_Entity_Header    header;
+    Bitmap                  *bitmap;
 };
 
 struct Render_Text 
 {
-    Render_Entity_Header header;
-    const char *str;
-    Game_Assets *game_assets;
-    f32 scale;
-    v4 color;
+    Render_Entity_Header    header;
+    const char              *str;
+    Game_Assets             *game_assets;
+    f32                     scale;
+    v4                      color;
 };
 
 struct Render_Skeletal_Mesh
@@ -58,6 +59,14 @@ struct Render_Static_Mesh
     Asset_Mesh              *mesh;
     Asset_Material          *material;
     m4x4                    world_transform;
+};
+
+struct Render_Grass
+{
+    Render_Entity_Header    header;
+    Asset_Mesh              *mesh;
+    u32                     count;
+    v3                      *translations;
 };
 
 enum Camera_Type
@@ -78,14 +87,6 @@ struct Camera
     m4x4            projection;
 };
 
-struct Textured_Vertex 
-{
-    v3      p;
-    v2      uv;
-    v4      color;
-    v3      normal;
-};
-
 enum Render_Group_Type
 {
     eRender_Group_Skeletal_Mesh,
@@ -104,9 +105,5 @@ struct Render_Group
     size_t              used;
     u8                  *base;
     Camera              *camera;
-
-    Textured_Vertex     *vertices;
-    size_t              vertex_count;
-    size_t              varray_size;
 };
 

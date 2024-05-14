@@ -77,7 +77,6 @@ enum Entity_Type
 {
     eEntity_XBot,
     eEntity_Tile,
-    eEntity_Grass,
 };
 enum Entity_Flag 
 {
