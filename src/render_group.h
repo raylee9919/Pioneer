@@ -22,6 +22,7 @@ struct Render_Entity_Header
     v3              base;
 };
 
+
 //
 // Render Entities
 //
@@ -61,6 +62,7 @@ struct Render_Static_Mesh
     m4x4                    world_transform;
 };
 
+struct Noise_Map;
 struct Render_Grass
 {
     Render_Entity_Header    header;
@@ -69,6 +71,7 @@ struct Render_Grass
     v3                      *translations;
     f32                     time;
     f32                     grass_max_vertex_y;
+    Bitmap                  *turbulence_map;
 };
 
 enum Camera_Type

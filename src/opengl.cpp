@@ -100,6 +100,7 @@ typedef void        Type_glUniform4fv (GLint location, GLsizei count, const GLfl
 typedef void        Type_glVertexAttribDivisor (GLuint index, GLuint divisor);
 typedef void        Type_glDrawElementsInstanced (GLenum mode, GLsizei count, GLenum type, const void *indices, GLsizei instancecount);
 typedef void        Type_glUniform1f (GLint location, GLfloat v0);
+typedef void        Type_glUniform1fv (GLint location, GLsizei count, const GLfloat *value);
 
 #define GL_DECLARE_GLOBAL_FUNCTION(Name) global_var Type_##Name *Name
 GL_DECLARE_GLOBAL_FUNCTION(wglSwapIntervalEXT);
@@ -134,6 +135,7 @@ GL_DECLARE_GLOBAL_FUNCTION(glUniform4fv);
 GL_DECLARE_GLOBAL_FUNCTION(glVertexAttribDivisor);
 GL_DECLARE_GLOBAL_FUNCTION(glDrawElementsInstanced);
 GL_DECLARE_GLOBAL_FUNCTION(glUniform1f);
+GL_DECLARE_GLOBAL_FUNCTION(glUniform1fv);
 
 
 global_var GL gl;
@@ -345,7 +347,7 @@ gl_alloc_texture(Bitmap *bitmap)
     glGenTextures(1, &bitmap->handle);
     glBindTexture(GL_TEXTURE_2D, bitmap->handle);
     glTexImage2D(GL_TEXTURE_2D, 0, g_gl_texture_internal_format, bitmap->width, bitmap->height,
-                 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, (u8 *)bitmap->memory + bitmap->pitch * (bitmap->height - 1));
+                 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, bitmap->memory);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -574,6 +576,20 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                 glBufferData(GL_ARRAY_BUFFER, sizeof(v3) * piece->count, piece->translations, GL_DYNAMIC_DRAW);
                 glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
 
+                Bitmap *turbulence_map = piece->turbulence_map;
+                if (!turbulence_map->handle)
+                {
+                    glGenTextures(1, &turbulence_map->handle);
+                    glBindTexture(GL_TEXTURE_2D, turbulence_map->handle);
+                    glTexImage2D(GL_TEXTURE_2D, 0, g_gl_texture_internal_format, turbulence_map->width, turbulence_map->height,
+                                 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, (u8 *)turbulence_map->memory);
+
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+                }
+                glBindTexture(GL_TEXTURE_2D, turbulence_map->handle);
                 glDrawElementsInstanced(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0, piece->count);
 
                 glDisableVertexAttribArray(0);
@@ -593,6 +609,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
             INVALID_DEFAULT_CASE
         }
 
+        gl_bind_texture(0);
         glUseProgram(0);
 
     }
@@ -673,14 +690,15 @@ gl_init()
     gl.grass_program.mvp                = glGetUniformLocation(gl.grass_program.id, "mvp");
     gl.grass_program.time               = glGetUniformLocation(gl.grass_program.id, "time");
     gl.grass_program.grass_max_vertex_y = glGetUniformLocation(gl.grass_program.id, "grass_max_vertex_y");
+    gl.grass_program.turbulence_map     = glGetUniformLocation(gl.grass_program.id, "turbulence_map");
 
 
     gl.white_bitmap.width   = 4;
     gl.white_bitmap.height  = 4;
-    gl.white_bitmap.pitch   = -16;
+    gl.white_bitmap.pitch   = 16;
     gl.white_bitmap.handle  = 0;
     gl.white_bitmap.size    = 64;
-    gl.white_bitmap.memory  = &gl.white[3][0];
+    gl.white_bitmap.memory  = &gl.white;
     for (u32 *at = (u32 *)gl.white;
          at <= &gl.white[3][3];
          ++at) 
@@ -700,4 +718,3 @@ gl_init()
 
     glGenBuffers(1, &gl.grass_vbo);
 }
-

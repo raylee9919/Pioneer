@@ -65,6 +65,7 @@ struct Grass_Program
     s32     mvp;
     s32     time;
     s32     grass_max_vertex_y;
+    s32     turbulence_map;
 };
 
 struct GL 

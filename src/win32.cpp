@@ -202,6 +202,7 @@ win32_load_gl_extensions()
             WGL_GET_PROC_ADDRESS(glVertexAttribDivisor);
             WGL_GET_PROC_ADDRESS(glDrawElementsInstanced);
             WGL_GET_PROC_ADDRESS(glUniform1f);
+            WGL_GET_PROC_ADDRESS(glUniform1fv);
 
             wglMakeCurrent(0, 0);
         }

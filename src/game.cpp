@@ -365,6 +365,8 @@ load_font(Memory_Arena *arena, Read_Entire_File *read_file, Game_Assets *game_as
     }
 }
 
+#if 1
+// IMPORTANT: bitmap->memory starts with lowest scanline of the image.
 internal Bitmap *
 load_bmp(Memory_Arena *arena, Read_Entire_File *read_file, const char *filename)
 {
@@ -377,12 +379,12 @@ load_bmp(Memory_Arena *arena, Read_Entire_File *read_file, const char *filename)
         BMP_Info_Header *header = (BMP_Info_Header *)read.contents;
         u32 *pixels = (u32 *)((u8 *)read.contents + header->bitmap_offset);
 
-        result->memory = pixels + header->width * (header->height - 1);
-        result->width = header->width;
-        result->height = header->height;
-        result->pitch = -result->width * BYTES_PER_PIXEL;
-        result->size = result->width * result->height * BYTES_PER_PIXEL;
-        result->handle = 0;
+        result->memory  = pixels + header->width * (header->height - 1);
+        result->width   = header->width;
+        result->height  = header->height;
+        result->pitch   = result->width * BYTES_PER_PIXEL;
+        result->size    = result->width * result->height * BYTES_PER_PIXEL;
+        result->handle  = 0;
 
         Assert(header->compression == 3);
 
@@ -437,11 +439,15 @@ load_bmp(Memory_Arena *arena, Read_Entire_File *read_file, const char *filename)
                          ((u32)(b + 0.5f) <<  0));
             }
         }
+        result->memory = pixels;
     }
+
 
     return result;
 }
+#endif
 
+#if 0
 PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work)
 {
     Load_Asset_Work_Data *workData = (Load_Asset_Work_Data *)data;
@@ -449,7 +455,9 @@ PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work)
     workData->game_assets->bitmapStates[workData->assetID] = Asset_State_Loaded;
     end_work_memory(workData->workSlot);
 }
+#endif
 
+#if 0
 internal Bitmap *
 GetBitmap(Transient_State *trans_state, Asset_ID assetID,
           PlatformWorkQueue *queue, Platform_API *platform)
@@ -507,15 +515,40 @@ GetBitmap(Transient_State *trans_state, Asset_ID assetID,
         return result;
     }
 }
+#endif
 
 global_var v3 *grass_world_translations;
 global_var s32 grass_count;
 global_var Asset_Mesh *grass_mesh;
 global_var f32 grass_max_vertex_y;
-#define GRASS_COUNT_MAX 100000
+global_var Bitmap *turbulence_map;
+
+#define GRASS_COUNT_MAX 1'000'000
 #define GRASS_DENSITY 10
 #define GRASS_RANDOM_OFFSET 0.10f
+#define TURBULENCE_MAP_SIDE  128
 
+internal Bitmap *
+gen_turbulence_map(Memory_Arena *arena, Random_Series *series, u32 side)
+{
+    Bitmap *result  = 0;
+    result          = push_struct(arena, Bitmap);
+    result->width   = side;
+    result->height  = side;
+    result->pitch   = sizeof(u32) * side;
+    result->size    = sizeof(u32) * side * side;
+    result->memory  = push_array(arena, u32, side * side);
+    for (u32 y = 0; y < side; ++y)
+    {
+        for (u32 x = 0; x < side; ++x)
+        {
+            u32 *at = (u32 *)result->memory + (y * side + x);
+            u8 gray = u8(rand_range(series, 0.0f, 255.0f) + 0.5f);
+            *at = (0xff << 24 | gray << 16 | gray << 8 | gray);
+        }
+    }
+    return result;
+}
 
 extern "C"
 GAME_MAIN(game_main)
@@ -539,8 +572,8 @@ GAME_MAIN(game_main)
 
         grass_world_translations = push_array(&game_state->world_arena, v3, GRASS_COUNT_MAX); 
 
-        s32 hX = round_f32_to_s32(game_state->world->chunk_dim.x * 0.5f);
-        s32 hZ = round_f32_to_s32(game_state->world->chunk_dim.z * 0.5f);
+        s32 hX = round_f32_to_s32(game_state->world->chunk_dim.x * 0.5f) * 3;
+        s32 hZ = round_f32_to_s32(game_state->world->chunk_dim.z * 0.5f) * 3;
         for (s32 X = -hX; X <= hX; ++X) 
         {
             for (s32 Z = -hZ; Z <= hZ; ++Z) 
@@ -594,8 +627,17 @@ GAME_MAIN(game_main)
         cam->world_translation = _v3_(0, D * sin(T * 2.0f), D * cos(T * 2.0f));
         cam->world_rotation = _qt_(cos(T), -sin(T), 0, 0);
 
+        //
+        // NOISE MAP
+        //
+
+        // turbulence_map = gen_turbulence_map(&game_state->world_arena, &game_state->random_series, TURBULENCE_MAP_SIDE);
+        turbulence_map = load_bmp(&game_state->world_arena, game_memory->platform.debug_platform_read_file, "turbulence.bmp");
+
         game_state->is_init = true;
     }
+
+    // @dt
     f32 dt = game_input->dt_per_frame;
     game_state->time += dt;
 
@@ -883,7 +925,7 @@ GAME_MAIN(game_main)
     }
 #endif
 
-    push_grass(grass_render_group, grass_mesh, grass_count, grass_world_translations, game_state->time, grass_max_vertex_y);
+    push_grass(grass_render_group, grass_mesh, grass_count, grass_world_translations, game_state->time, grass_max_vertex_y, turbulence_map);
     
 
 

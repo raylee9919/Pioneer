@@ -54,7 +54,8 @@ push_grass(Render_Group *group,
            u32 count,
            v3 *translations,
            f32 time,
-           f32 grass_max_vertex_y)
+           f32 grass_max_vertex_y,
+           Bitmap *turbulence_map)
 {
     Render_Grass *piece         = push_render_entity(group, Render_Grass);
     piece->mesh                 = mesh;
@@ -62,6 +63,7 @@ push_grass(Render_Group *group,
     piece->translations         = translations;
     piece->time                 = time;
     piece->grass_max_vertex_y   = grass_max_vertex_y;
+    piece->turbulence_map       = turbulence_map;
 }
 
 #if 0

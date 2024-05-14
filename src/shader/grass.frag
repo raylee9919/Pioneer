@@ -9,6 +9,7 @@ out v4 C;
 void main()
 {
     C = fC;
+#if 0
     v3 result_normal = fN;
     if (!gl_FrontFacing)
     {
@@ -38,6 +39,7 @@ void main()
 
     C *= v4(light_sum, 1.0f);
 
+#endif
     if (C.a == 0.0f) 
     {
         discard;
