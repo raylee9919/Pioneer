@@ -147,7 +147,8 @@ win32_load_gl_extensions()
     wclass.hInstance       = GetModuleHandleA(0);
     wclass.lpszClassName   = "WGL_Loader";
 
-    if (RegisterClassA(&wclass)) {
+    if (RegisterClassA(&wclass)) 
+    {
         HWND win = CreateWindowExA(0,
                                    wclass.lpszClassName,
                                    "Handmade Hero",
@@ -164,9 +165,8 @@ win32_load_gl_extensions()
         win32_set_pixel_format(dc);
 
         HGLRC glrc = wglCreateContext(dc);
-        if (wglMakeCurrent(dc, glrc)) {
-
-
+        if (wglMakeCurrent(dc, glrc)) 
+        {
             WGL_GET_PROC_ADDRESS(wglCreateContextAttribsARB);
             WGL_GET_PROC_ADDRESS(wglSwapIntervalEXT);
 
@@ -223,31 +223,36 @@ win32_init_opengl(HDC dc)
     // create context.
     gl_info.modern = true;
     HGLRC glrc = 0;
-    if (wglCreateContextAttribsARB) {
+    if (wglCreateContextAttribsARB) 
+    {
         glrc = wglCreateContextAttribsARB(dc, 0, wgl_attrib_list);
     }
-    if (!glrc) {
+    if (!glrc) 
+    {
         glrc = wglCreateContext(dc);
         gl_info.modern = false;
     }
 
     // associate with the thread.
-    if (wglMakeCurrent(dc, glrc)) {
-
+    if (wglMakeCurrent(dc, glrc)) 
+    {
         gl_get_info();
 
-        if (wglCreateContextAttribsARB) {
+        if (wglCreateContextAttribsARB) 
+        {
             glrc = wglCreateContextAttribsARB(dc, 0, wgl_attrib_list);
         }
 
         // v-sync.
-        if (wglSwapIntervalEXT) {
+        if (wglSwapIntervalEXT) 
+        {
             wglSwapIntervalEXT(1);
         }
 
         // sRGB.
         if (gl_info.has_ext[GL_EXT_texture_sRGB] && 
-            gl_info.has_ext[GL_EXT_framebuffer_sRGB]) {
+            gl_info.has_ext[GL_EXT_framebuffer_sRGB]) 
+        {
             g_gl_texture_internal_format = GL_SRGB8_ALPHA8;
             glEnable(GL_FRAMEBUFFER_SRGB);
         }

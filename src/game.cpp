@@ -622,7 +622,7 @@ GAME_MAIN(game_main)
         Camera *cam = game_state->debug_cam;
         cam->type = eCamera_Type_Perspective;
         cam->focal_length = 0.5f;
-        f32 T = pi32 * 0.16666f;
+        f32 T = pi32 * 0.1;
         f32 D = 5;
         cam->world_translation = _v3_(0, D * sin(T * 2.0f), D * cos(T * 2.0f));
         cam->world_rotation = _qt_(cos(T), -sin(T), 0, 0);
@@ -630,7 +630,6 @@ GAME_MAIN(game_main)
         //
         // NOISE MAP
         //
-
         // turbulence_map = gen_turbulence_map(&game_state->world_arena, &game_state->random_series, TURBULENCE_MAP_SIDE);
         turbulence_map = load_bmp(&game_state->world_arena, game_memory->platform.debug_platform_read_file, "turbulence.bmp");
 

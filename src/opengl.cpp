@@ -65,6 +65,14 @@ typedef void (APIENTRY  *GLDEBUGPROCARB)(GLenum source,GLenum type,GLuint id,GLe
 #define GL_INT                              0x1404
 #define GL_UNSIGNED_INT                     0x1405
 #define GL_FLOAT                            0x1406
+#define GL_MULTISAMPLE                      0x809D
+#define GL_SAMPLE_ALPHA_TO_COVERAGE         0x809E
+#define GL_SAMPLE_ALPHA_TO_ONE              0x809F
+#define GL_SAMPLE_COVERAGE                  0x80A0
+#define GL_SAMPLE_BUFFERS                   0x80A8
+#define GL_SAMPLES                          0x80A9
+#define GL_SAMPLE_COVERAGE_VALUE            0x80AA
+#define GL_SAMPLE_COVERAGE_INVERT           0x80AB
 
 
 typedef BOOL        Type_wglSwapIntervalEXT(int interval);
@@ -397,6 +405,11 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glClear(GL_DEPTH_BUFFER_BIT);
     glDepthFunc(GL_LEQUAL);
 
+    // ANTI-ALIASING MSAA
+    glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+    glEnable(GL_SAMPLE_ALPHA_TO_ONE);
+    glEnable(GL_MULTISAMPLE);
+
     for (Render_Group *group = (Render_Group *)batch->base;
          (u8 *)group < (u8 *)batch->base + batch->used;
          ++group)
@@ -536,7 +549,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
             case eRender_Group_Grass:
             {
-#if 1
+#if 0
                 glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
 
                 glDisable(GL_CULL_FACE);
