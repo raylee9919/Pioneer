@@ -26,13 +26,16 @@ void main()
     f32 C = 0.6366197f; // 2/pi
     f32 lerped_movement = mix(0.0f, 0.6f, mP.y / grass_max_vertex_y);
 
-    f32 noise_period = 1 / 10.0f;
+    f32 noise_period = 1.0f / 10.0f;
     v2 noise_uv = v2(wP.x, wP.z) * noise_period;
     f32 noise = texture(turbulence_map, noise_uv).x;
-    f32 turbulence = sin(time + wP.z/2 + wP.x/2 + noise * 4.0f) * 0.5f + 0.5f;
+    f32 turbulence = sin(time + wP.z + wP.x + noise * 4.0f) * 0.5f + 0.5f;
 
-    wP.x += lerped_movement * turbulence;
 #if 1
+    wP.x -= lerped_movement * turbulence;
+#endif
+
+#if 0
     f32 gray = turbulence;
     mC = v4(gray, gray, gray, 1.0f);
 #endif

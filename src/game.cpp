@@ -526,7 +526,7 @@ global_var Bitmap *turbulence_map;
 #define GRASS_COUNT_MAX 1'000'000
 #define GRASS_DENSITY 10
 #define GRASS_RANDOM_OFFSET 0.10f
-#define TURBULENCE_MAP_SIDE  128
+#define TURBULENCE_MAP_SIDE 256 
 
 internal Bitmap *
 gen_turbulence_map(Memory_Arena *arena, Random_Series *series, u32 side)
@@ -572,8 +572,8 @@ GAME_MAIN(game_main)
 
         grass_world_translations = push_array(&game_state->world_arena, v3, GRASS_COUNT_MAX); 
 
-        s32 hX = round_f32_to_s32(game_state->world->chunk_dim.x * 0.5f) * 3;
-        s32 hZ = round_f32_to_s32(game_state->world->chunk_dim.z * 0.5f) * 3;
+        s32 hX = round_f32_to_s32(game_state->world->chunk_dim.x * 0.5f);
+        s32 hZ = round_f32_to_s32(game_state->world->chunk_dim.z * 0.5f);
         for (s32 X = -hX; X <= hX; ++X) 
         {
             for (s32 Z = -hZ; Z <= hZ; ++Z) 

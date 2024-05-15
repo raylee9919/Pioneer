@@ -9,17 +9,17 @@ out v4 C;
 void main()
 {
     C = fC;
-#if 0
+#if 1
     v3 result_normal = fN;
     if (!gl_FrontFacing)
     {
         result_normal = -result_normal;
     }
 
-    v3 light_color      = v3(1, 1, 1);
+    v3 light_color      = v3(1, 1, 1) * 10.0f;
     f32 light_ambient   = 0.9f;
     f32 light_diffuse   = 0.1f;
-    v3 light_pos        = v3(0.0f, 3.0f, 0.0f);
+    v3 light_pos        = v3(0.0f, 10.0f, 0.0f);
     v3 light_sum        = v3(0, 0, 0);
 
     v3 to_light         = normalize(light_pos - fP);
