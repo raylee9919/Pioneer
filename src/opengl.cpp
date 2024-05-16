@@ -169,7 +169,6 @@ str_match(char *text, char *pattern, size_t len);
 
 
 
-global_var GLint g_gl_texture_internal_format = GL_RGBA8;
 
 inline void
 gl_parse_version()
@@ -216,11 +215,12 @@ gl_debug_callback(GLenum source, GLenum type, GLuint id,
 }
 
 internal void
-gl_get_info()
+gl_init_info()
 {
     gl_info.vendor                   = (char *)glGetString(GL_VENDOR);
     gl_info.renderer                 = (char *)glGetString(GL_RENDERER);
     gl_info.extensions               = (char *)glGetString(GL_EXTENSIONS);
+    Assert(gl_info.extensions);
     gl_parse_version();
     if (gl_info.modern) 
     {
@@ -290,6 +290,8 @@ gl_get_info()
         }
     }
 
+    gl_info.texture_internal_format = GL_RGBA8;
+
 }
 
 
@@ -355,7 +357,7 @@ gl_alloc_texture(Bitmap *bitmap)
 {
     glGenTextures(1, &bitmap->handle);
     glBindTexture(GL_TEXTURE_2D, bitmap->handle);
-    glTexImage2D(GL_TEXTURE_2D, 0, g_gl_texture_internal_format, bitmap->width, bitmap->height,
+    glTexImage2D(GL_TEXTURE_2D, 0, gl_info.texture_internal_format, bitmap->width, bitmap->height,
                  0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, bitmap->memory);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -552,7 +554,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
             case eRender_Group_Grass:
             {
-#if 0
+#if 1
                 glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
 
                 glDisable(GL_CULL_FACE);
@@ -597,7 +599,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                 {
                     glGenTextures(1, &turbulence_map->handle);
                     glBindTexture(GL_TEXTURE_2D, turbulence_map->handle);
-                    glTexImage2D(GL_TEXTURE_2D, 0, g_gl_texture_internal_format, turbulence_map->width, turbulence_map->height,
+                    glTexImage2D(GL_TEXTURE_2D, 0, gl_info.texture_internal_format, turbulence_map->width, turbulence_map->height,
                                  0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, (u8 *)turbulence_map->memory);
 
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);

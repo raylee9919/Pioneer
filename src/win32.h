@@ -98,6 +98,7 @@ struct Win32State
 
 #define WGL_SAMPLE_BUFFERS_ARB                      0x2041
 #define WGL_SAMPLES_ARB                             0x2042
+#define WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB            0x20A9
 
 #define WGL_GET_PROC_ADDRESS(Name) Name = (Type_##Name *)wglGetProcAddress(#Name)
 

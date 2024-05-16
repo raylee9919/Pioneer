@@ -35,7 +35,7 @@ void main()
     wP.x -= lerped_movement * turbulence;
 #endif
 
-#if 0
+#if 1
     f32 gray = turbulence;
     mC = v4(gray, gray, gray, 1.0f);
 #endif
