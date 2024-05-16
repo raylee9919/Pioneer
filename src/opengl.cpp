@@ -73,6 +73,7 @@ typedef void (APIENTRY  *GLDEBUGPROCARB)(GLenum source,GLenum type,GLuint id,GLe
 #define GL_SAMPLES                          0x80A9
 #define GL_SAMPLE_COVERAGE_VALUE            0x80AA
 #define GL_SAMPLE_COVERAGE_INVERT           0x80AB
+#define GL_MAX_SAMPLES                      0x8D57
 
 
 typedef BOOL        Type_wglSwapIntervalEXT(int interval);
@@ -205,7 +206,7 @@ gl_debug_callback(GLenum source, GLenum type, GLuint id,
         } break;
         case GL_DEBUG_SEVERITY_MEDIUM: 
         {
-            Assert(0);
+            // Assert(0);
         } break;
         case GL_DEBUG_SEVERITY_HIGH: 
         {
@@ -405,10 +406,12 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glClear(GL_DEPTH_BUFFER_BIT);
     glDepthFunc(GL_LEQUAL);
 
-    // ANTI-ALIASING MSAA
     glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     glEnable(GL_SAMPLE_ALPHA_TO_ONE);
     glEnable(GL_MULTISAMPLE);
+
+    int n;
+    glGetIntegerv(GL_MAX_SAMPLES, &n);
 
     for (Render_Group *group = (Render_Group *)batch->base;
          (u8 *)group < (u8 *)batch->base + batch->used;
@@ -622,12 +625,12 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
             INVALID_DEFAULT_CASE
         }
 
-        gl_bind_texture(0);
-        glUseProgram(0);
 
     }
             
     batch->used = 0;
+    gl_bind_texture(0);
+    glUseProgram(0);
 }
 
 
@@ -730,4 +733,5 @@ gl_init()
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl.vio);
 
     glGenBuffers(1, &gl.grass_vbo);
+
 }

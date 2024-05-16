@@ -39,13 +39,16 @@ internal void
 win32_load_xinput() 
 {
     HMODULE xinput_module = LoadLibraryA("xinput1_4.dll");
-    if (!xinput_module) { LoadLibraryA("Xinput9_1_0.dll"); }
-    if (!xinput_module) { LoadLibraryA("xinput1_3.dll"); }
+    if (!xinput_module) {   LoadLibraryA("Xinput9_1_0.dll");    }
+    if (!xinput_module) {   LoadLibraryA("xinput1_3.dll");      }
 
-    if(xinput_module) {
+    if(xinput_module) 
+    {
         xinput_get_state = (XInput_Get_State *)GetProcAddress(xinput_module, "XInputGetState");
         xinput_set_state = (__XInputSetState *)GetProcAddress(xinput_module, "XInputSetState");
-    } else {
+    } 
+    else 
+    {
         xinput_get_state = xinput_get_state_stub;
         xinput_set_state = xinput_set_state_stub;
     }
@@ -94,7 +97,8 @@ str_find(char *text, size_t t_len, char *pattern, size_t p_len)
 {
     void *result = 0;
 
-    if (t_len >= p_len) {
+    if (t_len >= p_len) 
+    {
         u8 *t = (u8 *)text;
         u8 *p = (u8 *)pattern;
         for (u8 *t_base = t;
@@ -106,12 +110,14 @@ str_find(char *text, size_t t_len, char *pattern, size_t p_len)
                  p_at < p + p_len && *p_at == *t_at;
                  ++p_at, ++t_at) 
             {
-                if (p_at == p + p_len - 1) {
+                if (p_at == p + p_len - 1) 
+                {
                     result = t_base;
                     break;
                 }
             }
-            if (result) {
+            if (result) 
+            {
                 break;
             }
         }
@@ -136,7 +142,42 @@ win32_set_pixel_format(HDC dc)
     int suggestedPixelFormatIndex = ChoosePixelFormat(dc, &desiredPixelFormat);
     PIXELFORMATDESCRIPTOR suggestedPixelFormat;
     DescribePixelFormat(dc, suggestedPixelFormatIndex, sizeof(suggestedPixelFormat), &suggestedPixelFormat);
-    SetPixelFormat(dc, suggestedPixelFormatIndex, &suggestedPixelFormat);
+
+    if (wglChoosePixelFormatARB)
+    {
+        // TODO: robust msaa init.
+        Assert(gl_info.has_ext[GL_ARB_multisample]);
+
+        s32 suggested_pixel_format_idx;
+        u32 format_count = 1;
+        u32 res;
+        f32 attribf[] = { 0, 0 };
+        s32 attribi[] = { 
+            WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
+            WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
+            WGL_DOUBLE_BUFFER_ARB,  GL_TRUE,
+            WGL_COLOR_BITS_ARB,     32,
+            WGL_RED_BITS_ARB,       8,
+            WGL_GREEN_BITS_ARB,     8,
+            WGL_BLUE_BITS_ARB,      8,
+            WGL_ALPHA_BITS_ARB,     8,
+            WGL_DEPTH_BITS_ARB,     24,
+            WGL_STENCIL_BITS_ARB,   0,
+            WGL_PIXEL_TYPE_ARB,     WGL_TYPE_RGBA_ARB,
+            WGL_SAMPLE_BUFFERS_ARB, GL_TRUE,
+            WGL_SAMPLES_ARB,        8,
+            0, 0 };
+
+
+        Assert(wglChoosePixelFormatARB(dc, attribi, attribf,
+                                       format_count, &suggested_pixel_format_idx,
+                                       &res));
+        SetPixelFormat(dc, suggested_pixel_format_idx, &suggestedPixelFormat);
+    }
+    else
+    {
+        SetPixelFormat(dc, suggestedPixelFormatIndex, &suggestedPixelFormat);
+    }
 }
 
 internal void
@@ -151,7 +192,7 @@ win32_load_gl_extensions()
     {
         HWND win = CreateWindowExA(0,
                                    wclass.lpszClassName,
-                                   "Handmade Hero",
+                                   "WGL_Loader",
                                    0,
                                    CW_USEDEFAULT,
                                    CW_USEDEFAULT,
@@ -169,6 +210,7 @@ win32_load_gl_extensions()
         {
             WGL_GET_PROC_ADDRESS(wglCreateContextAttribsARB);
             WGL_GET_PROC_ADDRESS(wglSwapIntervalEXT);
+            WGL_GET_PROC_ADDRESS(wglChoosePixelFormatARB);
 
             // @wgl_get_proc
             WGL_GET_PROC_ADDRESS(glCreateShader);
@@ -204,6 +246,8 @@ win32_load_gl_extensions()
             WGL_GET_PROC_ADDRESS(glUniform1f);
             WGL_GET_PROC_ADDRESS(glUniform1fv);
 
+            gl_get_info();
+
             wglMakeCurrent(0, 0);
         }
 
@@ -222,10 +266,25 @@ win32_init_opengl(HDC dc)
 
     // create context.
     gl_info.modern = true;
+
+const int context_attrib_list[] = 
+{
+    WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
+    WGL_CONTEXT_MINOR_VERSION_ARB, 3,
+    WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
+#if __DEBUG
+        | WGL_CONTEXT_DEBUG_BIT_ARB
+#endif
+        ,
+    //WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+    WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+    0,
+};
+
     HGLRC glrc = 0;
     if (wglCreateContextAttribsARB) 
     {
-        glrc = wglCreateContextAttribsARB(dc, 0, wgl_attrib_list);
+        glrc = wglCreateContextAttribsARB(dc, 0, context_attrib_list);
     }
     if (!glrc) 
     {
@@ -236,12 +295,6 @@ win32_init_opengl(HDC dc)
     // associate with the thread.
     if (wglMakeCurrent(dc, glrc)) 
     {
-        gl_get_info();
-
-        if (wglCreateContextAttribsARB) 
-        {
-            glrc = wglCreateContextAttribsARB(dc, 0, wgl_attrib_list);
-        }
 
         // v-sync.
         if (wglSwapIntervalEXT) 
@@ -266,10 +319,12 @@ internal void
 win32_toggle_fullscreen(HWND window) 
 {
     DWORD style = GetWindowLong(window, GWL_STYLE);
-    if (style & WS_OVERLAPPEDWINDOW) {
+    if (style & WS_OVERLAPPEDWINDOW) 
+    {
         MONITORINFO mi = { sizeof(mi) };
         if (GetWindowPlacement(window, &g_wpPrev) &&
-            GetMonitorInfo(MonitorFromWindow(window, MONITOR_DEFAULTTOPRIMARY), &mi)) {
+            GetMonitorInfo(MonitorFromWindow(window, MONITOR_DEFAULTTOPRIMARY), &mi)) 
+        {
             SetWindowLong(window, GWL_STYLE,
                           style & ~WS_OVERLAPPEDWINDOW);
             SetWindowPos(window, HWND_TOP,
@@ -278,7 +333,9 @@ win32_toggle_fullscreen(HWND window)
                          mi.rcMonitor.bottom - mi.rcMonitor.top,
                          SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
         }
-    } else {
+    } 
+    else 
+    {
         SetWindowLong(window, GWL_STYLE,
                       style | WS_OVERLAPPEDWINDOW);
         SetWindowPlacement(window, &g_wpPrev);
@@ -358,7 +415,8 @@ win32_get_elapsed_sec(LARGE_INTEGER begin, LARGE_INTEGER end)
 }
 
 inline f32
-win32_get_elapsed_ms(LARGE_INTEGER begin, LARGE_INTEGER end) {
+win32_get_elapsed_ms(LARGE_INTEGER begin, LARGE_INTEGER end) 
+{
     f32 result = win32_get_elapsed_sec(begin, end) * 1000.0f;
     return result;
 }
@@ -852,7 +910,8 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     char exe_path_buf[MAX_PATH];
     DWORD exe_path_length = GetModuleFileNameA(0, exe_path_buf, MAX_PATH);
     DWORD last_backslash_idx = 0;
-    for(DWORD idx = 0; idx < exe_path_length; idx++) {
+    for(DWORD idx = 0; idx < exe_path_length; idx++) 
+    {
         if(exe_path_buf[idx] == '\\') { last_backslash_idx = idx; }
     }
 
@@ -875,8 +934,10 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
         LARGE_INTEGER counter_begin = win32_get_clock();
 
         game_dll_time = win32_get_file_time(game_dll_abs_path);
-        if (CompareFileTime(&game_dll_time_last, &game_dll_time) != 0) {
-            if (game_dll) {
+        if (CompareFileTime(&game_dll_time_last, &game_dll_time) != 0) 
+        {
+            if (game_dll) 
+            {
                 FreeLibrary(game_dll); 
                 game_dll = 0;
             }

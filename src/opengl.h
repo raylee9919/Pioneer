@@ -8,10 +8,12 @@
 
 #define GL_EXTENSION_LIST           \
     X(GL_EXT_texture_sRGB)          \
-    X(GL_EXT_framebuffer_sRGB)
+    X(GL_EXT_framebuffer_sRGB)      \
+    X(GL_ARB_multisample)
 
 #define X(ext) ext,
-enum GL_Extensions {
+enum GL_Extensions 
+{
     GL_EXTENSION_LIST
     GL_EXT_COUNT
 };
