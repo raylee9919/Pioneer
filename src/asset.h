@@ -1,10 +1,10 @@
-/* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
+/* ========================================================================
    $File: $
    $Date: $
    $Revision: $
    $Creator: Sung Woo Lee $
-   $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-   ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
+   $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
+   ======================================================================== */
 
 // let's discriminimate microsoft's bmp and "pure" bitmap.
 #pragma pack(push, 1)

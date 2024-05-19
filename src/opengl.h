@@ -1,10 +1,10 @@
-/* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
+/* ========================================================================
    $File: $
    $Date: $
    $Revision: $
    $Creator: Sung Woo Lee $
-   $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-   ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
+   $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
+   ======================================================================== */
 
 #define GL_EXTENSION_LIST           \
     X(GL_EXT_texture_sRGB)          \
@@ -72,17 +72,36 @@ struct Grass_Program
     s32     turbulence_map;
 };
 
+struct Star_Program
+{
+    s32     id;
+
+    s32     mvp;
+};
+
+struct Sprite_Program
+{
+    s32     id;
+
+    s32     mvp;
+    s32     color;
+    s32     texture;
+};
+
 struct GL 
 {
     Skeletal_Mesh_Program   skeletal_mesh_program;
     Static_Mesh_Program     static_mesh_program;
     Grass_Program           grass_program;
+    Sprite_Program          sprite_program;
+    Star_Program            star_program;
 
     GLuint  vao;
     GLuint  vbo;
     GLuint  vio;
 
     GLuint  grass_vbo;
+    GLuint  star_vbo;
 
     Bitmap  white_bitmap;
     u32     white[4][4];

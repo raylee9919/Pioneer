@@ -1,10 +1,13 @@
-/* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
-    $File: $
-    $Date: $
-    $Revision: $
-    $Creator: Sung Woo Lee $
-    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
+/* ========================================================================
+   $File: $
+   $Date: $
+   $Revision: $
+   $Creator: Sung Woo Lee $
+   $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
+   ======================================================================== */
+
+struct Game_Assets;
+struct Noise_Map;
 
 enum Render_Type 
 {
@@ -12,7 +15,9 @@ enum Render_Type
     eRender_Text,
     eRender_Skeletal_Mesh,
     eRender_Static_Mesh,
-    eRender_Grass
+    eRender_Grass,
+    eRender_Star,
+    eRender_Bitmap,
 };
 
 struct Render_Entity_Header 
@@ -23,26 +28,10 @@ struct Render_Entity_Header
 };
 
 
-//
-// Render Entities
-//
-
-struct Game_Assets;
-
-
 struct Render_Quad 
 {
     Render_Entity_Header    header;
     Bitmap                  *bitmap;
-};
-
-struct Render_Text 
-{
-    Render_Entity_Header    header;
-    const char              *str;
-    Game_Assets             *game_assets;
-    f32                     scale;
-    v4                      color;
 };
 
 struct Render_Skeletal_Mesh
@@ -62,16 +51,38 @@ struct Render_Static_Mesh
     m4x4                    world_transform;
 };
 
-struct Noise_Map;
 struct Render_Grass
 {
     Render_Entity_Header    header;
     Asset_Mesh              *mesh;
     u32                     count;
-    v3                      *translations;
+    m4x4                    *world_transforms;
     f32                     time;
     f32                     grass_max_vertex_y;
     Bitmap                  *turbulence_map;
+};
+
+struct Render_Star
+{
+    Render_Entity_Header    header;
+    Asset_Mesh              *mesh;
+    u32                     count;
+    m4x4                    *world_transforms;
+};
+
+struct Render_Bitmap
+{
+    Bitmap                  *bitmap;
+    v4                      color;
+    v3                      min;
+    v3                      max;
+};
+
+
+struct Textured_Vertex
+{
+    v3                      pos;
+    v2                      uv;
 };
 
 enum Camera_Type
@@ -80,11 +91,13 @@ enum Camera_Type
     eCamera_Type_Orthographic,
 };
 
+#define DEFAULT_FOCAL_LENGTH 0.5f
 struct Camera 
 {
     Camera_Type     type;
     f32             focal_length;
-    f32             w_over_h;
+    f32             width;
+    f32             height;
 
     v3              world_translation;
     qt              world_rotation;
@@ -97,6 +110,7 @@ enum Render_Group_Type
     eRender_Group_Skeletal_Mesh,
     eRender_Group_Static_Mesh,
     eRender_Group_Grass,
+    eRender_Group_Star,
     eRender_Group_Text,
 
     eRender_Group_Count
@@ -112,3 +126,15 @@ struct Render_Group
     Camera              *camera;
 };
 
+
+
+#if 0
+struct Render_Text 
+{
+    Render_Entity_Header    header;
+    const char              *str;
+    Game_Assets             *game_assets;
+    f32                     scale;
+    v4                      color;
+};
+#endif

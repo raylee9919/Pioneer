@@ -1,10 +1,10 @@
- /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
-    $File: $
-    $Date: $
-    $Revision: $
-    $Creator: Sung Woo Lee $
-    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
+/* ========================================================================
+   $File: $
+   $Date: $
+   $Revision: $
+   $Creator: Sung Woo Lee $
+   $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
+   ======================================================================== */
 
 struct Win32ScreenBuffer 
 {

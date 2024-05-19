@@ -1,10 +1,10 @@
- /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
-    $File: $
-    $Date: $
-    $Revision: $
-    $Creator: Sung Woo Lee $
-    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
+/* ========================================================================
+   $File: $
+   $Date: $
+   $Revision: $
+   $Creator: Sung Woo Lee $
+   $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
+   ======================================================================== */
 
 u32 random_table[] = {
     0X785FD252, 0XC76E9A98, 0X3D9A5C28, 0XDDF7F80D, 0XDDA5C366, 0XF50D03B6, 0X1CEE0954, 0XCFDD36C9,
@@ -137,38 +137,58 @@ u32 random_table[] = {
     0X0A513FD4, 0X51A7823A, 0X1AB3C467, 0XE8E73333, 0X8FAAE1AD, 0X1423205F, 0X2E06FE4F, 0X0EFF3F00,
 };
 
-u32 max_in_random_table = 0XFFB7D659; 
+u32 max_in_random_table = 0Xffb7d659; 
+u32 min_in_random_table = 0x002f7154; 
 
 struct Random_Series 
 {
-    u32 next_idx;
+    u32 state;
 };
 
 inline Random_Series
 seed(u32 seed) 
 {
     Random_Series result = {};
-    result.next_idx = (seed % array_count(random_table));
+    result.state = random_table[seed % array_count(random_table)];
     return result;
 }
 
 inline u32
 rand_next(Random_Series *series)
 {
+#if 0
     u32 result = random_table[series->next_idx++];
     if (series->next_idx > array_count(random_table)) 
     {
         series->next_idx = 0;
     }
     return result;
+#else
+    u32 x = series->state;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    series->state = x;
+    return x;
+#endif
 }
 
 inline f32
 rand_unilateral(Random_Series *series)
 {
-    f32 div = 1.0f / (f32)max_in_random_table;
-    f32 result = (f32)rand_next(series) * div;
+#if 0
+    f32 d = (f32)(max_in_random_table - min_in_random_table);
+    f32 r = (f32)rand_next(series);
+    f32 t = safe_ratio(r - min_in_random_table, d);
+    f32 result = lerp(0.0f, 1.0f, t);
     return result;
+#else
+    f32 d = (f32)(0xffffffff);
+    f32 r = (f32)rand_next(series);
+    f32 t = r / d;
+    f32 result = lerp(0.0f, 1.0f, t);
+    return result;
+#endif
 }
 
 inline f32

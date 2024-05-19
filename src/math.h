@@ -1,10 +1,10 @@
- /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
-    $File: $
-    $Date: $
-    $Revision: $
-    $Creator: Sung Woo Lee $
-    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
+/* ========================================================================
+   $File: $
+   $Date: $
+   $Revision: $
+   $Creator: Sung Woo Lee $
+   $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
+   ======================================================================== */
 
 #define pi32                3.14159265359f
 #define epsilon_f32         1.19209e-07
@@ -415,6 +415,17 @@ _qt_(f32 w, f32 x, f32 y, f32 z)
     q.x = x;
     q.y = y;
     q.z = z;
+    return q;
+}
+
+static qt
+_qt_(f32 w, v3 v)
+{
+    qt q = {};
+    q.w = w;
+    q.x = v.x;
+    q.y = v.y;
+    q.z = v.z;
     return q;
 }
 

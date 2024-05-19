@@ -1,10 +1,10 @@
- /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
-    $File: $
-    $Date: $
-    $Revision: $
-    $Creator: Sung Woo Lee $
-    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
+/* ========================================================================
+   $File: $
+   $Date: $
+   $Revision: $
+   $Creator: Sung Woo Lee $
+   $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
+   ======================================================================== */
 
 
 #define Max(a, b) ( (a > b) ? a : b )
@@ -233,27 +233,27 @@ struct Load_Asset_Work_Data
 
 struct Game_State 
 {
-    b32             is_init;
-    f32             time;
+    b32                 init;
+    f32                 time;
 
-    Random_Series   random_series;
+    Random_Series       random_series;
 
-    Entity          *player;
-    Camera          *debug_cam;
+    Entity              *player;
+    Camera              *debug_cam;
 
-    World           *world;
-    Memory_Arena    world_arena;
-    Memory_Arena    renderArena;
+    World               *world;
+    Memory_Arena        world_arena;
+    Memory_Arena        renderArena;
 
     // debug.
-    f32             debug_toggle_delay;
-    b32             debug_mode;
-    Memory_Arena    debug_arena;
+    f32                 debug_toggle_delay;
+    b32                 debug_mode;
+    Memory_Arena        debug_arena;
 };
 
 struct Transient_State 
 {
-    b32                 is_init;
+    b32                 init;
     Memory_Arena        transient_arena;
     PlatformWorkQueue   *highPriorityQueue;
     PlatformWorkQueue   *lowPriorityQueue;

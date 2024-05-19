@@ -1,10 +1,10 @@
-/* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
+/* ========================================================================
    $File: $
    $Date: $
    $Revision: $
    $Creator: Sung Woo Lee $
-   $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-   ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
+   $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
+   ======================================================================== */
 
 #define MAX_BONE_PER_VERTEX     4
 #define MAX_BONE_PER_MESH       100

@@ -1,10 +1,10 @@
-/* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
+/* ========================================================================
    $File: $
    $Date: $
    $Revision: $
    $Creator: Sung Woo Lee $
-   $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-   ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
+   $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
+   ======================================================================== */
 
 inline u32
 chunk_hash(Chunk_Hashmap *chunkHashmap, Chunk_Position pos)

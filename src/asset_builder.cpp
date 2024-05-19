@@ -52,7 +52,7 @@ init_memory()
 }
 
 inline void
-deinit_memory() 
+free_memory() 
 {
     free(g_main_arena.base);
 }
@@ -188,14 +188,17 @@ bake_glyph(HDC hdc, u32 codepoint, void *bits, s32 bi_width, s32 bi_height, TEXT
     u32 *pixel_row = (u32 *)bits + (bi_height - 1) * bi_width;
     for (s32 y = 0;
             y < height;
-            ++y) {
+            ++y) 
+    {
         u32 *pixel = pixel_row;
         for (s32 x = 0;
                 x < width;
-                ++x) {
+                ++x) 
+        {
             // COLORREF pixel = GetPixel(hdc, x, y); // OS-call, but suck it.
             u8 gray = (u8)(*pixel++ & 0xff);
-            if (gray != 0) {
+            if (gray != 0) 
+            {
                 if (x < min_x) { min_x = x; }
                 if (y < min_y) { min_y = y; }
                 if (x > max_x) { max_x = x; }
@@ -226,9 +229,9 @@ bake_glyph(HDC hdc, u32 codepoint, void *bits, s32 bi_width, s32 bi_height, TEXT
     s32 off_x = min_x;
     s32 off_y = min_y;
 
-    s32 glyph_width = max_x - min_x + 1;
-    s32 glyph_height = max_y - min_y + 1;
-    s32 glyph_pitch = -glyph_width * 4;
+    s32 glyph_width     = max_x - min_x + 1;
+    s32 glyph_height    = max_y - min_y + 1;
+    s32 glyph_pitch     = glyph_width * 4;
 
     s32 margin = 1;
 
@@ -236,22 +239,24 @@ bake_glyph(HDC hdc, u32 codepoint, void *bits, s32 bi_width, s32 bi_height, TEXT
     result->ascent = ascent + margin;
     result->bitmap.width = glyph_width + margin * 2;
     result->bitmap.height = glyph_height + margin * 2;
-    result->bitmap.pitch = -result->bitmap.width * 4;
+    result->bitmap.pitch = result->bitmap.width * 4;
     result->bitmap.handle = 0;
     result->bitmap.size = result->bitmap.height * result->bitmap.width * 4;
     result->bitmap.memory = push_size(result->bitmap.size);
     // memset(result->bitmap.memory, 0x7f, result->bitmap.size);
 
-    u8 *dst_row = (u8 *)result->bitmap.memory + (result->bitmap.height - 1 - margin) * -result->bitmap.pitch + 4 * margin;
+    u8 *dst_row = (u8 *)result->bitmap.memory + (result->bitmap.height - 1 - margin) * result->bitmap.pitch + 4 * margin;
     pixel_row = (u32 *)bits + (bi_height - 1 - off_y) * bi_width;
     for (s32 y = 0;
             y < glyph_height;
-            ++y) {
+            ++y) 
+    {
         u32 *dst_at = (u32 *)dst_row;
         u32 *pixel = pixel_row + off_x;
         for (s32 x = 0;
                 x < glyph_width;
-                ++x) {
+                ++x) 
+        {
             // COLORREF pixel = GetPixel(hdc, off_x + x, off_y + y);
             u8 gray = (u8)(*pixel++ & 0xff);
 #if 0 // debug
@@ -267,7 +272,7 @@ bake_glyph(HDC hdc, u32 codepoint, void *bits, s32 bi_width, s32 bi_height, TEXT
 #endif
             *dst_at++ = c; 
         }
-        dst_row += result->bitmap.pitch;
+        dst_row -= result->bitmap.pitch;
         pixel_row -= bi_width;
     }
     
@@ -288,10 +293,10 @@ bake_glyph(HDC hdc, u32 codepoint, void *bits, s32 bi_width, s32 bi_height, TEXT
         result->memory = push_size(size);
         result->width = width;
         result->height = height;
-        result->pitch = -width * 4;
+        result->pitch = width * 4;
         result->size = width * height * 4;
 
-        u8 *dst_row = (u8 *)result->memory + (height - 1) * -result->pitch;
+        u8 *dst_row = (u8 *)result->memory + (height - 1) * result->pitch;
         for (s32 y = 0;
                 y < height;
                 ++y) {
@@ -325,43 +330,48 @@ error_handling(const char *str)
 static void
 bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_height) 
 {
-    s32 bi_width = 1024;
-    s32 bi_height = 1024;
-    static HDC hdc = 0;
-    TEXTMETRIC metric = {};
-    ABC *ABCs = 0;
-    void *bits = 0;
-    u32 lo = ' ';
-    u32 hi = '~';
-    if (!hdc) {
+    s32 bi_width        = 1024;
+    s32 bi_height       = 1024;
+    static HDC hdc      = 0;
+    TEXTMETRIC metric   = {};
+    ABC *ABCs           = 0;
+    void *bits          = 0;
+    u32 lo              = ' ';
+    u32 hi              = '~';
+    if (!hdc) 
+    {
         // add font file to resource pool.
-        if (!AddFontResourceExA(filename, FR_PRIVATE, 0)) {
+        if (!AddFontResourceExA(filename, FR_PRIVATE, 0)) 
+        {
             error_handling("ERROR: Couldn't add font resource.");
         }
 
         // create font.
         HFONT font = CreateFontA(cheese_height, 0, 0, 0,
-                FW_NORMAL, FALSE, FALSE, FALSE,
-                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-                DEFAULT_PITCH|FF_DONTCARE, fontname);
-        if (!font) { error_handling("ERROR: Couldn't create a font."); }
+                                 FW_NORMAL, FALSE, FALSE, FALSE,
+                                 DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                                 CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                                 DEFAULT_PITCH|FF_DONTCARE, fontname);
+        if (!font) 
+        { 
+            error_handling("ERROR: Couldn't create a font."); 
+        }
 
         hdc = CreateCompatibleDC(0);
         char temp[30];
         GetTextFaceA(hdc, 30, temp);
         BITMAPINFO info = {};
-        info.bmiHeader.biSize = sizeof(info.bmiHeader);
-        info.bmiHeader.biWidth = bi_width;
-        info.bmiHeader.biHeight = bi_height;
-        info.bmiHeader.biPlanes = 1;
-        info.bmiHeader.biBitCount = 32;
-        info.bmiHeader.biCompression = BI_RGB;
-        info.bmiHeader.biSizeImage = 0;
-        info.bmiHeader.biXPelsPerMeter = 0;
-        info.bmiHeader.biYPelsPerMeter = 0;
-        info.bmiHeader.biClrUsed = 0;
-        info.bmiHeader.biClrImportant = 0;
+        info.bmiHeader.biSize           = sizeof(info.bmiHeader);
+        info.bmiHeader.biWidth          = bi_width;
+        info.bmiHeader.biHeight         = bi_height;
+        info.bmiHeader.biPlanes         = 1;
+        info.bmiHeader.biBitCount       = 32;
+        info.bmiHeader.biCompression    = BI_RGB;
+        info.bmiHeader.biSizeImage      = 0;
+        info.bmiHeader.biXPelsPerMeter  = 0;
+        info.bmiHeader.biYPelsPerMeter  = 0;
+        info.bmiHeader.biClrUsed        = 0;
+        info.bmiHeader.biClrImportant   = 0;
         HBITMAP bitmap = CreateDIBSection(hdc, &info, DIB_RGB_COLORS, &bits, 0, 0);
         SelectObject(hdc, bitmap);
         SelectObject(hdc, font);
@@ -382,7 +392,8 @@ bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_heig
         Asset_Kerning *asset_kern_pairs = push_array(Asset_Kerning, kern_count);
         for (s32 idx = 0;
                 idx < kern_count;
-                ++idx) {
+                ++idx) 
+        {
             KERNINGPAIR *kern_pair = kern_pairs + idx;
             Asset_Kerning *asset_kern_pair = asset_kern_pairs + idx;
             asset_kern_pair->first = kern_pair->wFirst;
@@ -399,14 +410,13 @@ bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_heig
         
         // write kerning pairs.
         fwrite(asset_kern_pairs, sizeof(*asset_kern_pairs) * kern_count, 1, out);
-
-
-
     }
+
     // write glyphs.
     for (u32 ch = lo;
             ch <= hi;
-            ++ch) {
+            ++ch) 
+    {
         Asset_Glyph *glyph = bake_glyph(hdc, ch, bits, bi_width, bi_height, metric);
         glyph->A = ABCs[ch - lo].abcA;
         glyph->B = ABCs[ch - lo].abcB;
@@ -442,5 +452,5 @@ main(int argc, char **argv)
         printf("ERROR: Couldn't open file.\n");
     }
 
-    deinit_memory();
+    free_memory();
 }

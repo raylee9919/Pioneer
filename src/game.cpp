@@ -1,10 +1,10 @@
- /* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
-    $File: $
-    $Date: $
-    $Revision: $
-    $Creator: Sung Woo Lee $
-    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-    ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
+/* ========================================================================
+   $File: $
+   $Date: $
+   $Revision: $
+   $Creator: Sung Woo Lee $
+   $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
+   ======================================================================== */
 
 
 #define BYTES_PER_PIXEL 4
@@ -359,7 +359,7 @@ load_font(Memory_Arena *arena, Read_Entire_File *read_file, Game_Assets *game_as
             Bitmap *bitmap = &glyph->bitmap;
             game_assets->glyphs[glyph->codepoint] = glyph;
             at += sizeof(Asset_Glyph);
-            glyph->bitmap.memory = at + (bitmap->height - 1) * -bitmap->pitch;
+            glyph->bitmap.memory = at;
             at += glyph->bitmap.size;
         }
     }
@@ -447,6 +447,7 @@ load_bmp(Memory_Arena *arena, Read_Entire_File *read_file, const char *filename)
 }
 #endif
 
+
 #if 0
 PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work)
 {
@@ -517,16 +518,22 @@ GetBitmap(Transient_State *trans_state, Asset_ID assetID,
 }
 #endif
 
-global_var v3 *grass_world_translations;
+global_var m4x4 *grass_world_transforms;
 global_var s32 grass_count;
 global_var Asset_Mesh *grass_mesh;
 global_var f32 grass_max_vertex_y;
 global_var Bitmap *turbulence_map;
 
-#define GRASS_COUNT_MAX 1'000'000
+#define GRASS_COUNT_MAX 100'000
 #define GRASS_DENSITY 10
 #define GRASS_RANDOM_OFFSET 0.10f
 #define TURBULENCE_MAP_SIDE 256 
+
+global_var m4x4 *star_world_transforms;
+global_var s32 star_count;
+global_var Asset_Mesh *star_mesh;
+
+#define STAR_COUNT_MAX 100'000
 
 internal Bitmap *
 gen_turbulence_map(Memory_Arena *arena, Random_Series *series, u32 side)
@@ -553,7 +560,7 @@ gen_turbulence_map(Memory_Arena *arena, Random_Series *series, u32 side)
 extern "C"
 GAME_MAIN(game_main)
 {
-    if (!game_state->is_init) 
+    if (!game_state->init) 
     {
         init_arena(&game_state->world_arena,
                    game_memory->permanent_memory_size - sizeof(Game_State),
@@ -570,7 +577,7 @@ GAME_MAIN(game_main)
         Chunk *chunk = get_chunk(&game_state->world_arena, chunk_hashmap, Chunk_Position{0, 0, 0});
         v3 dim = _v3_(1.0f, 1.0f, 1.0f);
 
-        grass_world_translations = push_array(&game_state->world_arena, v3, GRASS_COUNT_MAX); 
+        grass_world_transforms = push_array(&game_state->world_arena, m4x4, GRASS_COUNT_MAX); 
 
         s32 hX = round_f32_to_s32(game_state->world->chunk_dim.x * 0.5f);
         s32 hZ = round_f32_to_s32(game_state->world->chunk_dim.z * 0.5f);
@@ -595,11 +602,17 @@ GAME_MAIN(game_main)
                         grass_pos.offset.x += ((1.0f / GRASS_DENSITY) * dim.x * x + 
                                                rand_range(&game_state->random_series, -GRASS_RANDOM_OFFSET, GRASS_RANDOM_OFFSET));
                         recalc_pos(&grass_pos, game_state->world->chunk_dim);
-                        v3 translation = _v3_(grass_pos.x * world->chunk_dim.x + grass_pos.offset.x,
-                                              grass_pos.y * world->chunk_dim.y + grass_pos.offset.y,
-                                              grass_pos.z * world->chunk_dim.z + grass_pos.offset.z);
-                        Assert(grass_count != (GRASS_COUNT_MAX - 1));
-                        grass_world_translations[grass_count++] = translation;
+
+                        v3 translation      = _v3_(grass_pos.x * world->chunk_dim.x + grass_pos.offset.x,
+                                                   grass_pos.y * world->chunk_dim.y + grass_pos.offset.y,
+                                                   grass_pos.z * world->chunk_dim.z + grass_pos.offset.z);
+                        f32 theta           = rand_range(&game_state->random_series, 0, pi32 * 0.5f);
+                        qt rotation         = _qt_(cos(theta), 0, sin(theta), 0);
+                        f32 scale           = rand_range(&game_state->random_series, 0.75f, 1.0f);
+                        v3 scaling          = _v3_(scale, scale, scale);
+
+                        Assert(grass_count != GRASS_COUNT_MAX);
+                        grass_world_transforms[grass_count++] = transpose(trs_to_transform(translation, rotation, scaling));
                     }
                 }
 #endif
@@ -630,11 +643,37 @@ GAME_MAIN(game_main)
         //
         // NOISE MAP
         //
-        // turbulence_map = gen_turbulence_map(&game_state->world_arena, &game_state->random_series, TURBULENCE_MAP_SIDE);
+        //turbulence_map = gen_turbulence_map(&game_state->world_arena, &game_state->random_series, TURBULENCE_MAP_SIDE);
         turbulence_map = load_bmp(&game_state->world_arena, game_memory->platform.debug_platform_read_file, "turbulence.bmp");
 
-        game_state->is_init = true;
+
+
+        // STAR
+        star_world_transforms = push_array(&game_state->world_arena, m4x4, STAR_COUNT_MAX);
+#define STAR_COUNT 10'000
+#define STAR_SCALE 0.2f
+#define STAR_DIST  200.0f
+        for (u32 cnt = 0; cnt < STAR_COUNT; ++cnt)
+        {
+            Assert(star_count < STAR_COUNT_MAX);
+            f32 x = rand_bilateral(&game_state->random_series);
+            f32 y = rand_bilateral(&game_state->random_series);
+            f32 z = rand_bilateral(&game_state->random_series);
+            f32 theta = rand_range(&game_state->random_series, 0.0f, pi32 * 0.5f);
+            v3 v = normalize(_v3_(x, y, z));
+            v3 translation  = STAR_DIST * v;
+            qt rotation     = _qt_(cos(theta), sin(theta) * v);
+            v3 scaling      = _v3_(STAR_SCALE, STAR_SCALE, STAR_SCALE);
+            star_world_transforms[star_count++] = transpose(trs_to_transform(translation, rotation, scaling));
+        }
+
+
+
+
+        game_state->init = true;
     }
+
+    TIMED_BLOCK();
 
     // @dt
     f32 dt = game_input->dt_per_frame;
@@ -650,7 +689,7 @@ GAME_MAIN(game_main)
     Assert(sizeof(Transient_State) < transMemCap);
     Transient_State *trans_state = (Transient_State *)transMem;
 
-    if (!trans_state->is_init)
+    if (!trans_state->init)
     {
         // transient arena.
         init_arena(&trans_state->transient_arena,
@@ -687,14 +726,16 @@ GAME_MAIN(game_main)
             Asset_Vertex *vertex = grass_mesh->vertices + vertex_idx;
             grass_max_vertex_y = Max(grass_max_vertex_y, vertex->pos.y);
         }
+
+        star_mesh = game_assets->cube_model->meshes;
+
         load_font(&game_state->world_arena, game_memory->platform.debug_platform_read_file, &trans_state->game_assets);
 
-        trans_state->is_init = true;  
+        trans_state->init = true;  
    }
 
-    f32 w_over_h = safe_ratio((f32)game_screen_buffer->width,
-                              (f32)game_screen_buffer->height);
-    game_state->debug_cam->w_over_h = w_over_h;
+    game_state->debug_cam->width    = (f32)game_screen_buffer->width;
+    game_state->debug_cam->height   = (f32)game_screen_buffer->height;
 
     Temporary_Memory render_memory = begin_temporary_memory(&trans_state->transient_arena);
     Render_Group *skeletal_mesh_render_group    = alloc_render_group(eRender_Group_Skeletal_Mesh,
@@ -706,6 +747,10 @@ GAME_MAIN(game_main)
     Render_Group *grass_render_group            = alloc_render_group(eRender_Group_Grass,
                                                                      &trans_state->transient_arena,
                                                                      game_state->debug_cam);
+    Render_Group *star_render_group             = alloc_render_group(eRender_Group_Star,
+                                                                     &trans_state->transient_arena,
+                                                                     game_state->debug_cam);
+
 
     v3 chunk_dim = game_state->world->chunk_dim;
 
@@ -924,7 +969,8 @@ GAME_MAIN(game_main)
     }
 #endif
 
-    push_grass(grass_render_group, grass_mesh, grass_count, grass_world_translations, game_state->time, grass_max_vertex_y, turbulence_map);
+    push_grass(grass_render_group, grass_mesh, grass_count, grass_world_transforms, game_state->time, grass_max_vertex_y, turbulence_map);
+    push_star(star_render_group, star_mesh, star_count, star_world_transforms);
     
 
 
@@ -932,15 +978,18 @@ GAME_MAIN(game_main)
     render_group_to_output_batch(skeletal_mesh_render_group, &game_memory->render_batch);
     render_group_to_output_batch(static_mesh_render_group, &game_memory->render_batch);
     render_group_to_output_batch(grass_render_group, &game_memory->render_batch);
+    render_group_to_output_batch(star_render_group, &game_memory->render_batch);
     end_temporary_memory(&render_memory);
 
 
     //
     // Debug Overlay
     //
-#ifdef __DEBUG
+#if 1
     Temporary_Memory debug_render_memory = begin_temporary_memory(&game_state->debug_arena);
-    Render_Group *debug_render_group = alloc_render_group(eRender_Group_Text, &game_state->debug_arena, game_state->debug_cam);
+
+    Camera *text_cam = push_camera(&game_state->debug_arena, eCamera_Type_Orthographic, (f32)game_screen_buffer->width, (f32)game_screen_buffer->height);
+    Render_Group *debug_render_group = alloc_render_group(eRender_Group_Text, &game_state->debug_arena, text_cam);
 
     if (game_state->debug_mode)
     {
@@ -952,6 +1001,7 @@ GAME_MAIN(game_main)
     end_temporary_memory(&debug_render_memory);
 #endif
 }
+
 
 internal void
 init_debug(Debug_Log *debug_log, Memory_Arena *arena)
@@ -985,13 +1035,13 @@ display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets
         size_t size = 1024;
         char *buf = push_array(arena, char, size);
         _snprintf(buf, size,
-                  "%20s(%4d): %10I64uavg_cyc",
+                  "%30s(%4d): %10I64uavg_cyc",
                   info->function,
                   info->line,
                   info->avg_cycles);
-        // push_text(render_group, _v3_(0.0f, 0.0f, 0.0f), buf, game_assets);
+        push_text(render_group, _v3_(0.0f, 0.0f, 0.0f), buf, game_assets);
 
-#if 1
+#if 0
         // draw graph.
         f32 x = 800.0f;
         f32 max_height = (f32)game_assets->v_advance;
@@ -1019,7 +1069,6 @@ display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets
 #endif
 
     }
-
 }
 
 internal void
@@ -1041,6 +1090,5 @@ end_debug_log(Debug_Log *debug_log)
         debug_log->next_frame = 0;
     }
 
-    // TODO: remove this mf.
-    // cen_y = 100.0f;
+    cen_y = 1000.0f;
 }

@@ -1,10 +1,10 @@
-/* ―――――――――――――――――――――――――――――――――――◆――――――――――――――――――――――――――――――――――――
+/* ========================================================================
    $File: $
    $Date: $
    $Revision: $
    $Creator: Sung Woo Lee $
-   $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
-   ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
+   $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
+   ======================================================================== */
 
 /*
     STUDY: vertex attrib name stored in vao? multiple programs, no overlapping
@@ -168,8 +168,6 @@ internal b32
 str_match(char *text, char *pattern, size_t len);
 
 
-
-
 inline void
 gl_parse_version()
 {
@@ -181,10 +179,12 @@ gl_parse_version()
         char c = *at++;
         if (c >= '0' && c <= '9') 
         {
-            if (i++ == 0) {
+            if (i++ == 0) 
+            {
                 gl_info.major = (c - '0');
             } 
-            else {
+            else 
+            {
                 gl_info.minor = (c - '0');
             }
         }
@@ -402,7 +402,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glEnable(GL_SCISSOR_TEST);
 
     glEnable(GL_DEPTH_TEST);
-    glClearColor(0.10f, 0.10f, 0.10f, 1.0f);
+    glClearColor(0.09f, 0.02f, 0.08f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glClearDepth(1.0f);
     glClear(GL_DEPTH_BUFFER_BIT);
@@ -493,6 +493,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
             case eRender_Group_Static_Mesh:
             {
+#if 1
                 glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
 
                 glEnable(GL_CULL_FACE);
@@ -543,13 +544,13 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     glUniform3fv(program->color_specular, 1, (GLfloat *)&mat->color_specular);
 
                     glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0);
-
                 }
 
                 glDisableVertexAttribArray(0);
                 glDisableVertexAttribArray(1);
                 glDisableVertexAttribArray(2);
                 glDisableVertexAttribArray(3);
+#endif
             } break;
 
             case eRender_Group_Grass:
@@ -589,9 +590,18 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
                 glBindBuffer(GL_ARRAY_BUFFER, gl.grass_vbo);
                 glEnableVertexAttribArray(6);
-                glVertexAttribPointer(6, 3, GL_FLOAT, false, sizeof(v3), (GLvoid *)0);
+                glEnableVertexAttribArray(7);
+                glEnableVertexAttribArray(8);
+                glEnableVertexAttribArray(9);
+                glVertexAttribPointer(6, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)0);
+                glVertexAttribPointer(7, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)(sizeof(v4)));
+                glVertexAttribPointer(8, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)(2 * sizeof(v4)));
+                glVertexAttribPointer(9, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)(3 * sizeof(v4)));
                 glVertexAttribDivisor(6, 1);
-                glBufferData(GL_ARRAY_BUFFER, sizeof(v3) * piece->count, piece->translations, GL_DYNAMIC_DRAW);
+                glVertexAttribDivisor(7, 1);
+                glVertexAttribDivisor(8, 1);
+                glVertexAttribDivisor(9, 1);
+                glBufferData(GL_ARRAY_BUFFER, sizeof(m4x4) * piece->count, piece->world_transforms, GL_STATIC_DRAW);
                 glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
 
                 Bitmap *turbulence_map = piece->turbulence_map;
@@ -615,13 +625,122 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                 glDisableVertexAttribArray(2);
                 glDisableVertexAttribArray(3);
                 glDisableVertexAttribArray(6);
+                glDisableVertexAttribArray(7);
+                glDisableVertexAttribArray(8);
+                glDisableVertexAttribArray(9);
 
 #endif
             } break;
 
+            case eRender_Group_Star:
+            {
+                glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+
+                Star_Program *program = &gl.star_program;
+                s32 pid = program->id;
+                glUseProgram(pid);
+
+                glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->projection.e[0][0]);
+
+                glEnableVertexAttribArray(0);
+                glEnableVertexAttribArray(1);
+                glEnableVertexAttribArray(2);
+                glEnableVertexAttribArray(3);
+                glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, pos)));
+                glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, normal)));
+                glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, uv)));
+                glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, color)));
+
+                Render_Star *piece = (Render_Star *)group->base;
+                Asset_Mesh *mesh    = piece->mesh;
+                glBufferData(GL_ARRAY_BUFFER,
+                             mesh->vertex_count * sizeof(Asset_Vertex),
+                             mesh->vertices,
+                             GL_DYNAMIC_DRAW);
+                glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                             mesh->index_count * sizeof(u32),
+                             mesh->indices,
+                             GL_DYNAMIC_DRAW);
+
+                glBindBuffer(GL_ARRAY_BUFFER, gl.star_vbo);
+                glEnableVertexAttribArray(6);
+                glEnableVertexAttribArray(7);
+                glEnableVertexAttribArray(8);
+                glEnableVertexAttribArray(9);
+                glVertexAttribPointer(6, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)0);
+                glVertexAttribPointer(7, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)(sizeof(v4)));
+                glVertexAttribPointer(8, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)(2 * sizeof(v4)));
+                glVertexAttribPointer(9, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)(3 * sizeof(v4)));
+                glVertexAttribDivisor(6, 1);
+                glVertexAttribDivisor(7, 1);
+                glVertexAttribDivisor(8, 1);
+                glVertexAttribDivisor(9, 1);
+                glBufferData(GL_ARRAY_BUFFER, sizeof(m4x4) * piece->count, piece->world_transforms, GL_STATIC_DRAW);
+                glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+
+                glDrawElementsInstanced(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0, piece->count);
+
+                glDisableVertexAttribArray(0);
+                glDisableVertexAttribArray(1);
+                glDisableVertexAttribArray(2);
+                glDisableVertexAttribArray(3);
+                glDisableVertexAttribArray(6);
+                glDisableVertexAttribArray(7);
+                glDisableVertexAttribArray(8);
+                glDisableVertexAttribArray(9);
+
+            } break;
+
             case eRender_Group_Text:
             {
-                glUseProgram(gl.skeletal_mesh_program.id);
+                glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+
+                Sprite_Program *program = &gl.sprite_program;
+                s32 pid = program->id;
+                glUseProgram(pid);
+
+                glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->projection.e[0][0]);
+
+                glEnableVertexAttribArray(0);
+                glEnableVertexAttribArray(2);
+
+                glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)offset_of(Textured_Vertex, pos));
+                glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)offset_of(Textured_Vertex, uv));
+
+                for (u8 *at = group->base;
+                     at < group->base + group->used;)
+                {
+                    Render_Entity_Header *entity =(Render_Entity_Header *)at;
+                    Render_Bitmap *piece = (Render_Bitmap *)entity;
+                    at += sizeof(*piece);
+
+                    glUniform4fv(program->color, 1, &piece->color.r);
+                    gl_bind_texture(piece->bitmap);
+
+                    v3 min = piece->min;
+                    v3 max = piece->max;
+
+                    Textured_Vertex v[4];
+                    v[0].pos = _v3_(max.x, min.y, 0);
+                    v[0].uv  = _v2_(1, 0);
+
+                    v[1].pos = max;
+                    v[1].uv  = _v2_(1, 1);
+
+                    v[2].pos = min;
+                    v[2].uv  = _v2_(0, 0);
+
+                    v[3].pos = _v3_(min.x, max.y, 0);
+                    v[3].uv  = _v2_(0, 1);
+
+                    glBufferData(GL_ARRAY_BUFFER,
+                                 array_count(v) * sizeof(*v), v,
+                                 GL_STATIC_DRAW);
+                    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+                }
+
+                glDisableVertexAttribArray(0);
+                glDisableVertexAttribArray(2);
             } break;
 
             INVALID_DEFAULT_CASE
@@ -678,6 +797,20 @@ gl_init()
 #include "shader/grass.frag"
     ;
 
+    const char *sprite_vshader = 
+#include "shader/sprite.vert"
+    ;
+    const char *sprite_fshader = 
+#include "shader/sprite.frag"
+    ;
+
+    const char *star_vshader = 
+#include "shader/star.vert"
+    ;
+    const char *star_fshader = 
+#include "shader/star.frag"
+    ;
+
 
     gl.skeletal_mesh_program.id = gl_create_program(header,
                                                     skeletal_mesh_vshader,
@@ -710,6 +843,18 @@ gl_init()
     gl.grass_program.grass_max_vertex_y = glGetUniformLocation(gl.grass_program.id, "grass_max_vertex_y");
     gl.grass_program.turbulence_map     = glGetUniformLocation(gl.grass_program.id, "turbulence_map");
 
+    gl.sprite_program.id = gl_create_program(header,
+                                             sprite_vshader,
+                                             sprite_fshader);
+    gl.sprite_program.mvp                = glGetUniformLocation(gl.sprite_program.id, "mvp");
+    gl.sprite_program.color              = glGetUniformLocation(gl.sprite_program.id, "color");
+    gl.sprite_program.texture            = glGetUniformLocation(gl.sprite_program.id, "texture");
+
+    gl.star_program.id = gl_create_program(header,
+                                           star_vshader,
+                                           star_fshader);
+    gl.star_program.mvp                = glGetUniformLocation(gl.star_program.id, "mvp");
+
 
     gl.white_bitmap.width   = 4;
     gl.white_bitmap.height  = 4;
@@ -735,5 +880,7 @@ gl_init()
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl.vio);
 
     glGenBuffers(1, &gl.grass_vbo);
+
+    glGenBuffers(1, &gl.star_vbo);
 
 }

@@ -7,6 +7,7 @@ R"MULTILINE(
 #define v2      vec2
 #define v3      vec3
 #define v4      vec4
+#define m4x4    mat4x4
 
 mat4x4 identity()
 {
