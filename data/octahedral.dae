@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <contributor>
+      <author/>
+      <authoring_tool>FBX COLLADA exporter</authoring_tool>
+      <comments/>
+    </contributor>
+    <created>2024-05-19T11:04:00Z</created>
+    <keywords/>
+    <modified>2024-05-19T11:04:00Z</modified>
+    <revision/>
+    <subject/>
+    <title/>
+    <unit meter="0.010000" name="centimeter"/>
+    <up_axis>Y_UP</up_axis>
+  </asset>
+  <library_materials>
+    <material id="standardSurface1" name="standardSurface1">
+      <instance_effect url="#standardSurface1-fx"/>
+    </material>
+  </library_materials>
+  <library_effects>
+    <effect id="standardSurface1-fx" name="standardSurface1">
+      <profile_COMMON>
+        <technique sid="standard">
+          <phong>
+            <emission>
+              <color sid="emission">0.000000  0.000000 0.000000 1.000000</color>
+            </emission>
+            <ambient>
+              <color sid="ambient">0.000000  0.000000 0.000000 1.000000</color>
+            </ambient>
+            <diffuse>
+              <color sid="diffuse">0.000000  0.000000 0.000000 1.000000</color>
+            </diffuse>
+            <specular>
+              <color sid="specular">0.000000  0.000000 0.000000 1.000000</color>
+            </specular>
+          </phong>
+        </technique>
+      </profile_COMMON>
+    </effect>
+  </library_effects>
+  <library_geometries>
+    <geometry id="octahedral-lib" name="octahedralMesh">
+      <mesh>
+        <source id="octahedral-POSITION">
+          <float_array id="octahedral-POSITION-array" count="18">
+-0.000000 0.000000 1.000000
+1.000000 0.000000 0.000000
+0.000000 1.000000 0.000000
+-1.000000 0.000000 0.000000
+0.000000 -1.000000 0.000000
+0.000000 0.000000 -1.000000
+</float_array>
+          <technique_common>
+            <accessor source="#octahedral-POSITION-array" count="6" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="octahedral-Normal0">
+          <float_array id="octahedral-Normal0-array" count="72">
+0.577350 0.577350 0.577350
+0.577350 0.577350 0.577350
+0.577350 0.577350 0.577350
+-0.577350 0.577350 0.577350
+-0.577350 0.577350 0.577350
+-0.577350 0.577350 0.577350
+-0.577350 -0.577350 0.577350
+-0.577350 -0.577350 0.577350
+-0.577350 -0.577350 0.577350
+0.577350 -0.577350 0.577350
+0.577350 -0.577350 0.577350
+0.577350 -0.577350 0.577350
+0.577350 0.577350 -0.577350
+0.577350 0.577350 -0.577350
+0.577350 0.577350 -0.577350
+-0.577350 0.577350 -0.577350
+-0.577350 0.577350 -0.577350
+-0.577350 0.577350 -0.577350
+-0.577350 -0.577350 -0.577350
+-0.577350 -0.577350 -0.577350
+-0.577350 -0.577350 -0.577350
+0.577350 -0.577350 -0.577350
+0.577350 -0.577350 -0.577350
+0.577350 -0.577350 -0.577350
+</float_array>
+          <technique_common>
+            <accessor source="#octahedral-Normal0-array" count="24" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="octahedral-UV0">
+          <float_array id="octahedral-UV0-array" count="14">
+0.500000 0.500000
+0.750000 0.500000
+0.500000 1.000000
+0.250000 0.500000
+0.500000 1.000000
+1.000000 0.500000
+1.250000 0.500000
+</float_array>
+          <technique_common>
+            <accessor source="#octahedral-UV0-array" count="7" stride="2">
+              <param name="S" type="float"/>
+              <param name="T" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="octahedral-VERTEX">
+          <input semantic="POSITION" source="#octahedral-POSITION"/>
+        </vertices>
+        <triangles count="8" material="standardSurface1">
+          <input semantic="VERTEX" offset="0" source="#octahedral-VERTEX"/>
+          <input semantic="NORMAL" offset="1" source="#octahedral-Normal0"/>
+          <input semantic="TEXCOORD" offset="2" set="0" source="#octahedral-UV0"/>
+          <p> 1 0 1 2 1 2 0 2 0 2 3 2 3 4 3 0 5 0 3 6 3 4 7 4 0 8 0 0 9 0 4 10 4 1 11 1 5 12 5 2 13 2 1 14 1 5 15 5 3 16 6 2 17 2 5 18 5 4 19 4 3 20 6 5 21 5 1 22 1 4 23 4</p>
+        </triangles>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_visual_scenes>
+    <visual_scene id="octahedral" name="octahedral">
+      <node name="octahedral" id="octahedral" sid="octahedral">
+        <matrix sid="matrix">1.000000 0.000000 0.000000 0.000000 0.000000 1.000000 0.000000 0.000000 0.000000 0.000000 1.000000 0.000000 0.000000 0.000000 0.000000 1.000000</matrix>
+        <instance_geometry url="#octahedral-lib">
+          <bind_material>
+            <technique_common>
+              <instance_material symbol="standardSurface1" target="#standardSurface1"/>
+            </technique_common>
+          </bind_material>
+        </instance_geometry>
+        <extra>
+          <technique profile="FCOLLADA">
+            <visibility>1.000000</visibility>
+          </technique>
+        </extra>
+      </node>
+      <extra>
+        <technique profile="MAX3D">
+          <frame_rate>24.000000</frame_rate>
+        </technique>
+        <technique profile="FCOLLADA">
+          <start_time>0.041667</start_time>
+          <end_time>8.333333</end_time>
+        </technique>
+      </extra>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#octahedral"/>
+  </scene>
+</COLLADA>

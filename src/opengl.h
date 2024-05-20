@@ -35,28 +35,16 @@ struct GL_Info
     b32     has_ext[GL_EXT_COUNT];
 };
 
-struct Skeletal_Mesh_Program
+struct Mesh_Program
 {
     s32     id;
 
     s32     world_transform;
     s32     mvp;
+    s32     is_skeletal;
     s32     texture_sampler;
     s32     cam_pos;
     s32     bone_transforms;
-    s32     color_ambient;
-    s32     color_diffuse;
-    s32     color_specular;
-};
-
-struct Static_Mesh_Program
-{
-    s32     id;
-
-    s32     world_transform;
-    s32     mvp;
-    s32     texture_sampler;
-    s32     cam_pos;
     s32     color_ambient;
     s32     color_diffuse;
     s32     color_specular;
@@ -90,8 +78,7 @@ struct Sprite_Program
 
 struct GL 
 {
-    Skeletal_Mesh_Program   skeletal_mesh_program;
-    Static_Mesh_Program     static_mesh_program;
+    Mesh_Program            mesh_program;
     Grass_Program           grass_program;
     Sprite_Program          sprite_program;
     Star_Program            star_program;

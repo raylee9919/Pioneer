@@ -217,6 +217,7 @@ struct Game_Assets
 
     Asset_Model         *xbot_model;
     Asset_Model         *cube_model;
+    Asset_Model         *octahedral_model;
     Asset_Model         *grass_model;
 
     Read_Entire_File    *read_entire_file;
@@ -249,6 +250,8 @@ struct Game_State
     f32                 debug_toggle_delay;
     b32                 debug_mode;
     Memory_Arena        debug_arena;
+#define INIT_CEN_Y 1000.0f
+    f32                 cen_y;
 };
 
 struct Transient_State 

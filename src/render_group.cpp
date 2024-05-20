@@ -24,29 +24,17 @@ __push_render_entity(Render_Group *renderGroup, u32 size, Render_Type type)
     return header;
 }
 
-
 internal void
-push_skeletal_mesh(Render_Group *group, Asset_Mesh *mesh, Asset_Material *material,
-                   m4x4 world_transform, m4x4 *animation_transforms)
+push_mesh(Render_Group *group, Asset_Mesh *mesh, Asset_Material *material,
+          m4x4 world_transform, m4x4 *animation_transforms = 0)
 {
-    Render_Skeletal_Mesh *piece = push_render_entity(group, Render_Skeletal_Mesh);
+    Render_Mesh *piece          = push_render_entity(group, Render_Mesh);
     piece->mesh                 = mesh;
     piece->material             = material;
     piece->world_transform      = world_transform;
     piece->animation_transforms = animation_transforms;
 }
 
-internal void
-push_static_mesh(Render_Group *group,
-                 Asset_Mesh *mesh,
-                 Asset_Material *material,
-                 m4x4 world_transform)
-{
-    Render_Static_Mesh *piece   = push_render_entity(group, Render_Static_Mesh);
-    piece->mesh                 = mesh;
-    piece->material             = material;
-    piece->world_transform      = world_transform;
-}
 
 internal void
 push_grass(Render_Group *group,
@@ -80,7 +68,8 @@ push_star(Render_Group *group,
 
 internal void
 push_bitmap(Render_Group *group,
-            v3 min, v3 max, Bitmap *bitmap, v4 color)
+            v3 min, v3 max,
+            Bitmap *bitmap = 0, v4 color = _v4_(1, 1, 1, 1))
 {
     Render_Bitmap *piece        = push_render_entity(group, Render_Bitmap);
     piece->min                  = min;
@@ -89,13 +78,12 @@ push_bitmap(Render_Group *group,
     piece->color                = color;
 }
 
-#if 1
-global_var f32 cen_y = 800.0f;
 internal void
-push_text(Render_Group *render_group, v3 base,
-          const char *str, Game_Assets *game_assets,
-          v4 color = _v4_(1, 1, 1, 1))
+push_string(Render_Group *render_group, v3 base,
+            const char *str, f32 *cen_y, Game_Assets *game_assets,
+            v4 color = _v4_(1, 1, 1, 1))
 {
+    TIMED_BLOCK();
     // |A|B|C|
     f32 left_x  = 40.0f;
     f32 kern    = 0.0f;
@@ -115,7 +103,7 @@ push_text(Render_Group *render_group, v3 base,
                 Bitmap *bitmap = &glyph->bitmap;
                 f32 w = (f32)bitmap->width;
                 f32 h = (f32)bitmap->height;
-                v3 max = _v3_(left_x + w, cen_y + glyph->ascent, 0);
+                v3 max = _v3_(left_x + w, *cen_y + glyph->ascent, 0);
                 push_bitmap(render_group,
                             max - _v3_(w, h, 0), max,
                             bitmap, color);
@@ -141,9 +129,7 @@ push_text(Render_Group *render_group, v3 base,
 
         }
     }
-    cen_y -= game_assets->v_advance;
 }
-#endif
 
 internal Camera *
 push_camera(Memory_Arena *arena, Camera_Type type, f32 width, f32 height,
@@ -176,13 +162,11 @@ push_camera(Memory_Arena *arena, Camera_Type type, f32 width, f32 height,
 }
 
 internal Render_Group *
-alloc_render_group(Render_Group_Type render_group_type,
-                   Memory_Arena *arena,
+alloc_render_group(Memory_Arena *arena,
                    Camera *cam)
 {
     Render_Group *result = push_struct(arena, Render_Group);
     *result = {};
-    result->type                = render_group_type;
     result->capacity            = MB(4);
     result->base                = (u8 *)push_size(arena, result->capacity);
     result->used                = 0;

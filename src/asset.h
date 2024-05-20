@@ -50,7 +50,8 @@ enum Asset_ID
     GAI_Count
 };
 
-enum Asset_State {
+enum Asset_State 
+{
     Asset_State_Unloaded,
     Asset_State_Queued,
     Asset_State_Loaded
@@ -80,35 +81,5 @@ struct Asset_Glyph
     Bitmap bitmap;
 };
 
-
-
-#if 0
-struct Vertex
-{
-    u32 index; // in control_points
-    v2  uv;
-    v3  normal;
-};
-struct Mesh
-{
-    u32     control_point_count;
-    v3      *control_points;
-
-    u32     vertex_count;
-    Vertex  *vertices;
-};
-struct Mesh_Array
-{
-    u32     mesh_count;
-    size_t  used;
-    size_t  size;
-    Mesh    *base;
-};
-struct Model
-{
-    u32 mesh_count;
-    Mesh *meshes;
-};
-#endif
 
 #pragma pack(pop)

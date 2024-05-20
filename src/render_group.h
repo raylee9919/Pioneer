@@ -11,10 +11,7 @@ struct Noise_Map;
 
 enum Render_Type 
 {
-    eRender_Quad,
-    eRender_Text,
-    eRender_Skeletal_Mesh,
-    eRender_Static_Mesh,
+    eRender_Mesh,
     eRender_Grass,
     eRender_Star,
     eRender_Bitmap,
@@ -24,7 +21,6 @@ struct Render_Entity_Header
 {
     Render_Type     type;
     u32             size;
-    v3              base;
 };
 
 
@@ -34,21 +30,13 @@ struct Render_Quad
     Bitmap                  *bitmap;
 };
 
-struct Render_Skeletal_Mesh
+struct Render_Mesh
 {
     Render_Entity_Header    header;
     Asset_Mesh              *mesh;
     Asset_Material          *material;
     m4x4                    world_transform;
     m4x4                    *animation_transforms;
-};
-
-struct Render_Static_Mesh
-{
-    Render_Entity_Header    header;
-    Asset_Mesh              *mesh;
-    Asset_Material          *material;
-    m4x4                    world_transform;
 };
 
 struct Render_Grass
@@ -72,6 +60,7 @@ struct Render_Star
 
 struct Render_Bitmap
 {
+    Render_Entity_Header    header;
     Bitmap                  *bitmap;
     v4                      color;
     v3                      min;
@@ -105,6 +94,7 @@ struct Camera
     m4x4            projection;
 };
 
+#if 0
 enum Render_Group_Type
 {
     eRender_Group_Skeletal_Mesh,
@@ -115,10 +105,11 @@ enum Render_Group_Type
 
     eRender_Group_Count
 };
+#endif
 
 struct Render_Group 
 {
-    Render_Group_Type   type;
+    //Render_Group_Type   type;
 
     size_t              capacity;
     size_t              used;

@@ -30,9 +30,9 @@ XINPUT_GET_STATE(xinput_get_state_stub) { return 1; }
 XInput_Get_State *xinput_get_state = xinput_get_state_stub;
 
 #define XINPUT_SET_STATE(name) DWORD name(DWORD, XINPUT_VIBRATION *)
-typedef XINPUT_SET_STATE(__XInputSetState);
+typedef XINPUT_SET_STATE(XInput_Set_State);
 XINPUT_SET_STATE(xinput_set_state_stub) { return 1; }
-__XInputSetState *xinput_set_state = xinput_set_state_stub;
+XInput_Set_State *xinput_set_state = xinput_set_state_stub;
 
 
 internal void
@@ -45,7 +45,7 @@ win32_load_xinput()
     if(xinput_module) 
     {
         xinput_get_state = (XInput_Get_State *)GetProcAddress(xinput_module, "XInputGetState");
-        xinput_set_state = (__XInputSetState *)GetProcAddress(xinput_module, "XInputSetState");
+        xinput_set_state = (XInput_Set_State *)GetProcAddress(xinput_module, "XInputSetState");
     } 
     else 
     {

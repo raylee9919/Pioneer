@@ -29,13 +29,17 @@ void main()
     f32 noise_period = 1.0f / 10.0f;
     v2 noise_uv = v2(wP.x, wP.z) * noise_period;
     f32 noise = texture(turbulence_map, noise_uv).x;
-    f32 turbulence = sin(time + wP.z + wP.x + noise * 4.0f) * 0.5f + 0.5f;
+#if 1
+    f32 turbulence = sin(time + wP.z + wP.x + noise * 3.5f) * 0.5f + 0.5f;
+#else
+    f32 turbulence = noise;
+#endif
 
 #if 1
     wP.x -= lerped_movement * turbulence;
 #endif
 
-#if 0
+#if 1
     f32 gray = turbulence;
     mC = v4(gray, gray, gray, 1.0f);
 #endif

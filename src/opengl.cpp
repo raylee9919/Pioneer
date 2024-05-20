@@ -419,48 +419,48 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
          (u8 *)group < (u8 *)batch->base + batch->used;
          ++group)
     {
-
-        switch (group->type)
+        for (u8 *at = group->base;
+             at < group->base + group->used;
+            )
         {
-            case eRender_Group_Skeletal_Mesh:
+            Render_Entity_Header *entity = (Render_Entity_Header *)at;
+            switch (entity->type)
             {
-                glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
-
-                glEnable(GL_CULL_FACE);
-                glCullFace(GL_BACK);
-                glFrontFace(GL_CCW);
-
-                Skeletal_Mesh_Program *program = &gl.skeletal_mesh_program;
-                s32 pid = program->id;
-                glUseProgram(pid);
-
-                glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->projection.e[0][0]);
-                glUniform3fv(program->cam_pos, 1, (GLfloat *)&group->camera->world_translation);
-
-                glEnableVertexAttribArray(0);
-                glEnableVertexAttribArray(1);
-                glEnableVertexAttribArray(2);
-                glEnableVertexAttribArray(3);
-                glEnableVertexAttribArray(4);
-                glEnableVertexAttribArray(5);
-
-                glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, pos)));
-                glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, normal)));
-                glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, uv)));
-                glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, color)));
-
-                glVertexAttribIPointer(4, MAX_BONE_PER_VERTEX, GL_INT, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, bone_ids)));
-                glVertexAttribPointer(5, MAX_BONE_PER_VERTEX, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, bone_weights)));
-
-                for (u8 *at = group->base;
-                     at < group->base + group->used;)
+                case eRender_Mesh:
                 {
-                    Render_Entity_Header *entity =(Render_Entity_Header *)at;
-                    Render_Skeletal_Mesh *piece = (Render_Skeletal_Mesh *)entity;
-                    at += sizeof(Render_Skeletal_Mesh);
+                    Render_Mesh *piece = (Render_Mesh *)entity;
 
-                    Asset_Mesh *mesh    = piece->mesh;
-                    Asset_Material *mat = piece->material;
+                    Asset_Mesh *mesh            = piece->mesh;
+                    Asset_Material *mat         = piece->material;
+
+                    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+
+                    glEnable(GL_CULL_FACE);
+                    glCullFace(GL_BACK);
+                    glFrontFace(GL_CCW);
+
+                    Mesh_Program *program = &gl.mesh_program;
+                    s32 pid = program->id;
+                    glUseProgram(pid);
+
+                    glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->projection.e[0][0]);
+                    glUniform3fv(program->cam_pos, 1, (GLfloat *)&group->camera->world_translation);
+                    glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0);
+
+                    glEnableVertexAttribArray(0);
+                    glEnableVertexAttribArray(1);
+                    glEnableVertexAttribArray(2);
+                    glEnableVertexAttribArray(3);
+                    glEnableVertexAttribArray(4);
+                    glEnableVertexAttribArray(5);
+
+                    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, pos)));
+                    glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, normal)));
+                    glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, uv)));
+                    glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, color)));
+                    glVertexAttribIPointer(4, MAX_BONE_PER_VERTEX, GL_INT, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, bone_ids)));
+                    glVertexAttribPointer(5, MAX_BONE_PER_VERTEX, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, bone_weights)));
+
 
                     glBufferData(GL_ARRAY_BUFFER,
                                  mesh->vertex_count * sizeof(Asset_Vertex),
@@ -473,248 +473,181 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                                  GL_DYNAMIC_DRAW);
 
                     glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
-                    glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
-
+                    if (piece->animation_transforms)
+                    {
+                        glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
+                    }
                     glUniform3fv(program->color_ambient, 1, (GLfloat *)&mat->color_ambient);
                     glUniform3fv(program->color_diffuse, 1, (GLfloat *)&mat->color_diffuse);
                     glUniform3fv(program->color_specular, 1, (GLfloat *)&mat->color_specular);
 
                     glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0);
 
-                }
+                    glDisableVertexAttribArray(0);
+                    glDisableVertexAttribArray(1);
+                    glDisableVertexAttribArray(2);
+                    glDisableVertexAttribArray(3);
+                    glDisableVertexAttribArray(4);
+                    glDisableVertexAttribArray(5);
+                } break;
 
-                glDisableVertexAttribArray(0);
-                glDisableVertexAttribArray(1);
-                glDisableVertexAttribArray(2);
-                glDisableVertexAttribArray(3);
-                glDisableVertexAttribArray(4);
-                glDisableVertexAttribArray(5);
-            } break;
-
-            case eRender_Group_Static_Mesh:
-            {
-#if 1
-                glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
-
-                glEnable(GL_CULL_FACE);
-                glCullFace(GL_BACK);
-                glFrontFace(GL_CCW);
-
-                Static_Mesh_Program *program = &gl.static_mesh_program;
-                s32 pid = program->id;
-                glUseProgram(pid);
-
-                glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->projection.e[0][0]);
-                glUniform3fv(program->cam_pos, 1, (GLfloat *)&group->camera->world_translation);
-
-                glEnableVertexAttribArray(0);
-                glEnableVertexAttribArray(1);
-                glEnableVertexAttribArray(2);
-                glEnableVertexAttribArray(3);
-
-                glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, pos)));
-                glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, normal)));
-                glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, uv)));
-                glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, color)));
-
-                for (u8 *at = group->base;
-                     at < group->base + group->used;)
+                case eRender_Grass:
                 {
-                    Render_Entity_Header *entity =(Render_Entity_Header *)at;
-                    Render_Static_Mesh *piece = (Render_Static_Mesh *)entity;
-                    at += sizeof(Render_Static_Mesh);
+                    Render_Grass *piece = (Render_Grass *)entity;
 
+                    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+
+                    glDisable(GL_CULL_FACE);
+
+                    Grass_Program *program = &gl.grass_program;
+                    s32 pid = program->id;
+                    glUseProgram(pid);
+
+                    glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->projection.e[0][0]);
+
+                    glEnableVertexAttribArray(0);
+                    glEnableVertexAttribArray(1);
+                    glEnableVertexAttribArray(2);
+                    glEnableVertexAttribArray(3);
+                    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, pos)));
+                    glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, normal)));
+                    glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, uv)));
+                    glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, color)));
+
+                    glUniform1f(program->time, piece->time);
+                    glUniform1f(program->grass_max_vertex_y, piece->grass_max_vertex_y);
                     Asset_Mesh *mesh    = piece->mesh;
-                    Asset_Material *mat = piece->material;
-
                     glBufferData(GL_ARRAY_BUFFER,
                                  mesh->vertex_count * sizeof(Asset_Vertex),
                                  mesh->vertices,
                                  GL_DYNAMIC_DRAW);
-
                     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
                                  mesh->index_count * sizeof(u32),
                                  mesh->indices,
                                  GL_DYNAMIC_DRAW);
 
-                    glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
+                    glBindBuffer(GL_ARRAY_BUFFER, gl.grass_vbo);
+                    glEnableVertexAttribArray(6);
+                    glEnableVertexAttribArray(7);
+                    glEnableVertexAttribArray(8);
+                    glEnableVertexAttribArray(9);
+                    glVertexAttribPointer(6, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)0);
+                    glVertexAttribPointer(7, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)(sizeof(v4)));
+                    glVertexAttribPointer(8, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)(2 * sizeof(v4)));
+                    glVertexAttribPointer(9, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)(3 * sizeof(v4)));
+                    glVertexAttribDivisor(6, 1);
+                    glVertexAttribDivisor(7, 1);
+                    glVertexAttribDivisor(8, 1);
+                    glVertexAttribDivisor(9, 1);
+                    glBufferData(GL_ARRAY_BUFFER, sizeof(m4x4) * piece->count, piece->world_transforms, GL_STATIC_DRAW);
+                    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
 
-                    glUniform3fv(program->color_ambient, 1, (GLfloat *)&mat->color_ambient);
-                    glUniform3fv(program->color_diffuse, 1, (GLfloat *)&mat->color_diffuse);
-                    glUniform3fv(program->color_specular, 1, (GLfloat *)&mat->color_specular);
+                    Bitmap *turbulence_map = piece->turbulence_map;
+                    if (!turbulence_map->handle)
+                    {
+                        glGenTextures(1, &turbulence_map->handle);
+                        glBindTexture(GL_TEXTURE_2D, turbulence_map->handle);
+                        glTexImage2D(GL_TEXTURE_2D, 0, gl_info.texture_internal_format, turbulence_map->width, turbulence_map->height,
+                                     0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, (u8 *)turbulence_map->memory);
 
-                    glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0);
-                }
-
-                glDisableVertexAttribArray(0);
-                glDisableVertexAttribArray(1);
-                glDisableVertexAttribArray(2);
-                glDisableVertexAttribArray(3);
-#endif
-            } break;
-
-            case eRender_Group_Grass:
-            {
-#if 1
-                glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
-
-                glDisable(GL_CULL_FACE);
-
-                Grass_Program *program = &gl.grass_program;
-                s32 pid = program->id;
-                glUseProgram(pid);
-
-                glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->projection.e[0][0]);
-
-                glEnableVertexAttribArray(0);
-                glEnableVertexAttribArray(1);
-                glEnableVertexAttribArray(2);
-                glEnableVertexAttribArray(3);
-                glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, pos)));
-                glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, normal)));
-                glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, uv)));
-                glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, color)));
-
-                Render_Grass *piece = (Render_Grass *)group->base;
-                glUniform1f(program->time, piece->time);
-                glUniform1f(program->grass_max_vertex_y, piece->grass_max_vertex_y);
-                Asset_Mesh *mesh    = piece->mesh;
-                glBufferData(GL_ARRAY_BUFFER,
-                             mesh->vertex_count * sizeof(Asset_Vertex),
-                             mesh->vertices,
-                             GL_DYNAMIC_DRAW);
-                glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                             mesh->index_count * sizeof(u32),
-                             mesh->indices,
-                             GL_DYNAMIC_DRAW);
-
-                glBindBuffer(GL_ARRAY_BUFFER, gl.grass_vbo);
-                glEnableVertexAttribArray(6);
-                glEnableVertexAttribArray(7);
-                glEnableVertexAttribArray(8);
-                glEnableVertexAttribArray(9);
-                glVertexAttribPointer(6, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)0);
-                glVertexAttribPointer(7, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)(sizeof(v4)));
-                glVertexAttribPointer(8, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)(2 * sizeof(v4)));
-                glVertexAttribPointer(9, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)(3 * sizeof(v4)));
-                glVertexAttribDivisor(6, 1);
-                glVertexAttribDivisor(7, 1);
-                glVertexAttribDivisor(8, 1);
-                glVertexAttribDivisor(9, 1);
-                glBufferData(GL_ARRAY_BUFFER, sizeof(m4x4) * piece->count, piece->world_transforms, GL_STATIC_DRAW);
-                glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
-
-                Bitmap *turbulence_map = piece->turbulence_map;
-                if (!turbulence_map->handle)
-                {
-                    glGenTextures(1, &turbulence_map->handle);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+                    }
                     glBindTexture(GL_TEXTURE_2D, turbulence_map->handle);
-                    glTexImage2D(GL_TEXTURE_2D, 0, gl_info.texture_internal_format, turbulence_map->width, turbulence_map->height,
-                                 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, (u8 *)turbulence_map->memory);
+                    glDrawElementsInstanced(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0, piece->count);
 
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-                }
-                glBindTexture(GL_TEXTURE_2D, turbulence_map->handle);
-                glDrawElementsInstanced(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0, piece->count);
+                    glDisableVertexAttribArray(0);
+                    glDisableVertexAttribArray(1);
+                    glDisableVertexAttribArray(2);
+                    glDisableVertexAttribArray(3);
+                    glDisableVertexAttribArray(6);
+                    glDisableVertexAttribArray(7);
+                    glDisableVertexAttribArray(8);
+                    glDisableVertexAttribArray(9);
+                } break;
 
-                glDisableVertexAttribArray(0);
-                glDisableVertexAttribArray(1);
-                glDisableVertexAttribArray(2);
-                glDisableVertexAttribArray(3);
-                glDisableVertexAttribArray(6);
-                glDisableVertexAttribArray(7);
-                glDisableVertexAttribArray(8);
-                glDisableVertexAttribArray(9);
-
-#endif
-            } break;
-
-            case eRender_Group_Star:
-            {
-                glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
-
-                Star_Program *program = &gl.star_program;
-                s32 pid = program->id;
-                glUseProgram(pid);
-
-                glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->projection.e[0][0]);
-
-                glEnableVertexAttribArray(0);
-                glEnableVertexAttribArray(1);
-                glEnableVertexAttribArray(2);
-                glEnableVertexAttribArray(3);
-                glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, pos)));
-                glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, normal)));
-                glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, uv)));
-                glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, color)));
-
-                Render_Star *piece = (Render_Star *)group->base;
-                Asset_Mesh *mesh    = piece->mesh;
-                glBufferData(GL_ARRAY_BUFFER,
-                             mesh->vertex_count * sizeof(Asset_Vertex),
-                             mesh->vertices,
-                             GL_DYNAMIC_DRAW);
-                glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                             mesh->index_count * sizeof(u32),
-                             mesh->indices,
-                             GL_DYNAMIC_DRAW);
-
-                glBindBuffer(GL_ARRAY_BUFFER, gl.star_vbo);
-                glEnableVertexAttribArray(6);
-                glEnableVertexAttribArray(7);
-                glEnableVertexAttribArray(8);
-                glEnableVertexAttribArray(9);
-                glVertexAttribPointer(6, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)0);
-                glVertexAttribPointer(7, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)(sizeof(v4)));
-                glVertexAttribPointer(8, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)(2 * sizeof(v4)));
-                glVertexAttribPointer(9, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)(3 * sizeof(v4)));
-                glVertexAttribDivisor(6, 1);
-                glVertexAttribDivisor(7, 1);
-                glVertexAttribDivisor(8, 1);
-                glVertexAttribDivisor(9, 1);
-                glBufferData(GL_ARRAY_BUFFER, sizeof(m4x4) * piece->count, piece->world_transforms, GL_STATIC_DRAW);
-                glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
-
-                glDrawElementsInstanced(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0, piece->count);
-
-                glDisableVertexAttribArray(0);
-                glDisableVertexAttribArray(1);
-                glDisableVertexAttribArray(2);
-                glDisableVertexAttribArray(3);
-                glDisableVertexAttribArray(6);
-                glDisableVertexAttribArray(7);
-                glDisableVertexAttribArray(8);
-                glDisableVertexAttribArray(9);
-
-            } break;
-
-            case eRender_Group_Text:
-            {
-                glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
-
-                Sprite_Program *program = &gl.sprite_program;
-                s32 pid = program->id;
-                glUseProgram(pid);
-
-                glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->projection.e[0][0]);
-
-                glEnableVertexAttribArray(0);
-                glEnableVertexAttribArray(2);
-
-                glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)offset_of(Textured_Vertex, pos));
-                glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)offset_of(Textured_Vertex, uv));
-
-                for (u8 *at = group->base;
-                     at < group->base + group->used;)
+                case eRender_Star:
                 {
-                    Render_Entity_Header *entity =(Render_Entity_Header *)at;
-                    Render_Bitmap *piece = (Render_Bitmap *)entity;
-                    at += sizeof(*piece);
+                    Render_Star *piece  = (Render_Star *)entity;
 
+                    Asset_Mesh *mesh    = piece->mesh;
+
+                    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+
+                    Star_Program *program = &gl.star_program;
+                    s32 pid = program->id;
+                    glUseProgram(pid);
+
+                    glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->projection.e[0][0]);
+
+                    glEnableVertexAttribArray(0);
+                    glEnableVertexAttribArray(1);
+                    glEnableVertexAttribArray(2);
+                    glEnableVertexAttribArray(3);
+                    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, pos)));
+                    glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, normal)));
+                    glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, uv)));
+                    glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, color)));
+
+                    glBufferData(GL_ARRAY_BUFFER,
+                                 mesh->vertex_count * sizeof(Asset_Vertex),
+                                 mesh->vertices,
+                                 GL_DYNAMIC_DRAW);
+                    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                                 mesh->index_count * sizeof(u32),
+                                 mesh->indices,
+                                 GL_DYNAMIC_DRAW);
+
+                    glBindBuffer(GL_ARRAY_BUFFER, gl.star_vbo);
+                    glEnableVertexAttribArray(6);
+                    glEnableVertexAttribArray(7);
+                    glEnableVertexAttribArray(8);
+                    glEnableVertexAttribArray(9);
+                    glVertexAttribPointer(6, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)0);
+                    glVertexAttribPointer(7, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)(sizeof(v4)));
+                    glVertexAttribPointer(8, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)(2 * sizeof(v4)));
+                    glVertexAttribPointer(9, 4, GL_FLOAT, false, 4 * sizeof(v4), (GLvoid *)(3 * sizeof(v4)));
+                    glVertexAttribDivisor(6, 1);
+                    glVertexAttribDivisor(7, 1);
+                    glVertexAttribDivisor(8, 1);
+                    glVertexAttribDivisor(9, 1);
+                    glBufferData(GL_ARRAY_BUFFER, sizeof(m4x4) * piece->count, piece->world_transforms, GL_STATIC_DRAW);
+                    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+
+                    glDrawElementsInstanced(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0, piece->count);
+
+                    glDisableVertexAttribArray(0);
+                    glDisableVertexAttribArray(1);
+                    glDisableVertexAttribArray(2);
+                    glDisableVertexAttribArray(3);
+                    glDisableVertexAttribArray(6);
+                    glDisableVertexAttribArray(7);
+                    glDisableVertexAttribArray(8);
+                    glDisableVertexAttribArray(9);
+
+                } break;
+
+                case eRender_Bitmap:
+                {
+                    Render_Bitmap *piece  = (Render_Bitmap *)entity;
+
+                    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+
+                    Sprite_Program *program = &gl.sprite_program;
+                    s32 pid = program->id;
+                    glUseProgram(pid);
+
+                    glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->projection.e[0][0]);
                     glUniform4fv(program->color, 1, &piece->color.r);
+
+                    glEnableVertexAttribArray(0);
+                    glEnableVertexAttribArray(2);
+
+                    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)offset_of(Textured_Vertex, pos));
+                    glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)offset_of(Textured_Vertex, uv));
+
                     gl_bind_texture(piece->bitmap);
 
                     v3 min = piece->min;
@@ -737,16 +670,13 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                                  array_count(v) * sizeof(*v), v,
                                  GL_STATIC_DRAW);
                     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-                }
 
-                glDisableVertexAttribArray(0);
-                glDisableVertexAttribArray(2);
-            } break;
-
-            INVALID_DEFAULT_CASE
+                    glDisableVertexAttribArray(0);
+                    glDisableVertexAttribArray(2);
+                } break;
+            }
+            at += entity->size;
         }
-
-
     }
             
     batch->used = 0;
@@ -777,20 +707,16 @@ gl_init()
 #include "shader/shader.header"
     ;
 
-    const char *skeletal_mesh_vshader = 
+    const char *mesh_vshader = 
 #include "shader/skeletal_mesh.vert"
-    ;
-
-    const char *static_mesh_vshader = 
-#include "shader/static_mesh.vert"
-    ;
-
-    const char *grass_vshader = 
-#include "shader/grass.vert"
     ;
 
     const char *mesh_fshader = 
 #include "shader/mesh.frag"
+    ;
+
+    const char *grass_vshader = 
+#include "shader/grass.vert"
     ;
 
     const char *grass_fshader = 
@@ -812,28 +738,18 @@ gl_init()
     ;
 
 
-    gl.skeletal_mesh_program.id = gl_create_program(header,
-                                                    skeletal_mesh_vshader,
-                                                    mesh_fshader);
-    gl.skeletal_mesh_program.world_transform  = glGetUniformLocation(gl.skeletal_mesh_program.id, "world_transform");
-    gl.skeletal_mesh_program.mvp              = glGetUniformLocation(gl.skeletal_mesh_program.id, "mvp");
-    gl.skeletal_mesh_program.texture_sampler  = glGetUniformLocation(gl.skeletal_mesh_program.id, "texture_sampler");
-    gl.skeletal_mesh_program.cam_pos          = glGetUniformLocation(gl.skeletal_mesh_program.id, "cam_pos");
-    gl.skeletal_mesh_program.bone_transforms  = glGetUniformLocation(gl.skeletal_mesh_program.id, "bone_transforms");
-    gl.skeletal_mesh_program.color_ambient    = glGetUniformLocation(gl.skeletal_mesh_program.id, "color_ambient");
-    gl.skeletal_mesh_program.color_diffuse    = glGetUniformLocation(gl.skeletal_mesh_program.id, "color_diffuse");
-    gl.skeletal_mesh_program.color_specular   = glGetUniformLocation(gl.skeletal_mesh_program.id, "color_specular");
-
-    gl.static_mesh_program.id = gl_create_program(header,
-                                                  static_mesh_vshader,
-                                                  mesh_fshader);
-    gl.static_mesh_program.world_transform  = glGetUniformLocation(gl.static_mesh_program.id, "world_transform");
-    gl.static_mesh_program.mvp              = glGetUniformLocation(gl.static_mesh_program.id, "mvp");
-    gl.static_mesh_program.texture_sampler  = glGetUniformLocation(gl.static_mesh_program.id, "texture_sampler");
-    gl.static_mesh_program.cam_pos          = glGetUniformLocation(gl.static_mesh_program.id, "cam_pos");
-    gl.static_mesh_program.color_ambient    = glGetUniformLocation(gl.static_mesh_program.id, "color_ambient");
-    gl.static_mesh_program.color_diffuse    = glGetUniformLocation(gl.static_mesh_program.id, "color_diffuse");
-    gl.static_mesh_program.color_specular   = glGetUniformLocation(gl.static_mesh_program.id, "color_specular");
+    gl.mesh_program.id = gl_create_program(header,
+                                           mesh_vshader,
+                                           mesh_fshader);
+    gl.mesh_program.world_transform  = glGetUniformLocation(gl.mesh_program.id, "world_transform");
+    gl.mesh_program.mvp              = glGetUniformLocation(gl.mesh_program.id, "mvp");
+    gl.mesh_program.is_skeletal      = glGetUniformLocation(gl.mesh_program.id, "is_skeletal");
+    gl.mesh_program.texture_sampler  = glGetUniformLocation(gl.mesh_program.id, "texture_sampler");
+    gl.mesh_program.cam_pos          = glGetUniformLocation(gl.mesh_program.id, "cam_pos");
+    gl.mesh_program.bone_transforms  = glGetUniformLocation(gl.mesh_program.id, "bone_transforms");
+    gl.mesh_program.color_ambient    = glGetUniformLocation(gl.mesh_program.id, "color_ambient");
+    gl.mesh_program.color_diffuse    = glGetUniformLocation(gl.mesh_program.id, "color_diffuse");
+    gl.mesh_program.color_specular   = glGetUniformLocation(gl.mesh_program.id, "color_specular");
 
     gl.grass_program.id = gl_create_program(header,
                                             grass_vshader,
@@ -882,5 +798,4 @@ gl_init()
     glGenBuffers(1, &gl.grass_vbo);
 
     glGenBuffers(1, &gl.star_vbo);
-
 }

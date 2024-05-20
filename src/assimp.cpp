@@ -229,7 +229,7 @@ main(int argc, char **argv)
          file_idx < 1;
          ++file_idx)
     {
-        const char *file_name = "grass.dae"; // (*)
+        const char *file_name = "octahedral.dae"; // (*)
         const aiScene *model = importer.ReadFile(file_name, aiProcessPreset_TargetRealtime_Quality);
 
         if (model)

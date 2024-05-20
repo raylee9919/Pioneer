@@ -12,7 +12,7 @@
 
 #include "types.h"
 #include "game.h"
-#include "debug.h"
+#include "debug.cpp"
 #include "memory.cpp"
 #include "render_group.cpp"
 
@@ -24,12 +24,10 @@
 
 internal void
 init_debug(Debug_Log *debug_log, Memory_Arena *arena);
-
 internal void
-display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets *game_assets, Memory_Arena *arena);
-
+display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets *game_assets, Memory_Arena *arena, f32 *cen_y);
 internal void
-end_debug_log(Debug_Log *debug_log);
+end_debug_log(Debug_Log *debug_log, f32 *cen_y);
 
 
 internal void
@@ -207,6 +205,7 @@ build_animation_transform(Asset_Model *model, s32 bone_id,
                           m4x4 *final_transforms,
                           m4x4 parent_transform)
 {
+    TIMED_BLOCK();
     Assert(dt >= 0.0f);
 
     Asset_Bone *bone = 0;
@@ -643,8 +642,11 @@ GAME_MAIN(game_main)
         //
         // NOISE MAP
         //
-        //turbulence_map = gen_turbulence_map(&game_state->world_arena, &game_state->random_series, TURBULENCE_MAP_SIDE);
+#if 0
+        turbulence_map = gen_turbulence_map(&game_state->world_arena, &game_state->random_series, TURBULENCE_MAP_SIDE);
+#else
         turbulence_map = load_bmp(&game_state->world_arena, game_memory->platform.debug_platform_read_file, "turbulence.bmp");
+#endif
 
 
 
@@ -666,7 +668,6 @@ GAME_MAIN(game_main)
             v3 scaling      = _v3_(STAR_SCALE, STAR_SCALE, STAR_SCALE);
             star_world_transforms[star_count++] = transpose(trs_to_transform(translation, rotation, scaling));
         }
-
 
 
 
@@ -717,6 +718,7 @@ GAME_MAIN(game_main)
 
         load_model(&game_assets->xbot_model, "xbot.3d", &game_state->world_arena, game_memory->platform.debug_platform_read_file);
         load_model(&game_assets->cube_model, "cube.3d", &game_state->world_arena, game_memory->platform.debug_platform_read_file);
+        load_model(&game_assets->octahedral_model, "octahedral.3d", &game_state->world_arena, game_memory->platform.debug_platform_read_file);
         load_model(&game_assets->grass_model, "grass.3d", &game_state->world_arena, game_memory->platform.debug_platform_read_file);
         grass_mesh = game_assets->grass_model->meshes;
         for (u32 vertex_idx = 0;
@@ -727,7 +729,7 @@ GAME_MAIN(game_main)
             grass_max_vertex_y = Max(grass_max_vertex_y, vertex->pos.y);
         }
 
-        star_mesh = game_assets->cube_model->meshes;
+        star_mesh = game_assets->octahedral_model->meshes;
 
         load_font(&game_state->world_arena, game_memory->platform.debug_platform_read_file, &trans_state->game_assets);
 
@@ -738,18 +740,8 @@ GAME_MAIN(game_main)
     game_state->debug_cam->height   = (f32)game_screen_buffer->height;
 
     Temporary_Memory render_memory = begin_temporary_memory(&trans_state->transient_arena);
-    Render_Group *skeletal_mesh_render_group    = alloc_render_group(eRender_Group_Skeletal_Mesh,
-                                                                     &trans_state->transient_arena,
-                                                                     game_state->debug_cam);
-    Render_Group *static_mesh_render_group      = alloc_render_group(eRender_Group_Static_Mesh,
-                                                                     &trans_state->transient_arena,
-                                                                     game_state->debug_cam);
-    Render_Group *grass_render_group            = alloc_render_group(eRender_Group_Grass,
-                                                                     &trans_state->transient_arena,
-                                                                     game_state->debug_cam);
-    Render_Group *star_render_group             = alloc_render_group(eRender_Group_Star,
-                                                                     &trans_state->transient_arena,
-                                                                     game_state->debug_cam);
+    Render_Group *render_group = alloc_render_group(&trans_state->transient_arena,
+                                                    game_state->debug_cam);
 
 
     v3 chunk_dim = game_state->world->chunk_dim;
@@ -931,8 +923,7 @@ GAME_MAIN(game_main)
                                     {
                                         Asset_Mesh *mesh    = model->meshes + mesh_idx;
                                         Asset_Material *mat = model->materials + mesh->material_idx;
-                                        push_skeletal_mesh(skeletal_mesh_render_group, mesh, mat,
-                                                           world_transform, final_transforms);
+                                        push_mesh(render_group, mesh, mat, world_transform, final_transforms);
                                     }
                                 }
                                 else
@@ -955,7 +946,7 @@ GAME_MAIN(game_main)
                                 {
                                     Asset_Mesh *mesh = model->meshes + mesh_idx;
                                     Asset_Material *mat = model->materials + mesh->material_idx;
-                                    push_static_mesh(static_mesh_render_group, mesh, mat, world_transform);
+                                    push_mesh(render_group, mesh, mat, world_transform);
                                 }
                             }
                         } break;
@@ -969,33 +960,30 @@ GAME_MAIN(game_main)
     }
 #endif
 
-    push_grass(grass_render_group, grass_mesh, grass_count, grass_world_transforms, game_state->time, grass_max_vertex_y, turbulence_map);
-    push_star(star_render_group, star_mesh, star_count, star_world_transforms);
+    push_grass(render_group, grass_mesh, grass_count, grass_world_transforms, game_state->time, grass_max_vertex_y, turbulence_map);
+    push_star(render_group, star_mesh, star_count, star_world_transforms);
     
 
 
 
-    render_group_to_output_batch(skeletal_mesh_render_group, &game_memory->render_batch);
-    render_group_to_output_batch(static_mesh_render_group, &game_memory->render_batch);
-    render_group_to_output_batch(grass_render_group, &game_memory->render_batch);
-    render_group_to_output_batch(star_render_group, &game_memory->render_batch);
+    render_group_to_output_batch(render_group, &game_memory->render_batch);
     end_temporary_memory(&render_memory);
 
 
     //
-    // Debug Overlay
+    // DEBUG OVERLAY
     //
 #if 1
     Temporary_Memory debug_render_memory = begin_temporary_memory(&game_state->debug_arena);
 
     Camera *text_cam = push_camera(&game_state->debug_arena, eCamera_Type_Orthographic, (f32)game_screen_buffer->width, (f32)game_screen_buffer->height);
-    Render_Group *debug_render_group = alloc_render_group(eRender_Group_Text, &game_state->debug_arena, text_cam);
+    Render_Group *debug_render_group = alloc_render_group(&game_state->debug_arena, text_cam);
 
     if (game_state->debug_mode)
     {
-        display_debug_info(&g_debug_log, debug_render_group, game_assets, &game_state->debug_arena);
+        display_debug_info(&g_debug_log, debug_render_group, game_assets, &game_state->debug_arena, &game_state->cen_y);
     }
-    end_debug_log(&g_debug_log);
+    end_debug_log(&g_debug_log, &game_state->cen_y);
 
     render_group_to_output_batch(debug_render_group, &game_memory->render_batch);
     end_temporary_memory(&debug_render_memory);
@@ -1003,92 +991,4 @@ GAME_MAIN(game_main)
 }
 
 
-internal void
-init_debug(Debug_Log *debug_log, Memory_Arena *arena)
-{
-    // COUNTER must be the last one in the game code translation unit.
-    u32 width = __COUNTER__;
-    debug_log->record_width = width;
-    debug_log->debug_records = push_array(arena, Debug_Record, DEBUG_LOG_FRAME_COUNT * width);
-    debug_log->debug_infos = push_array(arena, Debug_Info, width);
-    debug_log->next_frame = 0;
-
-    for (u32 idx = 0;
-         idx < width;
-         ++idx) 
-    {
-        Debug_Info *info = debug_log->debug_infos + idx;
-        info->max_cycles = 0;
-        info->min_cycles = UINT64_MAX;
-        info->avg_cycles = 0;
-    }
-}
-
-internal void
-display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets *game_assets, Memory_Arena *arena)
-{
-    for (u32 record_idx = 0;
-            record_idx < debug_log->record_width;
-            ++record_idx) 
-    {
-        Debug_Info *info = g_debug_log.debug_infos + record_idx;
-        size_t size = 1024;
-        char *buf = push_array(arena, char, size);
-        _snprintf(buf, size,
-                  "%30s(%4d): %10I64uavg_cyc",
-                  info->function,
-                  info->line,
-                  info->avg_cycles);
-        push_text(render_group, _v3_(0.0f, 0.0f, 0.0f), buf, game_assets);
-
-#if 0
-        // draw graph.
-        f32 x = 800.0f;
-        f32 max_height = (f32)game_assets->v_advance;
-        f32 width = 2.0f;
-        f32 inv_max_cycles = 0.0f;
-        if (info->max_cycles != 0.0f) 
-        {
-            inv_max_cycles = 1.0f / info->max_cycles;
-        }
-
-        for (u32 frame = 0;
-             frame < DEBUG_LOG_FRAME_COUNT;
-             ++frame)
-        {
-            Debug_Record *record = g_debug_log.debug_records + frame * g_debug_log.record_width + record_idx;
-            f32 height = max_height * record->cycles * inv_max_cycles;
-            v2 min = v2{x + width * frame, 100.0f + max_height * record_idx - height};
-            v2 max = min + v2{width * 0.5f, height};
-#if 0
-            push_rect(render_group,
-                      min, max,
-                      v4{1.0f, 1.0f, 0.5f, 1.0f});
-#endif
-        }
-#endif
-
-    }
-}
-
-internal void
-end_debug_log(Debug_Log *debug_log)
-{
-    Debug_Record *records = (debug_log->debug_records +
-                             debug_log->next_frame *
-                             debug_log->record_width);
-    for (u32 record_idx = 0;
-         record_idx < debug_log->record_width;
-         ++record_idx) 
-    {
-        Debug_Record *record = records + record_idx;
-        atomic_exchange_u32(&record->hit, 0);
-    }
-
-    if (++debug_log->next_frame == DEBUG_LOG_FRAME_COUNT) 
-    {
-        debug_log->next_frame = 0;
-    }
-
-    cen_y = 1000.0f;
-}
+#include "debug2.cpp"
