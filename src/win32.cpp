@@ -324,9 +324,11 @@ const int context_attrib_list[] =
         if (gl_info.has_ext[GL_EXT_framebuffer_sRGB])
         {
             glEnable(GL_FRAMEBUFFER_SRGB);
+            gl_info.is_framebuffer_srgb = 1;
         }
         else
         {
+            gl_info.is_framebuffer_srgb = 0;
         }
 
         gl_init();
@@ -733,12 +735,14 @@ win32_init_render_batch(Render_Batch *batch, size_t size)
 // Multi-Threading
 // 
 
-struct PlatformWorkQueueEntry {
+struct PlatformWorkQueueEntry 
+{
     PlatformWorkQueueCallback *Callback;
     void *Data;
 };
 
-struct PlatformWorkQueue {
+struct PlatformWorkQueue 
+{
     u32 volatile CompletionGoal;
     u32 volatile CompletionCount;
 
@@ -750,7 +754,8 @@ struct PlatformWorkQueue {
 };
 
 internal void
-Win32AddEntry(PlatformWorkQueue *Queue, PlatformWorkQueueCallback *Callback, void *Data) {
+Win32AddEntry(PlatformWorkQueue *Queue, PlatformWorkQueueCallback *Callback, void *Data) 
+{
     // TODO: Switch to InterlockedCompareExchange eventually
     // so that any thread can add?
     u32 NewNextEntryToWrite = (Queue->NextEntryToWrite + 1) % array_count(Queue->Entries);
@@ -762,8 +767,10 @@ Win32AddEntry(PlatformWorkQueue *Queue, PlatformWorkQueueCallback *Callback, voi
     Queue->NextEntryToWrite = NewNextEntryToWrite;
     ReleaseSemaphore(Queue->SemaphoreHandle, 1, 0);
 }
+
 internal bool32
-Win32DoNextWorkQueueEntry(PlatformWorkQueue *Queue) {
+Win32DoNextWorkQueueEntry(PlatformWorkQueue *Queue) 
+{
     b32 shouldSleep = false;
 
     u32 OriginalNextEntryToRead = Queue->NextEntryToRead;
@@ -787,8 +794,10 @@ Win32DoNextWorkQueueEntry(PlatformWorkQueue *Queue) {
 }
 
 internal void
-Win32CompleteAllWork(PlatformWorkQueue *Queue) {
-    while(Queue->CompletionGoal != Queue->CompletionCount) {
+Win32CompleteAllWork(PlatformWorkQueue *Queue) 
+{
+    while(Queue->CompletionGoal != Queue->CompletionCount) 
+    {
         Win32DoNextWorkQueueEntry(Queue);
     }
 
@@ -797,11 +806,14 @@ Win32CompleteAllWork(PlatformWorkQueue *Queue) {
 }
 
 DWORD WINAPI
-ThreadProc(LPVOID lpParameter) {
+ThreadProc(LPVOID lpParameter) 
+{
     PlatformWorkQueue *Queue = (PlatformWorkQueue *)lpParameter;
 
-    for(;;) {
-        if(Win32DoNextWorkQueueEntry(Queue)) {
+    for(;;) 
+    {
+        if(Win32DoNextWorkQueueEntry(Queue)) 
+        {
             WaitForSingleObjectEx(Queue->SemaphoreHandle, INFINITE, FALSE);
         }
     }
@@ -823,7 +835,8 @@ Win32MakeQueue(PlatformWorkQueue *Queue, u32 ThreadCount)
                                                0, 0, SEMAPHORE_ALL_ACCESS);
     for(u32 ThreadIndex = 0;
         ThreadIndex < ThreadCount;
-        ++ThreadIndex) {
+        ++ThreadIndex) 
+    {
         DWORD ThreadID;
         HANDLE ThreadHandle = CreateThread(0, 0, ThreadProc, Queue, 0, &ThreadID);
         CloseHandle(ThreadHandle);

@@ -352,11 +352,11 @@ gl_create_program(const char *header,
 }
 
 internal void
-gl_alloc_texture(Bitmap *bitmap)
+gl_alloc_texture(Bitmap *bitmap, s32 format)
 {
     glGenTextures(1, &bitmap->handle);
     glBindTexture(GL_TEXTURE_2D, bitmap->handle);
-    glTexImage2D(GL_TEXTURE_2D, 0, gl_info.texture_internal_format, bitmap->width, bitmap->height,
+    glTexImage2D(GL_TEXTURE_2D, 0, format, bitmap->width, bitmap->height,
                  0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, bitmap->memory);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -366,7 +366,7 @@ gl_alloc_texture(Bitmap *bitmap)
 }
 
 internal void
-gl_bind_texture(Bitmap *bitmap)
+gl_bind_texture(Bitmap *bitmap, s32 format)
 {
     if (!bitmap) 
     {
@@ -383,8 +383,25 @@ gl_bind_texture(Bitmap *bitmap)
     } 
     else 
     {
-        gl_alloc_texture(bitmap);
+        gl_alloc_texture(bitmap, format);
         glBindTexture(GL_TEXTURE_2D, bitmap->handle);
+    }
+}
+
+internal void
+gl_clear_color(f32 r, f32 g, f32 b, f32 a, b32 is_framebuffer_srgb)
+{
+    if (is_framebuffer_srgb)
+    {
+        // TODO: 2.2 if possible.
+        r *= r;
+        g *= g;
+        b *= b;
+        glClearColor(r, g, b, a);
+    }
+    else
+    {
+        glClearColor(r, g, b, a);
     }
 }
 
@@ -401,7 +418,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glEnable(GL_SCISSOR_TEST);
 
     glEnable(GL_DEPTH_TEST);
-    glClearColor(0.09f, 0.02f, 0.08f, 1.0f);
+    gl_clear_color(0.13f, 0.15f, 0.37f, 1.0f, true);
     glClear(GL_COLOR_BUFFER_BIT);
     glClearDepth(1.0f);
     glClear(GL_DEPTH_BUFFER_BIT);
@@ -571,9 +588,9 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
                 case eRender_Star:
                 {
-                    Render_Star *piece  = (Render_Star *)entity;
+                    Render_Star *piece = (Render_Star *)entity;
 
-                    Asset_Mesh *mesh    = piece->mesh;
+                    Asset_Mesh *mesh = piece->mesh;
 
                     glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
 
@@ -650,7 +667,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)offset_of(Textured_Vertex, pos));
                     glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)offset_of(Textured_Vertex, uv));
 
-                    gl_bind_texture(piece->bitmap);
+                    gl_bind_texture(piece->bitmap, gl_info.texture_internal_format);
 
                     v3 min = piece->min;
                     v3 max = piece->max;
@@ -682,7 +699,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     }
             
     batch->used = 0;
-    gl_bind_texture(0);
+    gl_bind_texture(0, GL_RGBA8);
     glUseProgram(0);
 }
 
@@ -787,7 +804,7 @@ gl_init()
     {
         *at = 0xffffffff;
     }
-    gl_alloc_texture(&gl.white_bitmap);
+    gl_alloc_texture(&gl.white_bitmap, GL_RGBA8);
 
     // dummy.
     glGenVertexArrays(1, &gl.vao);

@@ -31,6 +31,7 @@ struct GL_Info
     s32     minor;
 
     s32     texture_internal_format;
+    b32     is_framebuffer_srgb;
 
     b32     has_ext[GL_EXT_COUNT];
 };
