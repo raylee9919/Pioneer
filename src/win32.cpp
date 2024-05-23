@@ -312,14 +312,22 @@ const int context_attrib_list[] =
         }
 
         // sRGB.
-#if 1
-        if (gl_info.has_ext[GL_EXT_texture_sRGB] && 
-            gl_info.has_ext[GL_EXT_framebuffer_sRGB]) 
+        if (gl_info.has_ext[GL_EXT_texture_sRGB]) 
         {
             gl_info.texture_internal_format = GL_SRGB8_ALPHA8;
+        }
+        else
+        {
+            gl_info.texture_internal_format = GL_RGBA8;
+        }
+
+        if (gl_info.has_ext[GL_EXT_framebuffer_sRGB])
+        {
             glEnable(GL_FRAMEBUFFER_SRGB);
         }
-#endif
+        else
+        {
+        }
 
         gl_init();
 

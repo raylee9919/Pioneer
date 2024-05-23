@@ -1,6 +1,7 @@
 R"MULTILINE(
 
 uniform mat4x4      mvp;
+uniform f32         time;
 
 // vertex info.
 layout (location = 0) in v3 vP;
@@ -18,8 +19,8 @@ smooth out v4 fC;
 void main()
 {
     v3 mP = vP;
-    v4 mC = vC;
     v4 wP = world_transform * v4(mP, 1.0f);
+    v4 mC = vC;
 
     v4 result_pos = wP;
     fP  = wP.xyz;

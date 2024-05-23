@@ -47,6 +47,11 @@ struct Timed_Block
     u64             m_start_cycles;
     s32             m_counter;
 
-    Timed_Block(s32 counter, const char *filename, const char *function, s32 line, u32 hit_count);
+    Timed_Block(s32 counter, const char *filename, const char *function, s32 line, u32 hit_count = 1);
     ~Timed_Block();
 };
+
+
+f32         inv_debug_log_frame_count = 1.0f / (f32)DEBUG_LOG_FRAME_COUNT;
+v2          g_debug_cam_last_mouse_p;
+Debug_Log   g_debug_log;

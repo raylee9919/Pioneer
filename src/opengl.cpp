@@ -291,7 +291,6 @@ gl_init_info()
     }
 
     gl_info.texture_internal_format = GL_RGBA8;
-
 }
 
 
@@ -493,6 +492,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
                 case eRender_Grass:
                 {
+#if 1
                     Render_Grass *piece = (Render_Grass *)entity;
 
                     glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
@@ -547,7 +547,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     {
                         glGenTextures(1, &turbulence_map->handle);
                         glBindTexture(GL_TEXTURE_2D, turbulence_map->handle);
-                        glTexImage2D(GL_TEXTURE_2D, 0, gl_info.texture_internal_format, turbulence_map->width, turbulence_map->height,
+                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, turbulence_map->width, turbulence_map->height,
                                      0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, (u8 *)turbulence_map->memory);
 
                         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -566,6 +566,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     glDisableVertexAttribArray(7);
                     glDisableVertexAttribArray(8);
                     glDisableVertexAttribArray(9);
+#endif
                 } break;
 
                 case eRender_Star:
@@ -581,6 +582,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     glUseProgram(pid);
 
                     glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->projection.e[0][0]);
+                    glUniform1f(program->time, piece->time);
 
                     glEnableVertexAttribArray(0);
                     glEnableVertexAttribArray(1);
@@ -770,6 +772,7 @@ gl_init()
                                            star_vshader,
                                            star_fshader);
     gl.star_program.mvp                = glGetUniformLocation(gl.star_program.id, "mvp");
+    gl.star_program.time               = glGetUniformLocation(gl.star_program.id, "time");
 
 
     gl.white_bitmap.width   = 4;

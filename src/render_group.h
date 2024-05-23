@@ -56,6 +56,7 @@ struct Render_Star
     Asset_Mesh              *mesh;
     u32                     count;
     m4x4                    *world_transforms;
+    f32                     time;
 };
 
 struct Render_Bitmap

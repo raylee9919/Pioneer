@@ -58,12 +58,14 @@ internal void
 push_star(Render_Group *group,
            Asset_Mesh *mesh,
            u32 count,
-           m4x4 *world_transforms)
+           m4x4 *world_transforms,
+           f32 time)
 {
     Render_Star *piece          = push_render_entity(group, Render_Star);
     piece->mesh                 = mesh;
     piece->count                = count;
     piece->world_transforms     = world_transforms;
+    piece->time                 = time;
 }
 
 internal void

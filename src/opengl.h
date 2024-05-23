@@ -65,6 +65,7 @@ struct Star_Program
     s32     id;
 
     s32     mvp;
+    s32     time;
 };
 
 struct Sprite_Program

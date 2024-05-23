@@ -142,11 +142,11 @@ struct World
 
 struct Kerning 
 {
-    u32 first;
-    u32 second;
-    s32 value;
-    Kerning *prev;
-    Kerning *next;
+    u32         first;
+    u32         second;
+    s32         value;
+    Kerning     *prev;
+    Kerning     *next;
 };
 struct Kerning_List 
 {
@@ -187,7 +187,6 @@ push_kerning(Kerning_Hashmap *hashmap, Kerning *kern, u32 entry_idx)
         ++list->count;
     }
 }
-
 internal s32
 get_kerning(Kerning_Hashmap *hashmap, u32 first, u32 second) 
 {
