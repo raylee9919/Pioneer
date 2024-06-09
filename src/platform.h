@@ -55,10 +55,10 @@ extern "C"
     #define PLATFORM_READ_ENTIRE_FILE(name) Entire_File name(const char *filename)
     typedef PLATFORM_READ_ENTIRE_FILE(Read_Entire_File);
 
-    typedef struct Game_Key 
+    struct Game_Key 
     {
         b32 is_set;
-    } Game_Key;
+    };
 
     enum Mouse_Enum 
     {
@@ -70,16 +70,16 @@ extern "C"
     };
 
     // these are following game coordinates.
-    typedef struct Mouse_Input 
+    struct Mouse_Input 
     {
         v2      P;
         b32     is_down[eMouse_Count];
         b32     toggle[eMouse_Count];
         v2      click_p[eMouse_Count];
         s32     wheel_delta;
-    } Mouse_Input;
+    };
 
-    typedef struct Game_Input 
+    struct Game_Input 
     {
         f32         dt_per_frame;
         Game_Key    W;
@@ -93,7 +93,7 @@ extern "C"
         Game_Key    toggle_debug;
 
         Mouse_Input mouse;
-    } Game_Input;
+    };
 
     struct PlatformWorkQueue;
     #define PLATFORM_WORK_QUEUE_CALLBACK(Name) void Name(PlatformWorkQueue *queue, void *data)
@@ -102,7 +102,7 @@ extern "C"
     typedef void Platform_Add_Entry(PlatformWorkQueue *queue, PlatformWorkQueueCallback *callback, void *data);
     typedef void Platform_Complete_All_Work(PlatformWorkQueue *queue);
 
-    typedef struct Platform_API 
+    struct Platform_API 
     {
         Platform_Add_Entry          *platform_add_entry;
         Platform_Complete_All_Work  *platform_complete_all_work;
@@ -110,18 +110,16 @@ extern "C"
         Read_Entire_File            *debug_platform_read_file;
         DEBUG_PLATFORM_WRITE_FILE_  *debug_platform_write_file;
         DEBUG_PLATFORM_FREE_MEMORY_ *debug_platform_free_memory;
+    };
 
-
-    } Platform_API;
-
-    typedef struct Render_Batch 
+    struct Render_Batch 
     {
         size_t  size;
         void    *base;
         size_t  used;
-    } Render_Batch;
+    };
 
-    typedef struct Game_Memory 
+    struct Game_Memory 
     {
         // NOTE: Spec memory to be initialized to zero.
         void                *permanent_memory;
@@ -139,15 +137,15 @@ extern "C"
         Platform_API platform;
 
         Render_Batch render_batch;
-    } Game_Memory;
+    };
 
-    typedef struct Game_Screen_Buffer
+    struct Game_Screen_Buffer
     {
         void    *memory;
         u32     width;
         u32     height;
         u32     bpp;
         u32     pitch;
-    } Game_Screen_Buffer;
+    };
 
 }

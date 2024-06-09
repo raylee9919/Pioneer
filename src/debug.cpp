@@ -8,8 +8,7 @@
 
 
 Timed_Block::Timed_Block(s32 counter,
-                         const char *filename, const char *function, s32 line,
-                         u32 hit_count)
+                         const char *filename, const char *function, s32 line, const char *block_name)
 {
     m_counter = counter;
     m_debug_record = (g_debug_log.debug_records +
@@ -18,26 +17,18 @@ Timed_Block::Timed_Block(s32 counter,
     m_debug_info = g_debug_log.debug_infos + counter;
 
     // multi-thread-don't care.
-    m_debug_info->filename = filename;
-    m_debug_info->function = function;
-    m_debug_info->line = line;
+    m_debug_info->filename  = filename;
+    m_debug_info->function  = function;
+    m_debug_info->line      = line;
+    m_debug_info->block_name= block_name;
 
     m_start_cycles = __rdtsc();
-    atomic_add_u32(&m_debug_record->hit, hit_count);
+    atomic_add_u32(&m_debug_record->hit, 1);
 }
 
-Timed_Block::~Timed_Block() 
+Timed_Block::~Timed_Block()
 {
-    // average cycles.
-    // TODO: there can be several hits in a frame!!!
-    m_debug_info->avg_cycles -= (u64)((f32)m_debug_record->cycles * inv_debug_log_frame_count);
-    atomic_exchange_u64(&m_debug_record->cycles, __rdtsc() - m_start_cycles);
-    m_debug_info->avg_cycles += (u64)((f32)m_debug_record->cycles * inv_debug_log_frame_count);
-
-    // TODO: this is busted... max and min must be the value in last 120 frames!
-    atomic_exchange_u64(&m_debug_info->max_cycles, Max(m_debug_info->max_cycles, m_debug_record->cycles));
-    atomic_exchange_u64(&m_debug_info->min_cycles, Max(m_debug_info->min_cycles, m_debug_record->cycles));
-
+    end_debug_block(this);
 }
 
 
@@ -63,6 +54,27 @@ init_debug(Debug_Log *debug_log, Memory_Arena *arena)
 }
 
 internal void
+end_debug_log(Debug_Log *debug_log, f32 *cen_y)
+{
+    Debug_Record *records = (debug_log->debug_records +
+                             debug_log->next_frame * debug_log->record_width);
+    for (u32 record_idx = 0;
+         record_idx < debug_log->record_width;
+         ++record_idx) 
+    {
+        Debug_Record *record = records + record_idx;
+        atomic_exchange_u32(&record->hit, 0);
+    }
+
+    if (++debug_log->next_frame == DEBUG_LOG_FRAME_COUNT) 
+    {
+        debug_log->next_frame = 0;
+    }
+
+    *cen_y = INIT_CEN_Y;
+}
+
+internal void
 display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets *game_assets, Memory_Arena *arena, f32 *cen_y)
 {
     for (u32 record_idx = 0;
@@ -74,7 +86,7 @@ display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets
         char *str = push_array(arena, char, size);
         _snprintf(str, size,
                   "%30s(%4d): %10I64uavg_cyc",
-                  info->function,
+                  info->block_name,
                   info->line,
                   info->avg_cycles);
         push_string(render_group, _v3_(0.0f, 0.0f, 0.0f), str, cen_y, game_assets);
@@ -108,26 +120,3 @@ display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets
     *cen_y = *cen_y - game_assets->v_advance;
     }
 }
-
-internal void
-end_debug_log(Debug_Log *debug_log, f32 *cen_y)
-{
-    Debug_Record *records = (debug_log->debug_records +
-                             debug_log->next_frame * debug_log->record_width);
-    for (u32 record_idx = 0;
-         record_idx < debug_log->record_width;
-         ++record_idx) 
-    {
-        Debug_Record *record = records + record_idx;
-        atomic_exchange_u32(&record->hit, 0);
-    }
-
-    if (++debug_log->next_frame == DEBUG_LOG_FRAME_COUNT) 
-    {
-        debug_log->next_frame = 0;
-    }
-
-    *cen_y = INIT_CEN_Y;
-}
-    
-

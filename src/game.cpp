@@ -34,7 +34,7 @@ build_animation_transform(Asset_Model *model, s32 bone_id,
                           m4x4 *final_transforms,
                           m4x4 parent_transform)
 {
-    TIMED_BLOCK();
+    TIMED_FUNCTION();
     Assert(dt >= 0.0f);
 
     Asset_Bone *bone = 0;
@@ -308,8 +308,8 @@ GAME_MAIN(game_main)
 
         game_state->init = true;
     }
+    TIMED_FUNCTION();
 
-    TIMED_BLOCK();
 
     // @dt
     f32 dt = game_input->dt_per_frame;
@@ -384,6 +384,7 @@ GAME_MAIN(game_main)
     //
     // Process Input
     //
+    BEGIN_BLOCK(process_input);
     Entity *player = game_state->player;
     player->accel = _v3_(0, 0, 0);
     if (!game_state->debug_mode) 
@@ -478,6 +479,7 @@ GAME_MAIN(game_main)
     {
         game_state->debug_toggle_delay = 0.0f;
     }
+    END_BLOCK(process_input);
 
 
 

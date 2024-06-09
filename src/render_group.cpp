@@ -85,7 +85,6 @@ push_string(Render_Group *render_group, v3 base,
             const char *str, f32 *cen_y, Game_Assets *game_assets,
             v4 color = _v4_(1, 1, 1, 1))
 {
-    TIMED_BLOCK();
     // |A|B|C|
     f32 left_x  = 40.0f;
     f32 kern    = 0.0f;
