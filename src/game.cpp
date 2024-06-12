@@ -7,25 +7,15 @@
    ======================================================================== */
 
 
-#define BYTES_PER_PIXEL 4
 #define ASSET_FILE_NAME "asset.pack"
 
 #include "types.h"
 #include "game.h"
-#include "debug.h"
 #include "memory.cpp"
+#include "debug.h"
 #include "render_group.cpp"
 #include "sim.cpp"
 #include "asset.cpp"
-
-internal void
-init_debug(Debug_Log *debug_log, Memory_Arena *arena);
-internal void
-display_debug_info(Debug_Log *debug_log, Render_Group *render_group, Game_Assets *game_assets, Memory_Arena *arena, f32 *cen_y);
-internal void
-end_debug_log(Debug_Log *debug_log, f32 *cen_y);
-
-
 
 internal void
 build_animation_transform(Asset_Model *model, s32 bone_id,
@@ -190,7 +180,6 @@ gen_turbulence_map(Memory_Arena *arena, Random_Series *series, u32 side)
     return result;
 }
 
-
 extern "C"
 GAME_MAIN(game_main)
 {
@@ -253,12 +242,6 @@ GAME_MAIN(game_main)
             }
         }
 
-#ifdef __DEBUG
-        // debug memory.
-        init_arena(&game_state->debug_arena, game_memory->debug_memory_size, (u8 *)game_memory->debug_memory);
-        init_debug(&g_debug_log, &game_state->debug_arena);
-#endif
-
         Entity *xbot = push_entity(world_arena, chunk_hashmap, eEntity_XBot, Chunk_Position{0, 0, 0}, world->chunk_dim);
         game_state->player = xbot;
 
@@ -308,7 +291,6 @@ GAME_MAIN(game_main)
 
         game_state->init = true;
     }
-    TIMED_FUNCTION();
 
 
     // @dt
@@ -323,33 +305,33 @@ GAME_MAIN(game_main)
     void *transMem  = game_memory->transient_memory;
     u64 transMemCap = game_memory->transient_memory_size;
     Assert(sizeof(Transient_State) < transMemCap);
-    Transient_State *trans_state = (Transient_State *)transMem;
+    Transient_State *transient_state = (Transient_State *)transMem;
 
-    if (!trans_state->init)
+    if (!transient_state->init)
     {
         // transient arena.
-        init_arena(&trans_state->transient_arena,
+        init_arena(&transient_state->transient_arena,
                    MB(200),
                    (u8 *)transMem + sizeof(Transient_State));
         
         // reserved memory for multi-thread work data.
         for (u32 idx = 0;
-             idx < array_count(trans_state->workArena);
+             idx < array_count(transient_state->workArena);
              ++idx) 
         {
-            WorkMemory_Arena *workSlot = trans_state->workArena + idx;
-            init_sub_arena(&workSlot->memoryArena, &trans_state->transient_arena, MB(4));
+            WorkMemory_Arena *workSlot = transient_state->workArena + idx;
+            init_sub_arena(&workSlot->memoryArena, &transient_state->transient_arena, MB(4));
         }
         
         // asset arena.
-        init_arena(&trans_state->assetArena,
+        init_arena(&transient_state->assetArena,
                    MB(20),
-                   (u8 *)transMem + sizeof(Transient_State) + trans_state->transient_arena.size);
+                   (u8 *)transMem + sizeof(Transient_State) + transient_state->transient_arena.size);
 
-        trans_state->highPriorityQueue  = game_memory->highPriorityQueue;
-        trans_state->lowPriorityQueue   = game_memory->lowPriorityQueue;
-        Game_Assets *game_assets        = &trans_state->game_assets; // TODO: Ain't thrilled about it.
-        game_assets->read_entire_file   = game_memory->platform.debug_platform_read_file;
+        transient_state->high_priority_queue    = game_memory->high_priority_queue;
+        transient_state->low_priority_queue     = game_memory->low_priority_queue;
+        Game_Assets *game_assets            = &transient_state->game_assets; // TODO: Ain't thrilled about it.
+        game_assets->read_entire_file       = game_memory->platform.debug_platform_read_file;
 
         load_model(&game_assets->xbot_model, "xbot.3d", &game_state->world_arena, game_memory->platform.debug_platform_read_file);
         load_model(&game_assets->cube_model, "cube.3d", &game_state->world_arena, game_memory->platform.debug_platform_read_file);
@@ -366,16 +348,16 @@ GAME_MAIN(game_main)
 
         star_mesh = game_assets->octahedral_model->meshes;
 
-        load_font(&game_state->world_arena, game_memory->platform.debug_platform_read_file, &trans_state->game_assets);
+        load_font(&game_state->world_arena, game_memory->platform.debug_platform_read_file, &transient_state->game_assets);
 
-        trans_state->init = true;  
+        transient_state->init = true;  
    }
 
     game_state->debug_cam->width    = (f32)game_screen_buffer->width;
     game_state->debug_cam->height   = (f32)game_screen_buffer->height;
 
-    Temporary_Memory render_memory = begin_temporary_memory(&trans_state->transient_arena);
-    Render_Group *render_group = alloc_render_group(&trans_state->transient_arena,
+    Temporary_Memory render_memory = begin_temporary_memory(&transient_state->transient_arena);
+    Render_Group *render_group = alloc_render_group(&transient_state->transient_arena,
                                                     game_state->debug_cam);
 
 
@@ -384,7 +366,6 @@ GAME_MAIN(game_main)
     //
     // Process Input
     //
-    BEGIN_BLOCK(process_input);
     Entity *player = game_state->player;
     player->accel = _v3_(0, 0, 0);
     if (!game_state->debug_mode) 
@@ -439,24 +420,6 @@ GAME_MAIN(game_main)
             cam->world_translation += rotation * _v3_(0, C, 0);
         }
 
-        Mouse_Input *mouse = &game_input->mouse;
-        if (mouse->is_down[eMouse_Left]) 
-        {
-            if (mouse->toggle[eMouse_Left]) 
-            {
-                g_debug_cam_last_mouse_p = mouse->P;
-            }
-#if 1
-            f32 c = dt * 25.0f;
-            f32 Tx = (g_debug_cam_last_mouse_p.y - mouse->P.y) *-c;
-            f32 Ty = (g_debug_cam_last_mouse_p.x - mouse->P.x) * c;
-            qt qx = _qt_(cos(Tx), sin(Tx), 0, 0);
-            qt qy = _qt_(cos(Ty), 0, sin(Ty), 0);
-            cam->world_rotation = cam->world_rotation * qy * qx;
-#endif
-
-            g_debug_cam_last_mouse_p    = mouse->P;
-        }
     }
 
     if (game_input->toggle_debug.is_set)
@@ -479,7 +442,6 @@ GAME_MAIN(game_main)
     {
         game_state->debug_toggle_delay = 0.0f;
     }
-    END_BLOCK(process_input);
 
 
 
@@ -506,7 +468,7 @@ GAME_MAIN(game_main)
     //
     // @draw
     //
-    Game_Assets *game_assets = &trans_state->game_assets;
+    Game_Assets *game_assets = &transient_state->game_assets;
 
 #if 1
     for (s32 Z = minPos.z;
@@ -542,7 +504,7 @@ GAME_MAIN(game_main)
                             {
                                 if (entity->cur_anim)
                                 {
-                                    m4x4 *final_transforms = push_array(&trans_state->transient_arena, m4x4, MAX_BONE_PER_MESH);
+                                    m4x4 *final_transforms = push_array(&transient_state->transient_arena, m4x4, MAX_BONE_PER_MESH);
                                     build_animation_transform(model, model->root_bone_id,
                                                               entity->cur_anim, entity->anim_dt,
                                                               &g_bone_hierarchy,
@@ -603,29 +565,27 @@ GAME_MAIN(game_main)
 
 
 
-    render_group_to_output_batch(render_group, &game_memory->render_batch);
-    end_temporary_memory(&render_memory);
 
 
-    //
-    // DEBUG OVERLAY
-    //
-#if 1
-    Temporary_Memory debug_render_memory = begin_temporary_memory(&game_state->debug_arena);
 
-    Camera *text_cam = push_camera(&game_state->debug_arena, eCamera_Type_Orthographic, (f32)game_screen_buffer->width, (f32)game_screen_buffer->height);
-    Render_Group *debug_render_group = alloc_render_group(&game_state->debug_arena, text_cam);
-
+#if __DEBUG
+    Camera *debug_overlay_camera = push_camera(&transient_state->transient_arena,
+                                               eCamera_Type_Orthographic,
+                                               (f32)game_screen_buffer->width,
+                                               (f32)game_screen_buffer->height);
+    Render_Group *debug_render_group = alloc_render_group(&transient_state->transient_arena,
+                                                          debug_overlay_camera);
+    game_state->cen_y = 1000.0f;
     if (game_state->debug_mode)
     {
-        display_debug_info(&g_debug_log, debug_render_group, game_assets, &game_state->debug_arena, &game_state->cen_y);
+        debug_overlay(game_memory, debug_render_group, &transient_state->game_assets, &game_state->cen_y);
     }
-    end_debug_log(&g_debug_log, &game_state->cen_y);
-
-    render_group_to_output_batch(debug_render_group, &game_memory->render_batch);
-    end_temporary_memory(&debug_render_memory);
 #endif
-}
 
+
+    render_group_to_output_batch(render_group, &game_memory->render_batch);
+    render_group_to_output_batch(debug_render_group, &game_memory->render_batch);
+    end_temporary_memory(&render_memory);
+}
 
 #include "debug.cpp"

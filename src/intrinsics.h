@@ -8,46 +8,14 @@
 
 #include <intrin.h>
 
-#if     __MSVC
-inline u32
-atomic_compare_exchange_u32(u32 *value, u32 _new, u32 expected) 
-{
-    u32 result = _InterlockedCompareExchange((long *)value, _new, expected);
-    return result;
-}
 
 inline u32
-atomic_exchange_u32(u32 *value, u32 _new) 
+get_thread_id()
 {
-    u32 result = _InterlockedExchange((long *)value, _new);
-    return result;
+    u8 *thread_local_storage = (u8 *)__readgsqword(0x30);
+    u32 thread_id = *(u32 *)(thread_local_storage + 0x48);
+    return thread_id;
 }
-
-inline u64
-atomic_exchange_u64(u64 *value, u64 _new) 
-{
-    u64 result = _InterlockedExchange64((long long *)value, _new);
-    return result;
-}
-
-inline u32
-atomic_add_u32(u32 *value, u32 addend) 
-{
-    // returns the original value.
-    u32 result = _InterlockedExchangeAdd((long *)value, addend);
-    return result;
-}
-
-inline u64
-atomic_add_u64(u64 *value, u64 addend) 
-{
-    // returns the original value.
-    u64 result = _InterlockedExchangeAdd64((long long *)value, addend);
-    return result;
-}
-#elif   __LLVM
-
-#endif
 
 //
 // @trigonometry

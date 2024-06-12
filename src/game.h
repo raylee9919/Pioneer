@@ -6,11 +6,20 @@
    $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
    ======================================================================== */
 
-
 #define Max(a, b) ( (a > b) ? a : b )
 #define Min(a, b) ( (a < b) ? a : b )
 #define array_count(array) ( sizeof(array) / sizeof(array[0]) )
 #define zero_struct(Struct) clear_to_zero(sizeof(Struct), Struct)
+
+#include "intrinsics.h"
+#include "math.h"
+
+#include "platform.h"
+
+#include "asset_model.h"
+#include "asset.h"
+#include "random.h"
+
 
 struct Camera;
 
@@ -23,16 +32,6 @@ clear_to_zero(size_t size, void *data)
         *at++ = 0;
     }
 }
-
-#include "intrinsics.h"
-#include "math.h"
-
-#include "platform.h"
-
-#include "asset_model.h"
-#include "asset.h"
-#include "random.h"
-
 
 struct Memory_Arena 
 {
@@ -243,29 +242,25 @@ struct Game_State
 
     World               *world;
     Memory_Arena        world_arena;
-    Memory_Arena        renderArena;
 
     // debug.
     f32                 debug_toggle_delay;
     b32                 debug_mode;
-    Memory_Arena        debug_arena;
-#define INIT_CEN_Y 1000.0f
     f32                 cen_y;
 };
 
 struct Transient_State 
 {
-    b32                 init;
-    Memory_Arena        transient_arena;
-    PlatformWorkQueue   *highPriorityQueue;
-    PlatformWorkQueue   *lowPriorityQueue;
+    b32                     init;
+    Memory_Arena            transient_arena;
+    Platform_Work_Queue     *high_priority_queue;
+    Platform_Work_Queue     *low_priority_queue;
 
-    WorkMemory_Arena    workArena[4];
+    WorkMemory_Arena        workArena[4];
 
-    Memory_Arena        assetArena;
-    Game_Assets         game_assets;
+    Memory_Arena            assetArena;
+    Game_Assets             game_assets;
 };
-
 
 
 #define GAME_MAIN(name) void name(Game_Memory *game_memory,                 \
@@ -273,3 +268,5 @@ struct Transient_State
                                   Game_Input *game_input,                   \
                                   Game_Screen_Buffer *game_screen_buffer)
 typedef GAME_MAIN(Game_Main);
+
+

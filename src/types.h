@@ -7,6 +7,9 @@
    ======================================================================== */
 
 #include <stdint.h>
+#include <stddef.h>
+#include <limits.h>
+#include <float.h>
 
 #define internal        static
 #define global_var      static
@@ -36,4 +39,7 @@ typedef uint32_t u32;
 typedef uint64_t u64; 
 
 typedef float f32; 
-typedef double r64; 
+typedef double f64; 
+
+#define F32_MIN FLT_MIN
+#define F32_MAX FLT_MAX

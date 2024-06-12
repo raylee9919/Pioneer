@@ -30,6 +30,18 @@ struct Win32State
     u64 game_mem_total_cap;
 };
 
+struct Win32_Game
+{
+    FILETIME            dll_last_write_time;
+    HMODULE             dll;
+
+    Game_Main           *game_main;
+    Debug_Frame_End     *debug_frame_end;
+
+    b32                 is_valid;
+};
+
+
 
 #define WGL_CONTEXT_MAJOR_VERSION_ARB               0x2091
 #define WGL_CONTEXT_MINOR_VERSION_ARB               0x2092

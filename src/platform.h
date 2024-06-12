@@ -38,8 +38,47 @@ struct Bitmap;
 
 #endif
 
-extern "C" 
+
+#ifdef __cplusplus
+extern "C"
 {
+#endif
+    inline u32
+    atomic_compare_exchange_u32(u32 volatile *value, u32 _new, u32 expected) 
+    {
+        u32 result = _InterlockedCompareExchange((long *)value, _new, expected);
+        return result;
+    }
+
+    inline u32
+    atomic_exchange_u32(u32 volatile *value, u32 _new) 
+    {
+        u32 result = _InterlockedExchange((long *)value, _new);
+        return result;
+    }
+
+    inline u64
+    atomic_exchange_u64(u64 volatile *value, u64 _new) 
+    {
+        u64 result = _InterlockedExchange64((long long *)value, _new);
+        return result;
+    }
+
+    inline u32
+    atomic_add_u32(u32 volatile *value, u32 addend) 
+    {
+        u32 result = _InterlockedExchangeAdd((long *)value, addend);
+        return result;
+    }
+
+    inline u64
+    atomic_add_u64(u64 volatile *value, u64 addend) 
+    {
+        u64 result = _InterlockedExchangeAdd64((long long *)value, addend);
+        return result;
+    }
+
+
     typedef struct Entire_File 
     {
         u32     content_size;
@@ -95,12 +134,12 @@ extern "C"
         Mouse_Input mouse;
     };
 
-    struct PlatformWorkQueue;
-    #define PLATFORM_WORK_QUEUE_CALLBACK(Name) void Name(PlatformWorkQueue *queue, void *data)
-    typedef PLATFORM_WORK_QUEUE_CALLBACK(PlatformWorkQueueCallback);
+    struct Platform_Work_Queue;
+    #define PLATFORM_WORK_QUEUE_CALLBACK(Name) void Name(Platform_Work_Queue *queue, void *data)
+    typedef PLATFORM_WORK_QUEUE_CALLBACK(Platform_Work_QueueCallback);
 
-    typedef void Platform_Add_Entry(PlatformWorkQueue *queue, PlatformWorkQueueCallback *callback, void *data);
-    typedef void Platform_Complete_All_Work(PlatformWorkQueue *queue);
+    typedef void Platform_Add_Entry(Platform_Work_Queue *queue, Platform_Work_QueueCallback *callback, void *data);
+    typedef void Platform_Complete_All_Work(Platform_Work_Queue *queue);
 
     struct Platform_API 
     {
@@ -122,21 +161,21 @@ extern "C"
     struct Game_Memory 
     {
         // NOTE: Spec memory to be initialized to zero.
-        void                *permanent_memory;
-        u64                 permanent_memory_size;
+        void                    *permanent_memory;
+        u64                     permanent_memory_size;
 
-        void                *transient_memory;
-        u64                 transient_memory_size;
+        void                    *transient_memory;
+        u64                     transient_memory_size;
 
-        void                *debug_memory;
-        u64                 debug_memory_size;
+        void                    *debug_memory;
+        u64                     debug_memory_size;
 
-        PlatformWorkQueue   *highPriorityQueue;
-        PlatformWorkQueue   *lowPriorityQueue;
+        Platform_Work_Queue     *high_priority_queue;
+        Platform_Work_Queue     *low_priority_queue;
 
-        Platform_API platform;
+        Platform_API            platform;
 
-        Render_Batch render_batch;
+        Render_Batch            render_batch;
     };
 
     struct Game_Screen_Buffer
@@ -147,5 +186,121 @@ extern "C"
         u32     bpp;
         u32     pitch;
     };
+    
 
+    struct Debug_Record
+    {
+        char    *file_name;
+        char    *block_name;
+
+        u32     line_number;
+        u32     reserved;
+
+        u64     hit_count_cycle_count;
+    };
+
+    enum Debug_Event_Type
+    {
+        eDebug_Event_Frame_Marker,
+        eDebug_Event_Begin_Block,
+        eDebug_Event_End_Block
+    };
+
+    struct Debug_Event
+    {
+        u64                 clock;
+        u16                 thread_idx;
+        u16                 core_idx;
+        u16                 debug_record_idx;
+        u8                  translation_unit;
+        u8                  type;
+    };
+
+    #define DEBUG_SNAPSHOT_COUNT                    120
+    #define MAX_DEBUG_TRANSLATION_UNITS             2
+    #define MAX_DEBUG_EVENT_COUNT                   (16*65536)
+    #define MAX_DEBUG_RECORD_COUNT                  (65536)
+    struct Debug_Table
+    {
+        u32             current_event_array_idx;
+        u64 volatile    event_array_idx_event_idx;
+        Debug_Event     events[64][MAX_DEBUG_EVENT_COUNT];
+        u32             record_count[MAX_DEBUG_TRANSLATION_UNITS];
+        Debug_Record    records[MAX_DEBUG_TRANSLATION_UNITS][MAX_DEBUG_RECORD_COUNT];
+    };
+
+    extern Debug_Table *g_debug_table;
+
+    #define DEBUG_FRAME_END(name) Debug_Table *name(Game_Memory *game_memory)
+    typedef DEBUG_FRAME_END(Debug_Frame_End);
+
+    inline void 
+    record_debug_event(int record_idx, Debug_Event_Type event_type)
+    {
+        u64 event_array_idx_event_idx = atomic_add_u64(&g_debug_table->event_array_idx_event_idx, 1);
+        u32 event_array_idx = (u32)(event_array_idx_event_idx >> 32);
+        u32 event_idx       = (u32)(event_array_idx_event_idx & 0xffffffff);
+        Assert(event_idx < MAX_DEBUG_EVENT_COUNT);
+        Debug_Event *event = g_debug_table->events[event_array_idx] + event_idx;
+        event->clock            = __rdtsc();
+        event->thread_idx       = (u16)get_thread_id();
+        event->core_idx         = 0;
+        event->debug_record_idx = (u16)record_idx;
+        event->translation_unit = TRANSLATION_UNIT_IDX;
+        event->type             = (u8)event_type;
+    }
+
+    #define FRAME_MARKER()\
+    {\
+        int counter = __COUNTER__;\
+        record_debug_event(counter, eDebug_Event_Frame_Marker);\
+        Debug_Record *record = g_debug_table->records[TRANSLATION_UNIT_IDX] + counter;\
+        record->file_name   = __FILE__;\
+        record->line_number = __LINE__;\
+        record->block_name  = "frame_marker";\
+    }
+
+    #define TIMED_BLOCK__(block_name, number, ...) Timed_Block timed_block_##number(__COUNTER__, __FILE__, __LINE__, #block_name, ##__VA_ARGS__)
+    #define TIMED_BLOCK_(block_name, number, ...) TIMED_BLOCK__(block_name, number, ##__VA_ARGS__)
+    #define TIMED_BLOCK(block_name, ...) TIMED_BLOCK_(block_name, __LINE__, ##__VA_ARGS__)
+
+    #define TIMED_FUNCTION(...) TIMED_BLOCK_(__FUNCTION__, __LINE__, ##__VA_ARGS__)
+
+    #define BEGIN_BLOCK_(counter, file_name_init, line_number_init, block_name_init)\
+    {\
+        Debug_Record *record = g_debug_table->records[TRANSLATION_UNIT_IDX] + counter;\
+        record->file_name       = file_name_init;\
+        record->line_number     = line_number_init;\
+        record->block_name      = block_name_init;\
+        record_debug_event(counter, eDebug_Event_Begin_Block);\
+    }
+
+    #define BEGIN_BLOCK(name)\
+        int counter_##name = __COUNTER__;\
+        BEGIN_BLOCK_(counter_##name, __FILE__, __LINE__, #name);\
+
+    #define END_BLOCK_(counter)\
+        record_debug_event(counter, eDebug_Event_End_Block);
+
+    #define END_BLOCK(name)\
+        END_BLOCK_(counter_##name);
+
+    struct Timed_Block
+    {
+        int counter;
+    
+        Timed_Block(int counter_init, char *file_name, int line_number, char *block_name, int hit_count_init = 1)
+        {
+            counter = counter_init;
+            BEGIN_BLOCK_(counter, file_name, line_number, block_name);
+        }
+    
+        ~Timed_Block()
+        {
+            END_BLOCK_(counter);
+        }
+    };
+
+#ifdef __cplusplus
 }
+#endif

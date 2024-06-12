@@ -735,13 +735,13 @@ win32_init_render_batch(Render_Batch *batch, size_t size)
 // Multi-Threading
 // 
 
-struct PlatformWorkQueueEntry 
+struct Platform_Work_QueueEntry 
 {
-    PlatformWorkQueueCallback *Callback;
+    Platform_Work_QueueCallback *Callback;
     void *Data;
 };
 
-struct PlatformWorkQueue 
+struct Platform_Work_Queue 
 {
     u32 volatile CompletionGoal;
     u32 volatile CompletionCount;
@@ -750,17 +750,17 @@ struct PlatformWorkQueue
     u32 volatile NextEntryToRead;
     HANDLE SemaphoreHandle;
 
-    PlatformWorkQueueEntry Entries[256];
+    Platform_Work_QueueEntry Entries[256];
 };
 
 internal void
-Win32AddEntry(PlatformWorkQueue *Queue, PlatformWorkQueueCallback *Callback, void *Data) 
+Win32AddEntry(Platform_Work_Queue *Queue, Platform_Work_QueueCallback *Callback, void *Data) 
 {
     // TODO: Switch to InterlockedCompareExchange eventually
     // so that any thread can add?
     u32 NewNextEntryToWrite = (Queue->NextEntryToWrite + 1) % array_count(Queue->Entries);
     Assert(NewNextEntryToWrite != Queue->NextEntryToRead);
-    PlatformWorkQueueEntry *Entry = Queue->Entries + Queue->NextEntryToWrite;
+    Platform_Work_QueueEntry *Entry = Queue->Entries + Queue->NextEntryToWrite;
     Entry->Callback = Callback;    Entry->Data = Data;
     ++Queue->CompletionGoal;
     _WriteBarrier();
@@ -769,7 +769,7 @@ Win32AddEntry(PlatformWorkQueue *Queue, PlatformWorkQueueCallback *Callback, voi
 }
 
 internal bool32
-Win32DoNextWorkQueueEntry(PlatformWorkQueue *Queue) 
+Win32DoNextWorkQueueEntry(Platform_Work_Queue *Queue) 
 {
     b32 shouldSleep = false;
 
@@ -782,7 +782,7 @@ Win32DoNextWorkQueueEntry(PlatformWorkQueue *Queue)
                                                OriginalNextEntryToRead);
         if(Index == OriginalNextEntryToRead)
         {        
-            PlatformWorkQueueEntry Entry = Queue->Entries[Index];
+            Platform_Work_QueueEntry Entry = Queue->Entries[Index];
             Entry.Callback(Queue, Entry.Data);
             InterlockedIncrement((LONG volatile *)&Queue->CompletionCount);
         }
@@ -794,7 +794,7 @@ Win32DoNextWorkQueueEntry(PlatformWorkQueue *Queue)
 }
 
 internal void
-Win32CompleteAllWork(PlatformWorkQueue *Queue) 
+win32_complete_all_work(Platform_Work_Queue *Queue) 
 {
     while(Queue->CompletionGoal != Queue->CompletionCount) 
     {
@@ -808,11 +808,11 @@ Win32CompleteAllWork(PlatformWorkQueue *Queue)
 DWORD WINAPI
 ThreadProc(LPVOID lpParameter) 
 {
-    PlatformWorkQueue *Queue = (PlatformWorkQueue *)lpParameter;
+    Platform_Work_Queue *Queue = (Platform_Work_Queue *)lpParameter;
 
     for(;;) 
     {
-        if(Win32DoNextWorkQueueEntry(Queue)) 
+        if (Win32DoNextWorkQueueEntry(Queue)) 
         {
             WaitForSingleObjectEx(Queue->SemaphoreHandle, INFINITE, FALSE);
         }
@@ -820,7 +820,7 @@ ThreadProc(LPVOID lpParameter)
 }
 
 internal void
-Win32MakeQueue(PlatformWorkQueue *Queue, u32 ThreadCount) 
+win32_make_queue(Platform_Work_Queue *Queue, u32 ThreadCount) 
 {
     Queue->CompletionGoal = 0;
     Queue->CompletionCount = 0;
@@ -843,17 +843,20 @@ Win32MakeQueue(PlatformWorkQueue *Queue, u32 ThreadCount)
     }
 }
 
+global_var Debug_Table g_debug_table_;
+Debug_Table *g_debug_table = &g_debug_table_;
+
 int WINAPI
 WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) 
 {
     //
     // Multi-Threading
     //
-    PlatformWorkQueue highPriorityQueue = {};
-    Win32MakeQueue(&highPriorityQueue, 6);
+    Platform_Work_Queue high_priority_queue = {};
+    win32_make_queue(&high_priority_queue, 6);
 
-    PlatformWorkQueue lowPriorityQueue = {};
-    Win32MakeQueue(&lowPriorityQueue, 2);
+    Platform_Work_Queue low_priority_queue = {};
+    win32_make_queue(&low_priority_queue, 2);
 
     QueryPerformanceFrequency(&g_counter_hz);
     timeBeginPeriod(1);
@@ -896,9 +899,9 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
 #endif
     Game_Memory game_memory = {};
     Win32State win32_state = {};
-    game_memory.permanent_memory_size = MB(64);
-    game_memory.transient_memory_size = GB(1);
-    game_memory.debug_memory_size = MB(100);
+    game_memory.permanent_memory_size   = MB(64);
+    game_memory.transient_memory_size   = GB(1);
+    game_memory.debug_memory_size       = MB(100);
 
     u64 total_capacity = (game_memory.permanent_memory_size +
                           game_memory.transient_memory_size + 
@@ -910,10 +913,10 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     game_memory.transient_memory = ((u8 *)(game_memory.permanent_memory) + game_memory.permanent_memory_size);
     game_memory.debug_memory = ((u8 *)(game_memory.transient_memory) + game_memory.transient_memory_size);
 
-    game_memory.highPriorityQueue = &highPriorityQueue;
-    game_memory.lowPriorityQueue = &lowPriorityQueue;
+    game_memory.high_priority_queue = &high_priority_queue;
+    game_memory.low_priority_queue = &low_priority_queue;
     game_memory.platform.platform_add_entry = Win32AddEntry;
-    game_memory.platform.platform_complete_all_work = Win32CompleteAllWork;
+    game_memory.platform.platform_complete_all_work = win32_complete_all_work;
     game_memory.platform.debug_platform_read_file = DebugPlatformReadEntireFile;
     game_memory.platform.debug_platform_write_file = DebugPlatformWriteEntireFile;
     game_memory.platform.debug_platform_free_memory = DebugPlatformFreeMemory;
@@ -935,7 +938,6 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
         // TODO: diagnostic.
     }
 
-    HMODULE game_dll = {};
     const char *game_dll_filename = "game.dll";
     const char *game_dll_load_filename = "game_load.dll";
 
@@ -955,208 +957,247 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     FILETIME game_dll_time_last = {};
     FILETIME game_dll_time = {};
 
-    Game_Main *game_main = 0;
+    Win32_Game game = {};
     Game_Input game_input = {};
 
     //
     // Loop
     //
-    while(g_running) 
+    if (game_memory.permanent_memory && 
+        game_memory.transient_memory)
     {
-        LARGE_INTEGER counter_begin = win32_get_clock();
-
-        game_dll_time = win32_get_file_time(game_dll_abs_path);
-        if (CompareFileTime(&game_dll_time_last, &game_dll_time) != 0) 
+        while(g_running) 
         {
-            if (game_dll) 
-            {
-                FreeLibrary(game_dll); 
-                game_dll = 0;
-            }
-            CopyFileA(game_dll_abs_path, game_dll_load_abs_path, FALSE);
-            game_dll = LoadLibraryA(game_dll_load_filename);
-            if (game_dll) 
-            { 
-                game_main = (Game_Main *)GetProcAddress(game_dll, "game_main");
-            } 
-            else 
-            {
-                // TODO: Diagnostic 
-            }
-            game_dll_time_last = game_dll_time;
-        }
+            FRAME_MARKER();
 
-        game_input.mouse.wheel_delta = 0;
-        MSG msg;
-        while (PeekMessageA(&msg, hwnd, 0, 0, PM_REMOVE)) 
-        {
-            switch(msg.message) 
+            LARGE_INTEGER last_counter = win32_get_clock();
+
+            BEGIN_BLOCK(win32_executable_ready);
+            game_dll_time = win32_get_file_time(game_dll_abs_path);
+            if (CompareFileTime(&game_dll_time_last, &game_dll_time) != 0) 
             {
-                case WM_QUIT: 
+                win32_complete_all_work(&high_priority_queue);
+                win32_complete_all_work(&low_priority_queue);
+
+                g_debug_table = &g_debug_table_;
+
+                if (game.dll) 
                 {
-                    g_running = false;
-                } break;
-                case WM_SYSKEYDOWN:
-                case WM_SYSKEYUP:
-                case WM_KEYDOWN:
-                case WM_KEYUP: 
-                {
-                    u64 vk_code  = msg.wParam;
-                    b32 is_down  = ((msg.lParam & (1 << 31)) == 0);
-                    b32 was_down = ((msg.lParam & (1 << 30)) != 0);
-                    if (was_down != is_down) 
+                    FreeLibrary(game.dll); 
+                    game.dll = 0;
+                }
+                CopyFileA(game_dll_abs_path, game_dll_load_abs_path, FALSE);
+                game.dll = LoadLibraryA(game_dll_load_filename);
+                if (game.dll) 
+                { 
+                    game.game_main          = (Game_Main *)GetProcAddress(game.dll, "game_main");
+                    game.debug_frame_end    = (Debug_Frame_End *)GetProcAddress(game.dll, "debug_frame_end");
+
+                    game.is_valid           = (game.game_main &&
+                                               1);
+                    if (!game.is_valid)
                     {
-                        switch (vk_code) 
-                        {
-                            // TODO: compressable I guess?
-                            case 'Q': 
-                            {
-                                win32_process_keyboard(&game_input.Q, is_down);
-                            } break;
-                            case 'E': 
-                            {
-                                win32_process_keyboard(&game_input.E, is_down);
-                            } break;
-                            case 'W': 
-                            {
-                                win32_process_keyboard(&game_input.W, is_down);
-                            } break;
-                            case 'A': 
-                            {
-                                win32_process_keyboard(&game_input.A, is_down);
-                            } break;
-                            case 'S': 
-                            {
-                                win32_process_keyboard(&game_input.S, is_down);
-                            } break;
-                            case 'D': 
-                            {
-                                win32_process_keyboard(&game_input.D, is_down);
-                            } break;
-                            case VK_MENU: // Alt
-                            {
-                                win32_process_keyboard(&game_input.alt, is_down);
-                            } break;
-#ifdef __DEBUG
-                            // tilde key.
-                            case VK_OEM_3: 
-                            {
-                                win32_process_keyboard(&game_input.toggle_debug, is_down);
-                            } break;
+                        game.game_main = 0;
+                    }
+                } 
+                else 
+                {
+                    // TODO: Diagnostic 
+                }
+                game_dll_time_last = game_dll_time;
+            }
+            END_BLOCK(win32_executable_ready);
 
-                            case 'L': 
+            BEGIN_BLOCK(win32_process_input);
+            game_input.mouse.wheel_delta = 0;
+            MSG msg;
+            while (PeekMessageA(&msg, hwnd, 0, 0, PM_REMOVE)) 
+            {
+                switch(msg.message) 
+                {
+                    case WM_QUIT: 
+                    {
+                        g_running = false;
+                    } break;
+                    case WM_SYSKEYDOWN:
+                    case WM_SYSKEYUP:
+                    case WM_KEYDOWN:
+                    case WM_KEYUP: 
+                    {
+                        u64 vk_code  = msg.wParam;
+                        b32 is_down  = ((msg.lParam & (1 << 31)) == 0);
+                        b32 was_down = ((msg.lParam & (1 << 30)) != 0);
+                        if (was_down != is_down) 
+                        {
+                            switch (vk_code) 
                             {
-                                if (is_down) 
+                                // TODO: compressable I guess?
+                                case 'Q': 
                                 {
-                                    if (!win32_state.is_recording) 
+                                    win32_process_keyboard(&game_input.Q, is_down);
+                                } break;
+                                case 'E': 
+                                {
+                                    win32_process_keyboard(&game_input.E, is_down);
+                                } break;
+                                case 'W': 
+                                {
+                                    win32_process_keyboard(&game_input.W, is_down);
+                                } break;
+                                case 'A': 
+                                {
+                                    win32_process_keyboard(&game_input.A, is_down);
+                                } break;
+                                case 'S': 
+                                {
+                                    win32_process_keyboard(&game_input.S, is_down);
+                                } break;
+                                case 'D': 
+                                {
+                                    win32_process_keyboard(&game_input.D, is_down);
+                                } break;
+                                case VK_MENU: // Alt
+                                {
+                                    win32_process_keyboard(&game_input.alt, is_down);
+                                } break;
+#ifdef __DEBUG
+                                // tilde key.
+                                case VK_OEM_3: 
+                                {
+                                    win32_process_keyboard(&game_input.toggle_debug, is_down);
+                                } break;
+
+                                case 'L': 
+                                {
+                                    if (is_down) 
                                     {
-                                        Win32BeginRecordingInput(&win32_state);
-                                    } 
-                                    else 
+                                        if (!win32_state.is_recording) 
+                                        {
+                                            Win32BeginRecordingInput(&win32_state);
+                                        } 
+                                        else 
+                                        {
+                                            Win32EndInputRecording(&win32_state);
+                                            Win32BeginInputPlayback(&win32_state);
+                                        }
+                                    }
+                                } break;
+#endif
+                            }
+
+                            if (is_down) 
+                            {
+                                bool32 altWasDown = (msg.lParam & (1 << 29));
+                                if ((vk_code == VK_F4) && altWasDown) 
+                                {
+                                    g_running = false;
+                                }
+                                if ((vk_code == VK_RETURN) && altWasDown) 
+                                {
+                                    if (msg.hwnd) 
                                     {
-                                        Win32EndInputRecording(&win32_state);
-                                        Win32BeginInputPlayback(&win32_state);
+                                        win32_toggle_fullscreen(msg.hwnd);
                                     }
                                 }
-                            } break;
-#endif
-                        }
-
-                        if (is_down) 
-                        {
-                            bool32 altWasDown = (msg.lParam & (1 << 29));
-                            if ((vk_code == VK_F4) && altWasDown) 
-                            {
-                                g_running = false;
                             }
-                            if ((vk_code == VK_RETURN) && altWasDown) 
-                            {
-                                if (msg.hwnd) 
-                                {
-                                    win32_toggle_fullscreen(msg.hwnd);
-                                }
-                            }
-                        }
 
-                    }
-                } break;
-                case WM_MOUSEWHEEL: 
-                {
-                    s16 z_delta = (GET_WHEEL_DELTA_WPARAM(msg.wParam) / WHEEL_DELTA);
-                    game_input.mouse.wheel_delta = z_delta;
-                } break;
+                        }
+                    } break;
+                    case WM_MOUSEWHEEL: 
+                    {
+                        s16 z_delta = (GET_WHEEL_DELTA_WPARAM(msg.wParam) / WHEEL_DELTA);
+                        game_input.mouse.wheel_delta = z_delta;
+                    } break;
+                }
+                TranslateMessage(&msg);
+                DispatchMessageA(&msg);
             }
-            TranslateMessage(&msg);
-            DispatchMessageA(&msg);
-        }
 
-        Win32WindowDimension wd = win32_get_window_dimension(hwnd);
+            Win32WindowDimension wd = win32_get_window_dimension(hwnd);
 
 
-        Mouse_Input *mouse = &game_input.mouse;
-        // TODO: we don't need to calculate aspect ratio every frame!
-        win32_get_mouse_pos_to_game_coord(hwnd, wd, &game_input);
+            Mouse_Input *mouse = &game_input.mouse;
+            // TODO: we don't need to calculate aspect ratio every frame!
+            win32_get_mouse_pos_to_game_coord(hwnd, wd, &game_input);
 
-        // get mouse info via function call, alternative to WM.
-        win32_process_mouse_click(VK_LBUTTON, mouse);
-        win32_process_mouse_click(VK_MBUTTON, mouse);
-        win32_process_mouse_click(VK_RBUTTON, mouse);
+            // get mouse info via function call, alternative to WM.
+            win32_process_mouse_click(VK_LBUTTON, mouse);
+            win32_process_mouse_click(VK_MBUTTON, mouse);
+            win32_process_mouse_click(VK_RBUTTON, mouse);
 
-        DWORD result;    
-        for(DWORD idx = 0;
-            idx < XUSER_MAX_COUNT;
-            idx++) 
-        {
-            XINPUT_STATE state;
-            ZeroMemory(&state, sizeof(XINPUT_STATE));
-            result = xinput_get_state(idx, &state);
-            win32_xinput_handle_deadzone(&state);
-            if (result == ERROR_SUCCESS) 
+            DWORD result;    
+            for(DWORD idx = 0;
+                idx < XUSER_MAX_COUNT;
+                idx++) 
             {
+                XINPUT_STATE state;
+                ZeroMemory(&state, sizeof(XINPUT_STATE));
+                result = xinput_get_state(idx, &state);
+                win32_xinput_handle_deadzone(&state);
+                if (result == ERROR_SUCCESS) 
+                {
 
+                } 
+                else 
+                {
+                    // TODO: Diagnostic
+                }
+            }
+            END_BLOCK(win32_process_input);
+
+            BEGIN_BLOCK(win32_record_input);
+            if (win32_state.is_recording) 
+            {
+                Win32RecordInput(&win32_state, &game_input);
+            }
+            if (win32_state.is_playing) 
+            {
+                Win32PlaybackInput(&win32_state, &game_input);
+            }
+            END_BLOCK(win32_record_input);
+
+            game_input.dt_per_frame = (desired_mspf / 1000.0f);
+
+            BEGIN_BLOCK(win32_game_main);
+            if (game.game_main) 
+            {
+                game.game_main(&game_memory, game_state, &game_input, &gameScreenBuffer);
+            }
+            END_BLOCK(win32_game_main);
+
+            BEGIN_BLOCK(win32_render);
+            HDC dc = GetDC(hwnd);
+            gl_render_batch(&game_memory.render_batch, wd.width, wd.height);
+            SwapBuffers(dc);
+            // win32_update_screen(dc, wd.width, wd.height);
+            ReleaseDC(hwnd, dc);
+            END_BLOCK(win32_render);
+
+            BEGIN_BLOCK(win32_framerate_wait);
+            LARGE_INTEGER counter_end = win32_get_clock();
+            f32 actual_mspf = win32_get_elapsed_ms(last_counter, counter_end);
+
+            if (actual_mspf < desired_mspf) 
+            {
+                DWORD ms_to_sleep = (DWORD)(desired_mspf - actual_mspf);
+                Sleep(ms_to_sleep);
+                actual_mspf = win32_get_elapsed_ms(last_counter, win32_get_clock());
             } 
             else 
             {
-                // TODO: Diagnostic
+                // TODO: Missed framerate handling
             }
+            END_BLOCK(win32_framerate_wait);
+
+            if (game.debug_frame_end)
+            {
+                g_debug_table = game.debug_frame_end(&game_memory);
+                // TODO: move this to global ?
+                g_debug_table->record_count[TRANSLATION_UNIT_IDX] = __COUNTER__;
+            }
+            g_debug_table_.event_array_idx_event_idx = 0;
+
         }
-
-        if (win32_state.is_recording) 
-        {
-            Win32RecordInput(&win32_state, &game_input);
-        }
-        if (win32_state.is_playing) 
-        {
-            Win32PlaybackInput(&win32_state, &game_input);
-        }
-
-        game_input.dt_per_frame = desired_mspf / 1000.0f;
-
-        if (game_main) 
-        {
-            game_main(&game_memory, game_state, &game_input, &gameScreenBuffer);
-        }
-
-        HDC dc = GetDC(hwnd);
-        gl_render_batch(&game_memory.render_batch, wd.width, wd.height);
-        SwapBuffers(dc);
-        // win32_update_screen(dc, wd.width, wd.height);
-        ReleaseDC(hwnd, dc);
-
-        LARGE_INTEGER counter_end = win32_get_clock();
-        f32 actual_mspf = win32_get_elapsed_ms(counter_begin, counter_end);
-
-        if (actual_mspf < desired_mspf) 
-        {
-            DWORD ms_to_sleep = (DWORD)(desired_mspf - actual_mspf);
-            Sleep(ms_to_sleep);
-            actual_mspf = win32_get_elapsed_ms(counter_begin, win32_get_clock());
-        } 
-        else 
-        {
-            // TODO: Missed framerate handling
-        }
-
     }
 
     return 0;

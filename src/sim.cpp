@@ -9,6 +9,7 @@
 inline u32
 chunk_hash(Chunk_Hashmap *chunkHashmap, Chunk_Position pos)
 {
+    TIMED_FUNCTION();
     // TODO: Better hash function.
     u32 bucket = ((pos.x * 16 + pos.y * 9 + pos.z * 4) &
                   (array_count(chunkHashmap->chunks) - 1));
@@ -20,6 +21,7 @@ chunk_hash(Chunk_Hashmap *chunkHashmap, Chunk_Position pos)
 inline b32
 is_same_chunk(Chunk_Position A, Chunk_Position B)
 {
+    TIMED_FUNCTION();
     b32 result = (A.x == B.x &&
                   A.y == B.y &&
                   A.z == B.z);
@@ -29,6 +31,7 @@ is_same_chunk(Chunk_Position A, Chunk_Position B)
 inline b32
 is_same_chunk(Chunk *chunk, Chunk_Position pos)
 {
+    TIMED_FUNCTION();
     b32 result = (chunk->x == pos.x &&
                   chunk->y == pos.y &&
                   chunk->z == pos.z);
@@ -38,6 +41,7 @@ is_same_chunk(Chunk *chunk, Chunk_Position pos)
 internal Chunk *
 get_chunk(Memory_Arena *arena, Chunk_Hashmap *hashmap, Chunk_Position pos) 
 {
+    TIMED_FUNCTION();
     Chunk *result = 0;
 
     u32 bucket = chunk_hash(hashmap, pos);
@@ -70,12 +74,14 @@ get_chunk(Memory_Arena *arena, Chunk_Hashmap *hashmap, Chunk_Position pos)
 inline void
 set_flag(Entity *entity, Entity_Flag flag) 
 {
+    TIMED_FUNCTION();
     entity->flags |= flag;
 }
 
 inline b32
 is_set(Entity *entity, Entity_Flag flag) 
 {
+    TIMED_FUNCTION();
     b32 result = (entity->flags & flag);
     return result;
 }
@@ -84,6 +90,7 @@ internal Entity *
 push_entity(Memory_Arena *arena, Chunk_Hashmap *hashmap,
             Entity_Type type, Chunk_Position chunk_pos, v3 chunk_dim) 
 {
+    TIMED_FUNCTION();
     Entity *entity              = push_struct(arena, Entity);
     entity->type                = type;
     entity->chunk_pos           = chunk_pos;
@@ -127,6 +134,7 @@ push_entity(Memory_Arena *arena, Chunk_Hashmap *hashmap,
 internal void
 recalc_pos(Chunk_Position *pos, v3 chunk_dim) 
 {
+    TIMED_FUNCTION();
     f32 boundX = chunk_dim.x * 0.5f;
     f32 boundY = chunk_dim.y * 0.5f;
     f32 boundZ = chunk_dim.z * 0.5f;
@@ -179,6 +187,7 @@ internal void
 MapEntityToChunk(Memory_Arena *arena, Chunk_Hashmap *hashmap, Entity *entity,
                  Chunk_Position oldPos, Chunk_Position newPos) 
 {
+    TIMED_FUNCTION();
     Chunk *oldChunk = get_chunk(arena, hashmap, oldPos);
     Chunk *newChunk = get_chunk(arena, hashmap, newPos);
     EntityList *oldEntities = &oldChunk->entities;
@@ -215,6 +224,7 @@ MapEntityToChunk(Memory_Arena *arena, Chunk_Hashmap *hashmap, Entity *entity,
 internal v3
 subtract(Chunk_Position A, Chunk_Position B, v3 chunk_dim) 
 {
+    TIMED_FUNCTION();
     v3 diff = {};
     diff.x = (f32)(A.x - B.x) * chunk_dim.x;
     diff.y = (f32)(A.y - B.y) * chunk_dim.y;
@@ -227,6 +237,7 @@ subtract(Chunk_Position A, Chunk_Position B, v3 chunk_dim)
 internal void
 update_entity_pos(Game_State *game_state, Entity *self, f32 dt, Chunk_Position simMin, Chunk_Position simMax)
 {
+    TIMED_FUNCTION();
     Chunk_Position old_chunk_pos = self->chunk_pos;
     Chunk_Position new_chunk_pos = self->chunk_pos;
 
@@ -352,6 +363,7 @@ internal void
 update_entities(Game_State *game_state, f32 dt,
                 Chunk_Position sim_min, Chunk_Position sim_max) 
 {
+    TIMED_FUNCTION();
     for (s32 Z = sim_min.z;
          Z <= sim_max.z;
          ++Z) 

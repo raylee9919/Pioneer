@@ -238,8 +238,8 @@ load_bmp(Memory_Arena *arena, Read_Entire_File *read_file, const char *filename)
         result->memory  = pixels + header->width * (header->height - 1);
         result->width   = header->width;
         result->height  = header->height;
-        result->pitch   = result->width * BYTES_PER_PIXEL;
-        result->size    = result->width * result->height * BYTES_PER_PIXEL;
+        result->pitch   = result->width * 4;
+        result->size    = result->width * result->height * 4;
         result->handle  = 0;
 
         Assert(header->compression == 3);
