@@ -10,7 +10,7 @@ internal void *
 push_size_(Memory_Arena *arena, size_t size)
 {
     Assert((arena->used + size) <= arena->size);
-    void *result = arena->base + arena->used;
+    void *result = (u8 *)arena->base + arena->used;
     arena->used += size;
 
     return result;
@@ -20,7 +20,7 @@ push_size_(Memory_Arena *arena, size_t size)
 #define push_array(arena, type, count)   (type *)push_size_(arena, count * sizeof(type))
 
 internal void
-init_arena(Memory_Arena *arena, size_t size, u8 *base)
+init_arena(Memory_Arena *arena, size_t size, void *base)
 {
     arena->size = size;
     arena->base = base;
@@ -31,7 +31,7 @@ internal void
 init_sub_arena(Memory_Arena *sub_arena, Memory_Arena *mom_arena, size_t size)
 {
     Assert(mom_arena->size >= mom_arena->used + size);
-    init_arena(sub_arena, size, mom_arena->base + mom_arena->used);
+    init_arena(sub_arena, size, (u8 *)mom_arena->base + mom_arena->used);
     mom_arena->used += size;
 }
 

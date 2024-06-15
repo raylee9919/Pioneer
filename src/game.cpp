@@ -180,6 +180,8 @@ gen_turbulence_map(Memory_Arena *arena, Random_Series *series, u32 side)
     return result;
 }
 
+global_var Render_Group *g_debug_render_group;
+
 extern "C"
 GAME_MAIN(game_main)
 {
@@ -313,7 +315,7 @@ GAME_MAIN(game_main)
         init_arena(&transient_state->transient_arena,
                    MB(200),
                    (u8 *)transMem + sizeof(Transient_State));
-        
+
         // reserved memory for multi-thread work data.
         for (u32 idx = 0;
              idx < array_count(transient_state->workArena);
@@ -322,7 +324,7 @@ GAME_MAIN(game_main)
             WorkMemory_Arena *workSlot = transient_state->workArena + idx;
             init_sub_arena(&workSlot->memoryArena, &transient_state->transient_arena, MB(4));
         }
-        
+
         // asset arena.
         init_arena(&transient_state->assetArena,
                    MB(20),
@@ -350,13 +352,26 @@ GAME_MAIN(game_main)
 
         load_font(&game_state->world_arena, game_memory->platform.debug_platform_read_file, &transient_state->game_assets);
 
+
         transient_state->init = true;  
-   }
+    }
+
+    Temporary_Memory render_memory = begin_temporary_memory(&transient_state->transient_arena);
+
+    Camera *debug_overlay_camera = push_camera(&transient_state->transient_arena,
+                                               eCamera_Type_Orthographic,
+                                               (f32)game_screen_buffer->width,
+                                               (f32)game_screen_buffer->height);
+    g_debug_render_group = alloc_render_group(&transient_state->transient_arena,
+                                              debug_overlay_camera);
+    if (g_debug_render_group)
+    {
+        debug_reset(game_screen_buffer->width, game_screen_buffer->height);
+    }
 
     game_state->debug_cam->width    = (f32)game_screen_buffer->width;
     game_state->debug_cam->height   = (f32)game_screen_buffer->height;
 
-    Temporary_Memory render_memory = begin_temporary_memory(&transient_state->transient_arena);
     Render_Group *render_group = alloc_render_group(&transient_state->transient_arena,
                                                     game_state->debug_cam);
 
@@ -569,22 +584,15 @@ GAME_MAIN(game_main)
 
 
 #if __DEBUG
-    Camera *debug_overlay_camera = push_camera(&transient_state->transient_arena,
-                                               eCamera_Type_Orthographic,
-                                               (f32)game_screen_buffer->width,
-                                               (f32)game_screen_buffer->height);
-    Render_Group *debug_render_group = alloc_render_group(&transient_state->transient_arena,
-                                                          debug_overlay_camera);
-    game_state->cen_y = 1000.0f;
     if (game_state->debug_mode)
     {
-        debug_overlay(game_memory, debug_render_group, &transient_state->game_assets, &game_state->cen_y);
+        debug_overlay(game_memory, (f32)game_screen_buffer->width, (f32)game_screen_buffer->height, &transient_state->game_assets);
     }
 #endif
 
 
     render_group_to_output_batch(render_group, &game_memory->render_batch);
-    render_group_to_output_batch(debug_render_group, &game_memory->render_batch);
+    render_group_to_output_batch(g_debug_render_group, &game_memory->render_batch);
     end_temporary_memory(&render_memory);
 }
 

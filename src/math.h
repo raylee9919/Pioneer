@@ -392,6 +392,15 @@ _v4_(f32 r, f32 g, f32 b, f32 a)
     return v;
 }
 
+inline v4
+_v4_(v3 rgb, f32 a)
+{
+    v4 v = {};
+    v.rgb = rgb;
+    v.a = a;
+    return v;
+}
+
 //
 // @quaternion
 //

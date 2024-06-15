@@ -195,8 +195,6 @@ extern "C"
 
         u32     line_number;
         u32     reserved;
-
-        u64     hit_count_cycle_count;
     };
 
     enum Debug_Event_Type
@@ -209,7 +207,7 @@ extern "C"
     struct Debug_Event
     {
         u64                 clock;
-        u16                 thread_idx;
+        u16                 thread_id;
         u16                 core_idx;
         u16                 debug_record_idx;
         u8                  translation_unit;
@@ -217,6 +215,8 @@ extern "C"
     };
 
     #define DEBUG_SNAPSHOT_COUNT                    120
+    #define MAX_DEBUG_THREAD_COUNT                  256 
+    #define MAX_DEBUG_EVENT_ARRAY_COUNT             64
     #define MAX_DEBUG_TRANSLATION_UNITS             2
     #define MAX_DEBUG_EVENT_COUNT                   (16*65536)
     #define MAX_DEBUG_RECORD_COUNT                  (65536)
@@ -224,7 +224,8 @@ extern "C"
     {
         u32             current_event_array_idx;
         u64 volatile    event_array_idx_event_idx;
-        Debug_Event     events[64][MAX_DEBUG_EVENT_COUNT];
+        u32             event_count[MAX_DEBUG_EVENT_ARRAY_COUNT];
+        Debug_Event     events[MAX_DEBUG_EVENT_ARRAY_COUNT][MAX_DEBUG_EVENT_COUNT];
         u32             record_count[MAX_DEBUG_TRANSLATION_UNITS];
         Debug_Record    records[MAX_DEBUG_TRANSLATION_UNITS][MAX_DEBUG_RECORD_COUNT];
     };
@@ -243,7 +244,7 @@ extern "C"
         Assert(event_idx < MAX_DEBUG_EVENT_COUNT);
         Debug_Event *event = g_debug_table->events[event_array_idx] + event_idx;
         event->clock            = __rdtsc();
-        event->thread_idx       = (u16)get_thread_id();
+        event->thread_id        = (u16)get_thread_id();
         event->core_idx         = 0;
         event->debug_record_idx = (u16)record_idx;
         event->translation_unit = TRANSLATION_UNIT_IDX;
@@ -260,7 +261,7 @@ extern "C"
         record->block_name  = "frame_marker";\
     }
 
-    #define TIMED_BLOCK__(block_name, number, ...) Timed_Block timed_block_##number(__COUNTER__, __FILE__, __LINE__, #block_name, ##__VA_ARGS__)
+    #define TIMED_BLOCK__(block_name, number, ...) Timed_Block timed_block_##number(__COUNTER__, __FILE__, __LINE__, ##block_name, ##__VA_ARGS__)
     #define TIMED_BLOCK_(block_name, number, ...) TIMED_BLOCK__(block_name, number, ##__VA_ARGS__)
     #define TIMED_BLOCK(block_name, ...) TIMED_BLOCK_(block_name, __LINE__, ##__VA_ARGS__)
 

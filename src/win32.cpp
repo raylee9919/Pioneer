@@ -39,8 +39,14 @@ internal void
 win32_load_xinput() 
 {
     HMODULE xinput_module = LoadLibraryA("xinput1_4.dll");
-    if (!xinput_module) { LoadLibraryA("Xinput9_1_0.dll"); }
-    if (!xinput_module) { LoadLibraryA("xinput1_3.dll"); }
+    if (!xinput_module) 
+    {
+        LoadLibraryA("Xinput9_1_0.dll"); 
+    }
+    if (!xinput_module) 
+    {
+        LoadLibraryA("xinput1_3.dll"); 
+    }
 
     if(xinput_module) 
     {
@@ -58,7 +64,10 @@ internal inline size_t
 str_len(const char *str) 
 {
     size_t result = 0;
-    while (str[result] != '\0') { ++result; }
+    while (str[result] != '\0') 
+    {
+        ++result; 
+    }
     return result;
 }
 
@@ -899,9 +908,9 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
 #endif
     Game_Memory game_memory = {};
     Win32State win32_state = {};
-    game_memory.permanent_memory_size   = MB(64);
+    game_memory.permanent_memory_size   = MB(256);
     game_memory.transient_memory_size   = GB(1);
-    game_memory.debug_memory_size       = MB(100);
+    game_memory.debug_memory_size       = MB(64);
 
     u64 total_capacity = (game_memory.permanent_memory_size +
                           game_memory.transient_memory_size + 

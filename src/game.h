@@ -35,11 +35,11 @@ clear_to_zero(size_t size, void *data)
 
 struct Memory_Arena 
 {
-    size_t size;
-    size_t used;
-    u8 *base;
+    size_t  size;
+    size_t  used;
+    void    *base;
 
-    u32 tempCount;
+    u32     tempCount;
 };
 
 struct Temporary_Memory 
@@ -246,7 +246,6 @@ struct Game_State
     // debug.
     f32                 debug_toggle_delay;
     b32                 debug_mode;
-    f32                 cen_y;
 };
 
 struct Transient_State 

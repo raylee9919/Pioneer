@@ -82,11 +82,11 @@ push_bitmap(Render_Group *group,
 
 internal void
 push_string(Render_Group *render_group, v3 base,
-            const char *str, f32 *cen_y, Game_Assets *game_assets,
+            const char *str, Game_Assets *game_assets,
             v4 color = _v4_(1, 1, 1, 1))
 {
     // |A|B|C|
-    f32 left_x  = 40.0f;
+    f32 left_x  = base.x;
     f32 kern    = 0.0f;
     f32 C       = 0.0f;
     f32 A       = 0.0f;
@@ -104,7 +104,7 @@ push_string(Render_Group *render_group, v3 base,
                 Bitmap *bitmap = &glyph->bitmap;
                 f32 w = (f32)bitmap->width;
                 f32 h = (f32)bitmap->height;
-                v3 max = _v3_(left_x + w, *cen_y + glyph->ascent, 0);
+                v3 max = _v3_(left_x + w, base.y + glyph->ascent, 0);
                 push_bitmap(render_group,
                             max - _v3_(w, h, 0), max,
                             bitmap, color);

@@ -5,10 +5,11 @@
    $Creator: Sung Woo Lee $
    $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
    ======================================================================== */
-struct Memory_Arena {
-    size_t size;
-    void *base;
-    size_t used;
+struct Memory_Arena 
+{
+    size_t  size;
+    void    *base;
+    size_t  used;
 };
 
 Memory_Arena g_main_arena;

@@ -9,6 +9,17 @@
 // TODO: stop using stdio
 #include <stdio.h>
 
+global_var f32 left_edge;
+global_var f32 at_y;
+
+internal void
+debug_reset(u32 width, u32 height)
+{
+    TIMED_FUNCTION();
+    left_edge = 0.0f;
+    at_y = 0.5f * height;
+}
+
 struct Debug_Statistic
 {
     f64 min;
@@ -58,11 +69,14 @@ accumulate_debug_statistic(Debug_Statistic *stat, f64 value)
 }
 
 internal void
-debug_overlay(Game_Memory *game_memory, Render_Group *render_group, Game_Assets *game_assets, f32 *cen_y)
+debug_overlay(Game_Memory *game_memory,
+              f32 width, f32 height,
+              Game_Assets *game_assets)
 {
     Debug_State *debug_state = (Debug_State *)game_memory->debug_memory;
     if (debug_state)
     {
+#if 0
         for (u32 counter_idx = 0;
              counter_idx < debug_state->counter_count;
              ++counter_idx)
@@ -115,66 +129,234 @@ debug_overlay(Game_Memory *game_memory, Render_Group *render_group, Game_Assets 
                 }
             }
         }
+#endif
+        push_string(g_debug_render_group, _v3_(width * 0.3f, height * 0.8f, 0.0f),
+                    "DEBUG MODE", game_assets);
 
-#if 0
-        Debug_Frame_End_Info *info = debug_state->frame_end_infos;
-        for (u32 timestamp_idx = 0;
-             timestamp_idx < info->timestamp_count;
-             ++timestamp_idx)
-        {
-            Debug_Frame_Timestamp *timestamp = info->timestamps + timestamp_idx;
-            push_string(render_group, _v3_(0, 0, 0), timestamp->name, cen_y, game_assets);
-            *cen_y -= (f32)game_assets->v_advance;
-        }
-
+        f32 lane_width = 8.0f;
+        u32 lane_count = debug_state->frame_bar_lane_count;
+        f32 bar_width = lane_width * lane_count;
+        f32 bar_spacing = bar_width + 4.0f;
+        f32 chart_left = left_edge + 10.0f;
         f32 chart_height = 300.0f;
-        f32 scale = chart_height / 0.03333f;
-        for (u32 snapshot_idx = 0;
-             snapshot_idx < DEBUG_SNAPSHOT_COUNT;
-             ++snapshot_idx)
+        f32 chart_width = bar_spacing * (f32)debug_state->frame_count;
+        f32 chart_min_y = at_y - (chart_height + 80.0f);
+        f32 scale = chart_height * debug_state->frame_bar_scale;
+
+        v3 colors[] = {
+            _v3_(1.0f, 0.0f, 0.0f),
+            _v3_(0.0f, 1.0f, 0.0f),
+            _v3_(0.0f, 0.0f, 1.0f),
+            _v3_(1.0f, 1.0f, 0.0f),
+            _v3_(0.0f, 1.0f, 1.0f),
+            _v3_(1.0f, 0.0f, 1.0f),
+            _v3_(1.0f, 0.5f, 0.0f),
+            _v3_(1.0f, 0.0f, 0.5f),
+            _v3_(0.5f, 1.0f, 0.0f),
+            _v3_(0.0f, 1.0f, 0.5f),
+            _v3_(0.5f, 0.0f, 1.0f),
+            _v3_(0.0f, 0.5f, 1.0f)
+        };
+
+        for (u32 frame_idx = 0;
+             frame_idx < debug_state->frame_count;
+             ++frame_idx)
         {
-            f32 prev_timestamp_seconds = 0.0f;
-            for (u32 timestamp_idx = 0;
-                 timestamp_idx < info->timestamp_count;
-                 ++timestamp_idx)
+            Debug_Frame *frame = debug_state->frames + frame_idx;
+            f32 stack_x = chart_left + bar_spacing * (f32)frame_idx;
+            f32 stack_y = chart_min_y;
+
+            for (u32 region_idx = 0;
+                 region_idx < frame->region_count;
+                 ++region_idx)
             {
-                Debug_Frame_Timestamp *timestamp = info->timestamps + timestamp_idx;
-                f32 this_timestamp_seconds = (timestamp->seconds - prev_timestamp_seconds);
-                prev_timestamp_seconds = timestamp->seconds;
+                Debug_Frame_Region *region = frame->regions + region_idx;
+
+                v3 color = colors[region_idx % array_count(colors)];
+                f32 this_min_y = stack_y + scale * region->min_t;
+                f32 this_max_y = stack_y + scale * region->max_t;
+                push_bitmap(g_debug_render_group,
+                            _v3_(stack_x + lane_width * region->lane_idx, this_min_y, 0.0f),
+                            _v3_(stack_x + lane_width * region->lane_idx + lane_width, this_max_y, 0.0f),
+                            0, _v4_(color, 1.0f));
             }
         }
-#endif
     }
 }
-
 
 #define DEBUG_RECORDS_MAIN_COUNT __COUNTER__
 global_var Debug_Table g_debug_table_;
 Debug_Table *g_debug_table = &g_debug_table_;
 
-internal void
-update_debug_records(Debug_State *debug_state, u32 counter_count, Debug_Record *counters)
+inline u32
+get_lane_from_thread(Debug_State *debug_state, u32 thread_idx)
 {
-    for (u32 counter_idx = 0;
-         counter_idx < counter_count;
-         ++counter_idx)
-    {
-        Debug_Record *src = counters + counter_idx;
-        Debug_Counter_State *dst = debug_state->counter_states + debug_state->counter_count++;
+    u32 result = 0;
 
-        u64 hit_count_cycle_count = atomic_exchange_u64(&src->hit_count_cycle_count, 0);
-        dst->file_name      = src->file_name;
-        dst->block_name     = src->block_name;
-        dst->line_number    = src->line_number;
-        dst->snapshots[debug_state->snapshot_idx].hit_count       = (u32)(hit_count_cycle_count >> 32);
-        dst->snapshots[debug_state->snapshot_idx].cycle_count     = (u32)(hit_count_cycle_count & 0xffffffff);
+    // TODO: implement thread ID lookup.
+
+    return result;
+}
+
+internal Debug_Thread *
+get_debug_thread(Debug_State *debug_state, u32 thread_id)
+{
+    Debug_Thread *result = 0;
+    for (Debug_Thread *thread = debug_state->first_thread;
+         thread;
+         thread = thread->next)
+    {
+        if (thread->id == thread_id)
+        {
+            result = thread;
+            break;
+        }
     }
+
+    if (!result)
+    {
+        result = push_struct(&debug_state->collate_arena, Debug_Thread);
+        result->id = thread_id;
+        result->lane_idx = debug_state->frame_bar_lane_count++;
+        result->first_open_block = 0;
+        result->next = debug_state->first_thread;
+        debug_state->first_thread = result;
+    }
+
+    return result;
+}
+
+internal Debug_Frame_Region *
+add_region(Debug_State *debug_state, Debug_Frame *current_frame)
+{
+    Assert(current_frame->region_count < MAX_REGIONS_PER_FRAME);
+    Debug_Frame_Region *result = current_frame->regions + current_frame->region_count++;
+
+    return result;
 }
 
 
 internal void
-collate_debug_records(Debug_State *debug_state, u32 event_count, Debug_Event *events)
+collate_debug_records(Debug_State *debug_state, u32 invalid_event_array_idx)
 {
+    debug_state->frames = push_array(&debug_state->collate_arena, Debug_Frame, MAX_DEBUG_EVENT_ARRAY_COUNT * 4);
+    debug_state->frame_bar_lane_count = 0;
+    debug_state->frame_count = 0;
+    debug_state->frame_bar_scale = 1.0f;
+
+    Debug_Frame *current_frame = 0;
+
+    for (u32 event_array_idx = invalid_event_array_idx + 1;
+         ;
+         ++event_array_idx)
+    {
+        if (event_array_idx == MAX_DEBUG_EVENT_ARRAY_COUNT)
+        {
+            event_array_idx = 0;
+        }
+
+        if (event_array_idx == invalid_event_array_idx)
+        {
+            break;
+        }
+
+        for (u32 event_idx = 0;
+             event_idx < g_debug_table->event_count[event_array_idx];
+             ++event_idx)
+        {
+            Debug_Event *event = g_debug_table->events[event_array_idx] + event_idx;
+            Debug_Record *src = (g_debug_table->records[event->translation_unit] +
+                                 event->debug_record_idx);
+
+            if (event->type == eDebug_Event_Frame_Marker)
+            {
+                if (current_frame)
+                {
+                    current_frame->end_clock = event->clock;
+                    f32 clock_range = (f32)(current_frame->end_clock - current_frame->begin_clock);
+                    if (clock_range > 0.0f)
+                    {
+                        f32 frame_bar_scale = 1.0f / clock_range;
+                        if (debug_state->frame_bar_scale > frame_bar_scale)
+                        {
+                            debug_state->frame_bar_scale = frame_bar_scale;
+                        }
+                    }
+                }
+                current_frame = debug_state->frames + debug_state->frame_count++;
+                current_frame->begin_clock = event->clock;
+                current_frame->end_clock = 0;
+                current_frame->region_count = 0;
+                current_frame->regions = push_array(&debug_state->collate_arena, Debug_Frame_Region, MAX_REGIONS_PER_FRAME);
+            }
+            else if (current_frame)
+            {
+                u32 frame_idx = debug_state->frame_count - 1;
+                Debug_Thread *thread = get_debug_thread(debug_state, event->thread_id);
+                u64 relative_clock = event->clock - current_frame->begin_clock;
+                if (event->type == eDebug_Event_Begin_Block)
+                {
+                    Open_Debug_Block *debug_block = debug_state->first_free_block;
+                    if (debug_block)
+                    {
+                        debug_state->first_free_block = debug_block->next_free;
+                    }
+                    else
+                    {
+                        debug_block = push_struct(&debug_state->collate_arena, Open_Debug_Block);
+                    }
+
+                    debug_block->starting_frame_idx = frame_idx;
+                    debug_block->opening_event = event;
+                    debug_block->parent = thread->first_open_block;
+                    thread->first_open_block = debug_block;
+                    debug_block->next_free = 0;
+                }
+                else if (event->type == eDebug_Event_End_Block)
+                {
+                    if (thread->first_open_block)
+                    {
+                        Open_Debug_Block *matching_block = thread->first_open_block;
+                        Debug_Event *opening_event = matching_block->opening_event;
+                        if (opening_event->thread_id == event->thread_id &&
+                            opening_event->debug_record_idx == event->debug_record_idx &&
+                            opening_event->translation_unit == event->translation_unit)
+                        {
+                            if (matching_block->starting_frame_idx == frame_idx)
+                            {
+                                if (thread->first_open_block->parent == 0)
+                                {
+                                    Debug_Frame_Region *region = add_region(debug_state, current_frame);
+                                    region->lane_idx = thread->lane_idx;
+                                    region->min_t = (f32)(opening_event->clock - current_frame->begin_clock);
+                                    region->max_t = (f32)(event->clock - current_frame->begin_clock);
+                                }
+                            }
+                            else
+                            {
+                                // TODO: record all frames in between and begin/end spans!
+                            }
+
+                            thread->first_open_block->next_free = debug_state->first_free_block;
+                            debug_state->first_free_block = thread->first_open_block;
+                            thread->first_open_block = matching_block->parent;
+                        }
+                        else
+                        {
+                            // TODO: record span that goes to the beginning of the frame series?
+                        }
+                    }
+                }
+                else
+                {
+                    Assert(!"Invalid event type");
+                }
+            }
+
+        }
+    }
+         
+#if 0
     Debug_Counter_State *counter_array[MAX_DEBUG_TRANSLATION_UNITS];
     Debug_Counter_State *current_counter = debug_state->counter_states;
     u32 total_record_count = 0;
@@ -220,6 +402,7 @@ collate_debug_records(Debug_State *debug_state, u32 event_count, Debug_Event *ev
             dst->snapshots[debug_state->snapshot_idx].cycle_count += event->clock;
         }
     }
+#endif
 }
 
 extern "C"
@@ -237,18 +420,26 @@ DEBUG_FRAME_END(debug_frame_end)
 
     u32 event_array_idx = (event_array_idx_event_idx >> 32);
     u32 event_count     = (event_array_idx_event_idx & 0xffffffff);
+    g_debug_table->event_count[event_array_idx] = event_count;
 
     Debug_State *debug_state = (Debug_State *)game_memory->debug_memory;
     if (debug_state)
     {
-        debug_state->counter_count = 0;
-        collate_debug_records(debug_state, event_count, g_debug_table->events[event_array_idx]);
-
-        ++debug_state->snapshot_idx;
-        if (debug_state->snapshot_idx >= DEBUG_SNAPSHOT_COUNT)
+        if (!debug_state->init)
         {
-            debug_state->snapshot_idx = 0;
+            init_arena(&debug_state->collate_arena,
+                       game_memory->debug_memory_size - sizeof(Debug_State),
+                       debug_state + 1);
+            debug_state->collate_tmp = begin_temporary_memory(&debug_state->collate_arena);
         }
+
+        end_temporary_memory(&debug_state->collate_tmp);
+        debug_state->collate_tmp = begin_temporary_memory(&debug_state->collate_arena);
+
+        debug_state->first_thread = 0;
+        debug_state->first_free_block = 0;
+
+        collate_debug_records(debug_state, g_debug_table->current_event_array_idx);
     }
 
     return g_debug_table;
