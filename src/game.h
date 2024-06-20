@@ -23,6 +23,19 @@
 
 struct Camera;
 
+internal bool
+str_equal(char *A, char *B)
+{
+    while (*A && *B && (*A == *B))
+    {
+        ++A;
+        ++B;
+    }
+    
+    b32 result = ((*A == 0) && (*B == 0));
+    return result;
+}
+
 internal void
 clear_to_zero(size_t size, void *data) 
 {
@@ -242,10 +255,6 @@ struct Game_State
 
     World               *world;
     Memory_Arena        world_arena;
-
-    // debug.
-    f32                 debug_toggle_delay;
-    b32                 debug_mode;
 };
 
 struct Transient_State 

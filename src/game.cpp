@@ -180,11 +180,18 @@ gen_turbulence_map(Memory_Arena *arena, Random_Series *series, u32 side)
     return result;
 }
 
-global_var Render_Group *g_debug_render_group;
+#if __DEBUG
+global_var Game_Memory *g_debug_memory;
+#endif
 
 extern "C"
 GAME_MAIN(game_main)
 {
+
+#if __DEBUG
+    g_debug_memory = game_memory;
+#endif
+
     if (!game_state->init) 
     {
         init_arena(&game_state->world_arena,
@@ -358,21 +365,12 @@ GAME_MAIN(game_main)
 
     Temporary_Memory render_memory = begin_temporary_memory(&transient_state->transient_arena);
 
-    Camera *debug_overlay_camera = push_camera(&transient_state->transient_arena,
-                                               eCamera_Type_Orthographic,
-                                               (f32)game_screen_buffer->width,
-                                               (f32)game_screen_buffer->height);
-    g_debug_render_group = alloc_render_group(&transient_state->transient_arena,
-                                              debug_overlay_camera);
-    if (g_debug_render_group)
-    {
-        debug_reset(game_screen_buffer->width, game_screen_buffer->height);
-    }
+    debug_start(game_screen_buffer->width, game_screen_buffer->height);
 
     game_state->debug_cam->width    = (f32)game_screen_buffer->width;
     game_state->debug_cam->height   = (f32)game_screen_buffer->height;
 
-    Render_Group *render_group = alloc_render_group(&transient_state->transient_arena,
+    Render_Group *render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
                                                     game_state->debug_cam);
 
 
@@ -383,7 +381,10 @@ GAME_MAIN(game_main)
     //
     Entity *player = game_state->player;
     player->accel = _v3_(0, 0, 0);
-    if (!game_state->debug_mode) 
+#if __DEBUG
+    Debug_State *debug_state = (Debug_State *)g_debug_memory->debug_storage;
+    Assert(debug_state);
+    if (!debug_state->is_debug_mode) 
     {
         if (game_input->W.is_set)
         {
@@ -436,29 +437,32 @@ GAME_MAIN(game_main)
         }
 
     }
+#endif
 
-    if (game_input->toggle_debug.is_set)
+#if __DEBUG
+    if (debug_state->init)
     {
-        if (game_state->debug_toggle_delay == 0.0f) 
+#if 1
+        if (debug_state->debug_toggle_delay > 0.0f)
         {
-            game_state->debug_toggle_delay = 0.1f;
-            if (game_state->debug_mode) 
+            debug_state->debug_toggle_delay -= dt;
+        }
+        if (debug_state->debug_toggle_delay < 0.0f) 
+        {
+            debug_state->debug_toggle_delay = 0.0f;
+        }
+
+        if (game_input->tilde.is_set)
+        {
+            if (debug_state->debug_toggle_delay == 0.0f) 
             {
-                game_state->debug_mode = false;
-            } 
-            else 
-            {
-                game_state->debug_mode = true;
+                debug_state->debug_toggle_delay = 0.1f;
+                debug_state->is_debug_mode = !debug_state->is_debug_mode;
             }
         }
+#endif
     }
-    game_state->debug_toggle_delay -= dt;
-    if (game_state->debug_toggle_delay < 0.0f) 
-    {
-        game_state->debug_toggle_delay = 0.0f;
-    }
-
-
+#endif
 
     Chunk_Position camPos = Chunk_Position{};
     v3 camDim       = {100.0f, 5.0f, 50.0f};
@@ -584,15 +588,9 @@ GAME_MAIN(game_main)
 
 
 #if __DEBUG
-    if (game_state->debug_mode)
-    {
-        debug_overlay(game_memory, (f32)game_screen_buffer->width, (f32)game_screen_buffer->height, &transient_state->game_assets);
-    }
+    debug_end(game_input, &transient_state->game_assets);
 #endif
-
-
     render_group_to_output_batch(render_group, &game_memory->render_batch);
-    render_group_to_output_batch(g_debug_render_group, &game_memory->render_batch);
     end_temporary_memory(&render_memory);
 }
 

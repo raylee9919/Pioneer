@@ -104,6 +104,8 @@ extern "C"
         eMouse_Left,
         eMouse_Middle,
         eMouse_Right,
+        eMouse_Extended0,
+        eMouse_Extended1,
 
         eMouse_Count
     };
@@ -111,9 +113,10 @@ extern "C"
     // these are following game coordinates.
     struct Mouse_Input 
     {
-        v2      P;
         b32     is_down[eMouse_Count];
         b32     toggle[eMouse_Count];
+
+        v2      P;
         v2      click_p[eMouse_Count];
         s32     wheel_delta;
     };
@@ -121,6 +124,7 @@ extern "C"
     struct Game_Input 
     {
         f32         dt_per_frame;
+
         Game_Key    W;
         Game_Key    S;
         Game_Key    A;
@@ -128,8 +132,7 @@ extern "C"
         Game_Key    alt;
         Game_Key    Q;
         Game_Key    E;
-
-        Game_Key    toggle_debug;
+        Game_Key    tilde;
 
         Mouse_Input mouse;
     };
@@ -167,8 +170,8 @@ extern "C"
         void                    *transient_memory;
         u64                     transient_memory_size;
 
-        void                    *debug_memory;
-        u64                     debug_memory_size;
+        void                    *debug_storage;
+        u64                     debug_storage_size;
 
         Platform_Work_Queue     *high_priority_queue;
         Platform_Work_Queue     *low_priority_queue;
@@ -204,19 +207,27 @@ extern "C"
         eDebug_Event_End_Block
     };
 
+    struct Thread_ID_Core_Idx
+    {
+        u16 thread_id;
+        u16 core_idx;
+    };
+
     struct Debug_Event
     {
         u64                 clock;
-        u16                 thread_id;
-        u16                 core_idx;
+        union
+        {
+            Thread_ID_Core_Idx  tc;
+            f32                 seconds_elapsed;
+        };
         u16                 debug_record_idx;
         u8                  translation_unit;
         u8                  type;
     };
 
-    #define DEBUG_SNAPSHOT_COUNT                    120
     #define MAX_DEBUG_THREAD_COUNT                  256 
-    #define MAX_DEBUG_EVENT_ARRAY_COUNT             64
+    #define MAX_DEBUG_EVENT_ARRAY_COUNT             8
     #define MAX_DEBUG_TRANSLATION_UNITS             2
     #define MAX_DEBUG_EVENT_COUNT                   (16*65536)
     #define MAX_DEBUG_RECORD_COUNT                  (65536)
@@ -226,6 +237,7 @@ extern "C"
         u64 volatile    event_array_idx_event_idx;
         u32             event_count[MAX_DEBUG_EVENT_ARRAY_COUNT];
         Debug_Event     events[MAX_DEBUG_EVENT_ARRAY_COUNT][MAX_DEBUG_EVENT_COUNT];
+
         u32             record_count[MAX_DEBUG_TRANSLATION_UNITS];
         Debug_Record    records[MAX_DEBUG_TRANSLATION_UNITS][MAX_DEBUG_RECORD_COUNT];
     };
@@ -235,36 +247,38 @@ extern "C"
     #define DEBUG_FRAME_END(name) Debug_Table *name(Game_Memory *game_memory)
     typedef DEBUG_FRAME_END(Debug_Frame_End);
 
-    inline void 
-    record_debug_event(int record_idx, Debug_Event_Type event_type)
-    {
-        u64 event_array_idx_event_idx = atomic_add_u64(&g_debug_table->event_array_idx_event_idx, 1);
-        u32 event_array_idx = (u32)(event_array_idx_event_idx >> 32);
-        u32 event_idx       = (u32)(event_array_idx_event_idx & 0xffffffff);
-        Assert(event_idx < MAX_DEBUG_EVENT_COUNT);
-        Debug_Event *event = g_debug_table->events[event_array_idx] + event_idx;
-        event->clock            = __rdtsc();
-        event->thread_id        = (u16)get_thread_id();
-        event->core_idx         = 0;
-        event->debug_record_idx = (u16)record_idx;
-        event->translation_unit = TRANSLATION_UNIT_IDX;
-        event->type             = (u8)event_type;
-    }
+    #define record_debug_event_common(record_idx, event_type) \
+        u64 array_idx_event_idx = atomic_add_u64(&g_debug_table->event_array_idx_event_idx, 1); \
+        u32 event_idx       = (u32)(array_idx_event_idx & 0xffffffff); \
+        Assert(event_idx < MAX_DEBUG_EVENT_COUNT); \
+        Debug_Event *event = g_debug_table->events[array_idx_event_idx >> 32] + event_idx; \
+        event->clock            = __rdtsc(); \
+        event->debug_record_idx = (u16)record_idx; \
+        event->translation_unit = TRANSLATION_UNIT_IDX; \
+        event->type             = (u8)event_type; \
 
-    #define FRAME_MARKER()\
+    #define record_debug_event(record_idx, event_type) \
+    { \
+        record_debug_event_common(record_idx, event_type); \
+        event->tc.core_idx         = 0; \
+        event->tc.thread_id        = (u16)get_thread_id(); \
+    } \
+
+    #define FRAME_MARKER(seconds_elapsed_init)\
     {\
         int counter = __COUNTER__;\
-        record_debug_event(counter, eDebug_Event_Frame_Marker);\
+        record_debug_event_common(counter, eDebug_Event_Frame_Marker); \
+        event->seconds_elapsed = seconds_elapsed_init; \
         Debug_Record *record = g_debug_table->records[TRANSLATION_UNIT_IDX] + counter;\
         record->file_name   = __FILE__;\
         record->line_number = __LINE__;\
         record->block_name  = "frame_marker";\
     }
 
-    #define TIMED_BLOCK__(block_name, number, ...) Timed_Block timed_block_##number(__COUNTER__, __FILE__, __LINE__, ##block_name, ##__VA_ARGS__)
+#if __PROFILE
+    #define TIMED_BLOCK__(block_name, number, ...) Timed_Block timed_block_##number(__COUNTER__, __FILE__, __LINE__, block_name, ##__VA_ARGS__)
     #define TIMED_BLOCK_(block_name, number, ...) TIMED_BLOCK__(block_name, number, ##__VA_ARGS__)
-    #define TIMED_BLOCK(block_name, ...) TIMED_BLOCK_(block_name, __LINE__, ##__VA_ARGS__)
-
+    #define TIMED_BLOCK(block_name, ...) TIMED_BLOCK_(#block_name, __LINE__, ##__VA_ARGS__)
     #define TIMED_FUNCTION(...) TIMED_BLOCK_(__FUNCTION__, __LINE__, ##__VA_ARGS__)
 
     #define BEGIN_BLOCK_(counter, file_name_init, line_number_init, block_name_init)\
@@ -301,6 +315,12 @@ extern "C"
             END_BLOCK_(counter);
         }
     };
+#else
+    #define TIMED_BLOCK(block_name, ...)
+    #define TIMED_FUNCTION(...)
+    #define BEGIN_BLOCK(name)
+    #define END_BLOCK(name)
+#endif
 
 #ifdef __cplusplus
 }

@@ -25,6 +25,18 @@ __push_render_entity(Render_Group *renderGroup, u32 size, Render_Type type)
 }
 
 internal void
+begin_render(Render_Group *render_group)
+{
+    // TODO:
+}
+
+internal void
+end_render(Render_Group *render_group)
+{
+    render_group->used = 0;
+}
+
+internal void
 push_mesh(Render_Group *group, Asset_Mesh *mesh, Asset_Material *material,
           m4x4 world_transform, m4x4 *animation_transforms = 0)
 {
@@ -80,6 +92,15 @@ push_bitmap(Render_Group *group,
     piece->color                = color;
 }
 
+inline void
+push_rect(Render_Group *group,
+          Rect2 rect,
+          f32 z,
+          v4 color)
+{
+    push_bitmap(group, _v3_(rect.min, z), _v3_(rect.max, z), 0, color);
+}
+
 internal void
 push_string(Render_Group *render_group, v3 base,
             const char *str, Game_Assets *game_assets,
@@ -104,7 +125,7 @@ push_string(Render_Group *render_group, v3 base,
                 Bitmap *bitmap = &glyph->bitmap;
                 f32 w = (f32)bitmap->width;
                 f32 h = (f32)bitmap->height;
-                v3 max = _v3_(left_x + w, base.y + glyph->ascent, 0);
+                v3 max = _v3_(left_x + w, base.y + glyph->ascent, base.z);
                 push_bitmap(render_group,
                             max - _v3_(w, h, 0), max,
                             bitmap, color);
@@ -163,12 +184,12 @@ push_camera(Memory_Arena *arena, Camera_Type type, f32 width, f32 height,
 }
 
 internal Render_Group *
-alloc_render_group(Memory_Arena *arena,
+alloc_render_group(Memory_Arena *arena, size_t size,
                    Camera *cam)
 {
     Render_Group *result = push_struct(arena, Render_Group);
     *result = {};
-    result->capacity            = MB(4);
+    result->capacity            = size;
     result->base                = (u8 *)push_size(arena, result->capacity);
     result->used                = 0;
     result->camera              = cam;

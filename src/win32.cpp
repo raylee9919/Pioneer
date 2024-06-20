@@ -18,7 +18,7 @@
 
 global_var bool                 g_running = true;
 global_var Win32ScreenBuffer    g_screen_buffer;
-global_var LARGE_INTEGER        g_counter_hz;
+global_var f64                  g_counter_hz;
 global_var b32                  g_show_cursor;
 global_var WINDOWPLACEMENT      g_wpPrev = { sizeof(g_wpPrev) };
 
@@ -375,10 +375,10 @@ win32_toggle_fullscreen(HWND window)
     }
 }
 
-internal Win32WindowDimension 
+internal Win32_Window_Dimension 
 win32_get_window_dimension(HWND hwnd) 
 {
-    Win32WindowDimension result = {};
+    Win32_Window_Dimension result = {};
     RECT rect;
     GetWindowRect(hwnd, &rect);
     result.width = rect.right - rect.left;
@@ -429,7 +429,7 @@ win32_update_screen(HDC hdc, int windowWidth, int windowHeight)
 }
 
 inline LARGE_INTEGER
-win32_get_clock() 
+win32_get_wall_clock() 
 {
     LARGE_INTEGER result;
     QueryPerformanceCounter(&result);
@@ -438,16 +438,23 @@ win32_get_clock()
 }
 
 inline f32
-win32_get_elapsed_sec(LARGE_INTEGER begin, LARGE_INTEGER end) 
+win32_get_wall_clock_seconds()
 {
-    f32 result = (f32)(end.QuadPart - begin.QuadPart) / (f32)g_counter_hz.QuadPart;
+    f32 result = (f32)((f64)win32_get_wall_clock().QuadPart / (f64)g_counter_hz);
+    return result;
+}
+
+inline f32
+win32_get_seconds_elapsed(LARGE_INTEGER begin, LARGE_INTEGER end) 
+{
+    f32 result = (f32)(end.QuadPart - begin.QuadPart) / (f32)g_counter_hz;
     return result;
 }
 
 inline f32
 win32_get_elapsed_ms(LARGE_INTEGER begin, LARGE_INTEGER end) 
 {
-    f32 result = win32_get_elapsed_sec(begin, end) * 1000.0f;
+    f32 result = win32_get_seconds_elapsed(begin, end) * 1000.0f;
     return result;
 }
 
@@ -637,14 +644,18 @@ win32_process_keyboard(Game_Key *game_key, b32 is_down)
 }
 
 internal void
-win32_get_mouse_pos_to_game_coord(HWND hwnd, Win32WindowDimension wd, Game_Input *game_input) 
+win32_get_mouse_pos_to_game_coord(HWND hwnd, Win32_Window_Dimension wd, Game_Input *game_input) 
 {
     f32 aspect_h_over_w = safe_ratio((f32)wd.height, (f32)wd.width);
     POINT mouse_p;
     GetCursorPos(&mouse_p);
     ScreenToClient(hwnd, &mouse_p);
+#if 0
     game_input->mouse.P.x = safe_ratio( 2.0f * (f32)mouse_p.x, (f32)wd.width) - 1.0f;
-    game_input->mouse.P.y = safe_ratio(-2.0f * (f32)mouse_p.y * aspect_h_over_w, (f32)wd.height) + aspect_h_over_w;
+    game_input->mouse.P.y = (f32)mouse_p.y; //safe_ratio(-2.0f * (f32)mouse_p.y * aspect_h_over_w, (f32)wd.height) + aspect_h_over_w;
+#endif
+    game_input->mouse.P.x = (f32)mouse_p.x;
+    game_input->mouse.P.y = (f32)(wd.height - mouse_p.y - 1);
 }
 
 internal void
@@ -689,33 +700,40 @@ win32_window_callback(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
     LRESULT result = 0;
 
-    switch(msg) {
-        case WM_ACTIVATEAPP : {
+    switch(msg) 
+    {
+        case WM_ACTIVATEAPP : 
+        {
 
         } break;
 
-        case WM_CLOSE: {
+        case WM_CLOSE: 
+        {
             g_running = false;
         } break;
 
-        case WM_DESTROY: {
+        case WM_DESTROY: 
+        {
             g_running = false;
         } break;
 
-        case WM_PAINT: {
+        case WM_PAINT: 
+        {
             PAINTSTRUCT paint;
             HDC hdc = BeginPaint(hwnd, &paint);
             Assert(hdc != 0);
-            Win32WindowDimension wd = win32_get_window_dimension(hwnd);
+            Win32_Window_Dimension wd = win32_get_window_dimension(hwnd);
             win32_update_screen(hdc, wd.width, wd.height);
             ReleaseDC(hwnd, hdc);
             EndPaint(hwnd, &paint);
         } break;
 
-        case WM_SIZE: {
+        case WM_SIZE: 
+        {
         } break;
 
-        case WM_SETCURSOR: {
+        case WM_SETCURSOR: 
+        {
             if (g_show_cursor) {
                 result = DefWindowProcA(hwnd, msg, wparam, lparam);
             } else {
@@ -723,7 +741,8 @@ win32_window_callback(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
             }
         } break;
 
-        default: {
+        default: 
+        {
             result = DefWindowProcA(hwnd, msg, wparam, lparam);
         } break;
     }
@@ -867,7 +886,9 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     Platform_Work_Queue low_priority_queue = {};
     win32_make_queue(&low_priority_queue, 2);
 
-    QueryPerformanceFrequency(&g_counter_hz);
+    LARGE_INTEGER g_counter_hz_large_integer;
+    QueryPerformanceFrequency(&g_counter_hz_large_integer);
+    g_counter_hz = (f64)g_counter_hz_large_integer.QuadPart;
     timeBeginPeriod(1);
 
 #if __DEBUG
@@ -910,17 +931,17 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     Win32State win32_state = {};
     game_memory.permanent_memory_size   = MB(256);
     game_memory.transient_memory_size   = GB(1);
-    game_memory.debug_memory_size       = MB(64);
+    game_memory.debug_storage_size      = MB(64);
 
     u64 total_capacity = (game_memory.permanent_memory_size +
                           game_memory.transient_memory_size + 
-                          game_memory.debug_memory_size);
+                          game_memory.debug_storage_size);
     win32_state.game_memory = VirtualAlloc(base_address, (size_t)total_capacity,
                                            MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     win32_state.game_mem_total_cap = total_capacity;
     game_memory.permanent_memory = win32_state.game_memory;
     game_memory.transient_memory = ((u8 *)(game_memory.permanent_memory) + game_memory.permanent_memory_size);
-    game_memory.debug_memory = ((u8 *)(game_memory.transient_memory) + game_memory.transient_memory_size);
+    game_memory.debug_storage = ((u8 *)(game_memory.transient_memory) + game_memory.transient_memory_size);
 
     game_memory.high_priority_queue = &high_priority_queue;
     game_memory.low_priority_queue = &low_priority_queue;
@@ -977,9 +998,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     {
         while(g_running) 
         {
-            FRAME_MARKER();
-
-            LARGE_INTEGER last_counter = win32_get_clock();
+            LARGE_INTEGER last_counter = win32_get_wall_clock();
 
             BEGIN_BLOCK(win32_executable_ready);
             game_dll_time = win32_get_file_time(game_dll_abs_path);
@@ -1069,13 +1088,14 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                                 {
                                     win32_process_keyboard(&game_input.alt, is_down);
                                 } break;
-#ifdef __DEBUG
-                                // tilde key.
-                                case VK_OEM_3: 
+#if __DEBUG
+                                case VK_OEM_3: // tilde
                                 {
-                                    win32_process_keyboard(&game_input.toggle_debug, is_down);
+                                    win32_process_keyboard(&game_input.tilde, is_down);
                                 } break;
+#endif
 
+#if __DEBUG
                                 case 'L': 
                                 {
                                     if (is_down) 
@@ -1122,7 +1142,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                 DispatchMessageA(&msg);
             }
 
-            Win32WindowDimension wd = win32_get_window_dimension(hwnd);
+            Win32_Window_Dimension wd = win32_get_window_dimension(hwnd);
 
 
             Mouse_Input *mouse = &game_input.mouse;
@@ -1182,30 +1202,48 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             ReleaseDC(hwnd, dc);
             END_BLOCK(win32_render);
 
+            // TODO: leave this off until we have vblank support?
+#if 0
             BEGIN_BLOCK(win32_framerate_wait);
-            LARGE_INTEGER counter_end = win32_get_clock();
+            LARGE_INTEGER counter_end = win32_get_wall_clock();
             f32 actual_mspf = win32_get_elapsed_ms(last_counter, counter_end);
 
             if (actual_mspf < desired_mspf) 
             {
                 DWORD ms_to_sleep = (DWORD)(desired_mspf - actual_mspf);
-                Sleep(ms_to_sleep);
-                actual_mspf = win32_get_elapsed_ms(last_counter, win32_get_clock());
+                if (ms_to_sleep > 0)
+                {
+                    Sleep(ms_to_sleep);
+                }
+                actual_mspf = win32_get_elapsed_ms(last_counter, win32_get_wall_clock());
             } 
             else 
             {
                 // TODO: Missed framerate handling
             }
             END_BLOCK(win32_framerate_wait);
+#endif
 
+#if __DEBUG
+            BEGIN_BLOCK(win32_debug_collation);
             if (game.debug_frame_end)
             {
                 g_debug_table = game.debug_frame_end(&game_memory);
-                // TODO: move this to global ?
-                g_debug_table->record_count[TRANSLATION_UNIT_IDX] = __COUNTER__;
             }
             g_debug_table_.event_array_idx_event_idx = 0;
+            END_BLOCK(win32_debug_collation);
+#endif
 
+            LARGE_INTEGER end_counter = win32_get_wall_clock();
+            FRAME_MARKER(win32_get_seconds_elapsed(last_counter, end_counter));
+            last_counter = end_counter;
+
+            if (g_debug_table)
+            {
+                // TODO: move this to a global variable so that
+                // there can be timers below this one?
+                g_debug_table->record_count[TRANSLATION_UNIT_IDX] = __COUNTER__;
+            }
         }
     }
 

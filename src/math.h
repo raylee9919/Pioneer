@@ -224,6 +224,16 @@ _v3_(f32 x, f32 y, f32 z)
 }
 
 inline v3
+_v3_(v2 xy, f32 z)
+{
+    v3 v = {};
+    v.x = xy.x;
+    v.y = xy.y;
+    v.z = z;
+    return v;
+}
+
+inline v3
 operator-(const v3 &in) 
 {
     v3 V;
@@ -777,9 +787,18 @@ get_column(m4x4 M, u32 C)
 //
 struct Rect2 
 {
-    v2 cen;
-    v2 dim;
+    v2 min;
+    v2 max;
 };
+
+inline Rect2
+_Rect2_(v2 min, v2 max)
+{
+    Rect2 result = {};
+    result.min = min;
+    result.max = max;
+    return result;
+}
 
 struct Rect3 
 {
@@ -787,15 +806,48 @@ struct Rect3
     v3 dim;
 };
 
+inline b32
+is_in_rect(Rect2 rect, v2 p)
+{
+    b32 result = (rect.min.x <= p.x && 
+                  rect.min.y <= p.y && 
+                  rect.max.x > p.x && 
+                  rect.max.y > p.y);
+    return result;
+}
+
 inline b32 
 in_rect(v3 point, Rect3 rect) 
 {
     v3 min = rect.cen - 0.5f * rect.dim;
     v3 max = rect.cen + 0.5f * rect.dim;
     b32 is_in =  (min.x < point.x && max.x > point.x &&
-                 min.y < point.y && max.y > point.y &&
-                 min.z < point.z && max.z > point.z);
+                  min.y < point.y && max.y > point.y &&
+                  min.z < point.z && max.z > point.z);
     return is_in;
+}
+
+inline v2
+get_dim(Rect2 rect)
+{
+    v2 result = {};
+    result.x = (rect.max.x - rect.min.x);
+    result.y = (rect.max.y - rect.min.y);
+    return result;
+}
+
+inline f32
+get_width(Rect2 rect)
+{
+    f32 result = (rect.max.x - rect.min.x); 
+    return result;
+}
+
+inline f32
+get_height(Rect2 rect)
+{
+    f32 result = (rect.max.y - rect.min.y); 
+    return result;
 }
 
 inline m4x4

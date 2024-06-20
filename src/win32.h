@@ -15,7 +15,7 @@ struct Win32ScreenBuffer
     int bpp;
 };
 
-struct Win32WindowDimension 
+struct Win32_Window_Dimension 
 {
     int width;
     int height;
