@@ -6,6 +6,8 @@
    $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
    ======================================================================== */
 
+#include "config.h"
+
 union v2;
 struct Bitmap;
 
@@ -78,12 +80,23 @@ extern "C"
         return result;
     }
 
-
     typedef struct Entire_File 
     {
         u32     content_size;
         void    *contents;
     } Entire_File;
+
+    typedef struct Debug_Executing_Process
+    {
+        u64 os_handle;
+    } Debug_Executing_Process;
+
+    typedef struct Debug_Process_State
+    {
+        b32 started_successfully;
+        b32 is_running;
+        s32 return_code;
+    } Debug_Process_State;
 
     #define DEBUG_PLATFORM_WRITE_FILE(name) b32 name(const char *filename, u32 size, void *contents)
     typedef DEBUG_PLATFORM_WRITE_FILE(DEBUG_PLATFORM_WRITE_FILE_);
@@ -93,6 +106,13 @@ extern "C"
 
     #define PLATFORM_READ_ENTIRE_FILE(name) Entire_File name(const char *filename)
     typedef PLATFORM_READ_ENTIRE_FILE(Read_Entire_File);
+
+    #define DEBUG_PLATFORM_EXECUTE_SYSTEM_COMMAND(name) Debug_Executing_Process name(char *path, char *command, char* command_line)
+    typedef DEBUG_PLATFORM_EXECUTE_SYSTEM_COMMAND(Debug_Platform_Execute_System_Command);
+
+    // TODO: do we want a formal release mechanism here?
+    #define DEBUG_PLATFORM_GET_PROCESS_STATE(name) Debug_Process_State name(Debug_Executing_Process process)
+    typedef DEBUG_PLATFORM_GET_PROCESS_STATE(Debug_Platform_Get_Process_State);
 
     struct Game_Key 
     {
@@ -152,6 +172,8 @@ extern "C"
         Read_Entire_File            *debug_platform_read_file;
         DEBUG_PLATFORM_WRITE_FILE_  *debug_platform_write_file;
         DEBUG_PLATFORM_FREE_MEMORY_ *debug_platform_free_memory;
+        Debug_Platform_Execute_System_Command *debug_platform_execute_system_command;
+        Debug_Platform_Get_Process_State *debug_platform_get_process_state;
     };
 
     struct Render_Batch 
@@ -176,6 +198,7 @@ extern "C"
         Platform_Work_Queue     *high_priority_queue;
         Platform_Work_Queue     *low_priority_queue;
 
+        b32                     executable_reloaded;
         Platform_API            platform;
 
         Render_Batch            render_batch;

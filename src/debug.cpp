@@ -9,6 +9,8 @@
 // TODO: stop using stdio
 #include <stdio.h>
 
+#include "debug_variables.h"
+
 internal void restart_collation(Debug_State *debug_state, u32 invalid_event_array_idx);
 
 inline Debug_State *
@@ -42,6 +44,7 @@ debug_start(u32 width, u32 height)
             init_arena(&debug_state->debug_arena,
                        g_debug_memory->debug_storage_size - sizeof(Debug_State),
                        debug_state + 1);
+            debug_create_variables(debug_state);
 
             Camera *debug_overlay_camera = push_camera(&debug_state->debug_arena, eCamera_Type_Orthographic, (f32)width, (f32)height);
             debug_state->render_group = alloc_render_group(&debug_state->debug_arena, MB(16),
@@ -49,8 +52,6 @@ debug_start(u32 width, u32 height)
 
             debug_state->paused = false;
             debug_state->scope_to_record = 0;
-
-            debug_state->is_debug_mode = false;
 
             debug_state->init = true;
 
@@ -119,6 +120,152 @@ accumulate_debug_statistic(Debug_Statistic *stat, f64 value)
 }
 
 internal void
+write_config(Debug_State *debug_state)
+{
+    // TODO: need a giant buffer here.
+    char tmp[4096];
+    char *at = tmp;
+    char *end = tmp + sizeof(tmp);
+    
+    Debug_Variable *var = debug_state->root_group->group.first_child;
+    while (var)
+    {
+        if (var->type == eDebug_Variable_Type_Boolean)
+        {
+            at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at), "#define DEBUG_UI_%s %d\n", var->name, var->bool32);
+        }
+
+        if (var->type == eDebug_Variable_Type_Group)
+        {
+            var = var->group.first_child;
+        }
+        else
+        {
+            while (var)
+            {
+                if (var->next)
+                {
+                    var = var->next;
+                    break;
+                }
+                else
+                {
+                    var = var->parent;
+                }
+            }
+        }
+    }
+    Platform_API *platform = &g_debug_memory->platform; 
+    platform->debug_platform_write_file("../src/config.h", (u32)(at - tmp), tmp);
+
+    if (!debug_state->compiling)
+    {
+        debug_state->compiling = true;
+        debug_state->compiler = platform->debug_platform_execute_system_command("../src",
+                                                                                "c:/windows/system32/cmd.exe",
+                                                                                "/C build.bat");
+    }
+    
+}
+
+internal void
+debug_draw_main_menu(Debug_State *debug_state, Game_Assets *game_assets, v2 menu_p, v2 mouse_p)
+{
+    f32 at_y = (debug_state->height - game_assets->v_advance);
+    f32 at_x = 0.0f;
+
+    int depth = 0;
+    Debug_Variable *var = debug_state->root_group->group.first_child;
+
+    while (var)
+    {
+        v4 item_color = v4{1, 1, 1, 1};
+        char text[256];
+        switch (var->type)
+        {
+            case eDebug_Variable_Type_Boolean:
+            {
+                _snprintf_s(text, sizeof(text), sizeof(text),
+                            "%s: %s", var->name, var->bool32 ? "true" : "false");
+            } break;
+            
+            case eDebug_Variable_Type_Group:
+            {
+                _snprintf_s(text, sizeof(text), sizeof(text),
+                            "%s", var->name);
+            } break;
+        }
+
+        string_op(eString_Op_Draw, debug_state->render_group,
+                  _v3_(at_x, at_y, 0.0f), text, game_assets, item_color);
+        at_y -= (game_assets->v_advance);
+
+        if (var->type == eDebug_Variable_Type_Group)
+        {
+            var = var->group.first_child;
+            ++depth;
+        }
+        else
+        {
+            while (var)
+            {
+                if (var->next)
+                {
+                    var = var->next;
+                    break;
+                }
+                else
+                {
+                    var = var->parent;
+                    --depth;
+                }
+            }
+        }
+    }
+#if 0
+    u32 new_hot_menu_idx = array_count(debug_variable_list);
+    f32 best_distance_sq = F32_MAX;
+
+    f32 menu_radius = 300.0f;
+    f32 dT = (2.0f * pi32) / (f32)array_count(debug_variable_list);
+
+    for (u32 menu_item_idx = 0;
+         menu_item_idx < array_count(debug_variable_list);
+         ++menu_item_idx)
+    {
+        Debug_Variable *var = debug_variable_list + menu_item_idx;
+        char *text = var->name;
+
+        v4 item_color = var->value ? _v4_(1, 1, 1, 1) : _v4_(0.5f, 0.5f, 0.5f, 1.0f);
+        if (menu_item_idx == debug_state->hot_menu_idx)
+        {
+            item_color = _v4_(1, 1, 0, 1);
+        }
+        v2 dim = string_op(eString_Op_Get_Dim, debug_state->render_group, _v3_(0,0,0), text, game_assets);
+        
+        f32 T = (f32)menu_item_idx * dT;
+        v2 text_p = menu_p + menu_radius * arm2(T);
+        f32 this_dist_sq = len_square(mouse_p - text_p);
+        if (this_dist_sq < best_distance_sq)
+        {
+            new_hot_menu_idx = menu_item_idx;
+            best_distance_sq = this_dist_sq;
+        }
+        string_op(eString_Op_Draw, debug_state->render_group, _v3_(text_p - 0.5f * dim, -1.0f), text, game_assets, item_color);
+    }
+
+    if (len_square(mouse_p - menu_p) >= square(menu_radius))
+    {
+        debug_state->hot_menu_idx = new_hot_menu_idx;
+    }
+    else
+    {
+        debug_state->hot_menu_idx = array_count(debug_variable_list);
+    }
+#endif
+}
+
+internal void
 debug_end(Game_Input *input, Game_Assets *game_assets)
 {
     TIMED_FUNCTION();
@@ -131,11 +278,46 @@ debug_end(Game_Input *input, Game_Assets *game_assets)
         Debug_Record *hot_record = 0;
 
         v2 mouse_p = input->mouse.P;
-        if (input->mouse.is_down[eMouse_Right] &&
-            input->mouse.toggle[eMouse_Right])
+
+#if 0
+        if (input->mouse.is_down[eMouse_Right])
         {
-            debug_state->paused = !debug_state->paused;
+            if (input->mouse.toggle[eMouse_Right])
+            {
+                debug_state->menu_p = mouse_p;
+            }
+            debug_draw_main_menu(debug_state, game_assets, debug_state->menu_p, mouse_p);
         }
+        else
+        {
+            if (input->mouse.toggle[eMouse_Right])
+            {
+                if (debug_state->hot_menu_idx < array_count(debug_variable_list))
+                {
+                    debug_variable_list[debug_state->hot_menu_idx].value =
+                        !debug_variable_list[debug_state->hot_menu_idx].value;
+                    write_config(debug_state);
+                }
+            }
+        }
+#endif
+
+        if (debug_state->compiling)
+        {
+            Debug_Process_State state = g_debug_memory->platform.debug_platform_get_process_state(debug_state->compiler);
+            if (state.is_running)
+            {
+                string_op(eString_Op_Draw, debug_state->render_group,
+                          _v3_(debug_state->width * 0.05f, debug_state->height * 0.9f, 0.0f),
+                          "Compiling...", game_assets);
+            }
+            else
+            {
+                debug_state->compiling = false;
+            }
+        }
+
+
 #if 0
         for (u32 counter_idx = 0;
              counter_idx < debug_state->counter_count;
@@ -190,103 +372,112 @@ debug_end(Game_Input *input, Game_Assets *game_assets)
             }
         }
 #endif
+
+#if 0
         if (debug_state->is_debug_mode)
         {
             push_string(render_group, _v3_(debug_state->width * 0.02f, debug_state->height * 0.5f, -1.0f),
                         "DEBUG MODE", game_assets);
         }
+#endif
+
         if (debug_state->frame_count)
         {
             char text_buffer[256];
             _snprintf_s(text_buffer, sizeof(text_buffer), 
                         "last frame time: %.02fms",
                         debug_state->frames[debug_state->frame_count - 1].wall_seconds_elapsed * 1000.0f);
-            push_string(render_group,
-                        _v3_(debug_state->width * 0.02f, debug_state->height * 0.8f, 0.0f),
-                        text_buffer,
-                        game_assets);
+            string_op(eString_Op_Draw, render_group, 
+                      _v3_(debug_state->width * 0.02f, debug_state->height * 0.8f, 0.0f),
+                      text_buffer,
+                      game_assets);
         }
 
-        debug_state->profile_rect = _Rect2_(_v2_(50.0f, 50.0f), _v2_(200.0f, 200.0f));
-        push_rect(debug_state->render_group, debug_state->profile_rect, 0.0f, _v4_(0, 0, 0, 0.25f));
+        push_rect(debug_state->render_group, rect2_min_max(_v2_(10, 10), _v2_(40, 40)), 0.0f, _v4_(DEBUG_UI_COLOR, 0, 1, 1));
 
-        f32 bar_spacing = 4.0f;
-        f32 lane_height = 0.0f;
-        u32 lane_count = debug_state->frame_bar_lane_count;
-
-        u32 max_frame = debug_state->frame_count;
-        if (max_frame > 10)
+        if (debug_state->profile_on)
         {
-            max_frame = 10;
-        }
+            debug_state->profile_rect = rect2_min_max(_v2_(50.0f, 50.0f), _v2_(200.0f, 200.0f));
+            push_rect(debug_state->render_group, debug_state->profile_rect, 0.0f, _v4_(0, 0, 0, 0.25f));
 
-        if (lane_count > 0 && max_frame > 0)
-        {
-            lane_height = ((get_height(debug_state->profile_rect) / (f32)max_frame) - bar_spacing) / (f32)lane_count;
-        }
+            f32 bar_spacing = 4.0f;
+            f32 lane_height = 0.0f;
+            u32 lane_count = debug_state->frame_bar_lane_count;
 
-        f32 bar_height = lane_height * lane_count;
-        f32 bars_plus_spacing = bar_height + bar_spacing;
-        f32 chart_left = debug_state->profile_rect.min.x;
-        f32 chart_height = bars_plus_spacing * (f32)max_frame;
-        f32 chart_width = get_width(debug_state->profile_rect);
-        f32 chart_top = debug_state->profile_rect.max.y;
-        f32 scale = chart_width * debug_state->frame_bar_scale;
-
-        v3 colors[] =
-        {
-            _v3_(1, 0, 0),
-            _v3_(0, 1, 0),
-            _v3_(0, 0, 1),
-            _v3_(1, 1, 0),
-            _v3_(0, 1, 1),
-            _v3_(1, 0, 1),
-            _v3_(1, 0.5f, 0),
-            _v3_(1, 0, 0.5f),
-            _v3_(0.5f, 1, 0),
-            _v3_(0, 1, 0.5f),
-            _v3_(0.5f, 0, 1),
-            _v3_(0, 0.5f, 1),
-        };
-
-
-        for (u32 frame_idx = 0;
-             frame_idx < max_frame;
-             ++frame_idx)
-        {
-            Debug_Frame *frame = debug_state->frames + debug_state->frame_count - (frame_idx + 1);
-            f32 stack_x = chart_left;
-            f32 stack_y = chart_top - bars_plus_spacing * (f32)frame_idx;
-
-            for (u32 region_idx = 0;
-                 region_idx < frame->region_count;
-                 ++region_idx)
+            u32 max_frame = debug_state->frame_count;
+            if (max_frame > 10)
             {
-                Debug_Frame_Region *region = frame->regions + region_idx;
+                max_frame = 10;
+            }
 
-                // v3 color = colors[region_idx % array_count(colors)];
-                v3 color = colors[region->color_idx % array_count(colors)];
-                f32 this_min_x = stack_x + scale * region->min_t;
-                f32 this_max_x = stack_x + scale * region->max_t;
+            if (lane_count > 0 && max_frame > 0)
+            {
+                lane_height = ((get_height(debug_state->profile_rect) / (f32)max_frame) - bar_spacing) / (f32)lane_count;
+            }
 
-                Rect2 region_rect = _Rect2_(_v2_(this_min_x, stack_y - lane_height * (region->lane_idx + 1)),
-                                            _v2_(this_max_x, stack_y - lane_height * region->lane_idx));
+            f32 bar_height = lane_height * lane_count;
+            f32 bars_plus_spacing = bar_height + bar_spacing;
+            f32 chart_left = debug_state->profile_rect.min.x;
+            f32 chart_height = bars_plus_spacing * (f32)max_frame;
+            f32 chart_width = get_width(debug_state->profile_rect);
+            f32 chart_top = debug_state->profile_rect.max.y;
+            f32 scale = chart_width * debug_state->frame_bar_scale;
 
-                push_rect(render_group, region_rect, 0.0f, _v4_(color, 1.0f));
+            v3 colors[] =
+            {
+                _v3_(1, 0, 0),
+                _v3_(0, 1, 0),
+                _v3_(0, 0, 1),
+                _v3_(1, 1, 0),
+                _v3_(0, 1, 1),
+                _v3_(1, 0, 1),
+                _v3_(1, 0.5f, 0),
+                _v3_(1, 0, 0.5f),
+                _v3_(0.5f, 1, 0),
+                _v3_(0, 1, 0.5f),
+                _v3_(0.5f, 0, 1),
+                _v3_(0, 0.5f, 1),
+            };
 
-                if (is_in_rect(region_rect, mouse_p))
+
+            for (u32 frame_idx = 0;
+                 frame_idx < max_frame;
+                 ++frame_idx)
+            {
+                Debug_Frame *frame = debug_state->frames + debug_state->frame_count - (frame_idx + 1);
+                f32 stack_x = chart_left;
+                f32 stack_y = chart_top - bars_plus_spacing * (f32)frame_idx;
+
+                for (u32 region_idx = 0;
+                     region_idx < frame->region_count;
+                     ++region_idx)
                 {
-                    Debug_Record *record = region->record;
-                    char text_buffer[256];
-                    _snprintf_s(text_buffer, sizeof(text_buffer), 
-                                "%s: %10ucy [%s(%d)]",
-                                record->block_name,
-                                (u32)region->cycle_count,
-                                record->file_name,
-                                record->line_number);
-                    push_string(render_group, _v3_(mouse_p, -1.0f), text_buffer, game_assets);
+                    Debug_Frame_Region *region = frame->regions + region_idx;
 
-                    hot_record = record;
+                    // v3 color = colors[region_idx % array_count(colors)];
+                    v3 color = colors[region->color_idx % array_count(colors)];
+                    f32 this_min_x = stack_x + scale * region->min_t;
+                    f32 this_max_x = stack_x + scale * region->max_t;
+
+                    Rect2 region_rect = rect2_min_max(_v2_(this_min_x, stack_y - lane_height * (region->lane_idx + 1)),
+                                                      _v2_(this_max_x, stack_y - lane_height * region->lane_idx));
+
+                    push_rect(render_group, region_rect, 0.0f, _v4_(color, 1.0f));
+
+                    if (is_in_rect(region_rect, mouse_p))
+                    {
+                        Debug_Record *record = region->record;
+                        char text_buffer[256];
+                        _snprintf_s(text_buffer, sizeof(text_buffer), 
+                                    "%s: %10ucy [%s(%d)]",
+                                    record->block_name,
+                                    (u32)region->cycle_count,
+                                    record->file_name,
+                                    record->line_number);
+                        string_op(eString_Op_Draw, render_group, _v3_(mouse_p, -1.0f), text_buffer, game_assets);
+
+                        hot_record = record;
+                    }
                 }
             }
         }
@@ -547,6 +738,11 @@ DEBUG_FRAME_END(debug_frame_end)
     Debug_State *debug_state = get_debug_state(game_memory);
     if (debug_state)
     {
+        if (game_memory->executable_reloaded)
+        {
+            restart_collation(debug_state, g_debug_table->current_event_array_idx);
+        }
+
         if (!debug_state->paused)
         {
             if (debug_state->frame_count >= MAX_DEBUG_EVENT_ARRAY_COUNT * 4)

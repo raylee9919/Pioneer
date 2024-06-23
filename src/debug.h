@@ -8,6 +8,36 @@
    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
    ======================================================================== */
 
+struct Debug_Variable;
+
+enum Debug_Variable_Type
+{
+    eDebug_Variable_Type_Boolean,
+
+    eDebug_Variable_Type_Group
+};
+
+struct Debug_Variable_Group
+{
+    b32 expanded;
+    Debug_Variable *first_child;
+    Debug_Variable *last_child;
+};
+
+struct Debug_Variable
+{
+    Debug_Variable_Type type;
+    char *name;
+    Debug_Variable *next;
+    Debug_Variable *parent;
+
+    union
+    {
+        b32 bool32;
+        Debug_Variable_Group group;
+    };
+};
+
 struct Render_Group;
 
 struct Debug_Counter_Snapshot
@@ -33,7 +63,7 @@ struct Debug_Frame_Region
     f32 max_t;
 };
 
-#define MAX_REGIONS_PER_FRAME 2 * 4096
+#define MAX_REGIONS_PER_FRAME (2 * 4096)
 struct Debug_Frame
 {
     u64 begin_clock;
@@ -66,13 +96,20 @@ struct Debug_State
 {
     b32 init;
 
-    b32 is_debug_mode;
-    f32 debug_toggle_delay;
-
     Platform_Work_Queue *high_priority_queue;
 
     Memory_Arena debug_arena;
+
+    Debug_Variable *root_group;
+
     Render_Group *render_group;
+
+    b32 compiling;
+    Debug_Executing_Process compiler;
+
+    v2 menu_p;
+    b32 menu_active;
+    u32 hot_menu_idx;
 
     f32 left_edge;
     f32 at_y;
@@ -92,6 +129,7 @@ struct Debug_State
     f32 frame_bar_scale;
     b32 paused;
 
+    b32 profile_on;
     Rect2 profile_rect;
 
     Debug_Frame *frames;

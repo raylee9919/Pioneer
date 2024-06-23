@@ -229,7 +229,15 @@ struct Game_Assets
     Asset_Model         *xbot_model;
     Asset_Model         *cube_model;
     Asset_Model         *octahedral_model;
+
     Asset_Model         *grass_model;
+    f32                 grass_max_vertex_y;
+    Bitmap              *turbulence_map;
+
+    Asset_Mesh          *star_mesh;
+
+    Asset_Bone_Hierarchy bone_hierarchy;
+
 
     Read_Entire_File    *read_entire_file;
 };
@@ -255,6 +263,12 @@ struct Game_State
 
     World               *world;
     Memory_Arena        world_arena;
+
+    m4x4                *grass_world_transforms;
+    s32                 grass_count;
+
+    m4x4                *star_world_transforms;
+    s32                 star_count;
 };
 
 struct Transient_State 
@@ -266,15 +280,15 @@ struct Transient_State
 
     WorkMemory_Arena        workArena[4];
 
-    Memory_Arena            assetArena;
+    Memory_Arena            asset_arena;
     Game_Assets             game_assets;
 };
 
 
-#define GAME_MAIN(name) void name(Game_Memory *game_memory,                 \
+#define GAME_UPDATE(name) void name(Game_Memory *game_memory,                 \
                                   Game_State *game_state,                   \
                                   Game_Input *game_input,                   \
                                   Game_Screen_Buffer *game_screen_buffer)
-typedef GAME_MAIN(Game_Main);
+typedef GAME_UPDATE(Game_Update);
 
 

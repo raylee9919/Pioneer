@@ -147,11 +147,10 @@ load_model(Asset_Model **asset_model, const char *file_name,
     Assert(at == end);
 }
 
-global_var Asset_Bone_Hierarchy g_bone_hierarchy;
 internal void
-load_bone_hierarchy(Memory_Arena *arena, Read_Entire_File *read_entire_file)
+load_bone_hierarchy(Memory_Arena *arena, Game_Assets *game_assets)
 {
-    Entire_File entire_file = read_entire_file("bones.pack");
+    Entire_File entire_file = game_assets->read_entire_file("bones.pack");
     u8 *at                  = (u8 *)entire_file.contents;
     u8 *end                 = at + entire_file.content_size;
 
@@ -159,7 +158,7 @@ load_bone_hierarchy(Memory_Arena *arena, Read_Entire_File *read_entire_file)
          id < MAX_BONE_PER_MESH;
          ++id)
     {
-        Asset_Bone_Info *bone = &g_bone_hierarchy.bone_infos[id];
+        Asset_Bone_Info *bone = &game_assets->bone_hierarchy.bone_infos[id];
 
         bone->child_count = *(u32 *)at;
         at += sizeof(u32);

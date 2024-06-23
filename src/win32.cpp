@@ -34,7 +34,6 @@ typedef XINPUT_SET_STATE(XInput_Set_State);
 XINPUT_SET_STATE(xinput_set_state_stub) { return 1; }
 XInput_Set_State *xinput_set_state = xinput_set_state_stub;
 
-
 internal void
 win32_load_xinput() 
 {
@@ -871,6 +870,67 @@ win32_make_queue(Platform_Work_Queue *Queue, u32 ThreadCount)
     }
 }
 
+DEBUG_PLATFORM_EXECUTE_SYSTEM_COMMAND(win32_execute_system_command)
+{
+    Debug_Executing_Process result = {};
+
+    STARTUPINFO startup_info = {};
+    startup_info.cb = sizeof(startup_info);
+#if 1
+    startup_info.dwFlags = STARTF_USESHOWWINDOW;
+    startup_info.wShowWindow = SW_HIDE;
+#endif
+
+    PROCESS_INFORMATION process_info = {};
+    if (CreateProcessA(command,
+                       command_line,
+                       0, 
+                       0,
+                       FALSE,
+                       0,
+                       0,
+                       path,
+                       &startup_info,
+                       &process_info
+                      ))
+    {
+        // Assert(sizeof(result.os_handle) >= sizeof(process_info.hProcess));
+        *(HANDLE *)&result.os_handle = process_info.hProcess;
+    }
+    else
+    {
+        DWORD error_code = GetLastError();
+        *(HANDLE *)&result.os_handle = INVALID_HANDLE_VALUE;
+    }
+
+    return result;
+}
+
+DEBUG_PLATFORM_GET_PROCESS_STATE(win32_get_process_state)
+{
+    Debug_Process_State result = {};
+
+    HANDLE hProcess = *(HANDLE *)&process.os_handle;
+    if (hProcess != INVALID_HANDLE_VALUE)
+    {
+        result.started_successfully = true;
+
+        if (WaitForSingleObject(hProcess, 0) == WAIT_OBJECT_0)
+        {
+            DWORD return_code;
+            GetExitCodeProcess(hProcess, &return_code);
+            result.return_code = return_code;
+            CloseHandle(hProcess);
+        }
+        else
+        {
+            result.is_running = true;
+        }
+    }
+
+    return result;
+}
+
 global_var Debug_Table g_debug_table_;
 Debug_Table *g_debug_table = &g_debug_table_;
 
@@ -950,6 +1010,8 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     game_memory.platform.debug_platform_read_file = DebugPlatformReadEntireFile;
     game_memory.platform.debug_platform_write_file = DebugPlatformWriteEntireFile;
     game_memory.platform.debug_platform_free_memory = DebugPlatformFreeMemory;
+    game_memory.platform.debug_platform_execute_system_command = win32_execute_system_command;
+    game_memory.platform.debug_platform_get_process_state = win32_get_process_state;
 
     win32_init_render_batch(&game_memory.render_batch, KB(4));
 
@@ -1001,6 +1063,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             LARGE_INTEGER last_counter = win32_get_wall_clock();
 
             BEGIN_BLOCK(win32_executable_ready);
+            game_memory.executable_reloaded = false;
             game_dll_time = win32_get_file_time(game_dll_abs_path);
             if (CompareFileTime(&game_dll_time_last, &game_dll_time) != 0) 
             {
@@ -1018,14 +1081,14 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                 game.dll = LoadLibraryA(game_dll_load_filename);
                 if (game.dll) 
                 { 
-                    game.game_main          = (Game_Main *)GetProcAddress(game.dll, "game_main");
+                    game.game_update          = (Game_Update *)GetProcAddress(game.dll, "game_update");
                     game.debug_frame_end    = (Debug_Frame_End *)GetProcAddress(game.dll, "debug_frame_end");
 
-                    game.is_valid           = (game.game_main &&
+                    game.is_valid           = (game.game_update &&
                                                1);
                     if (!game.is_valid)
                     {
-                        game.game_main = 0;
+                        game.game_update = 0;
                     }
                 } 
                 else 
@@ -1033,6 +1096,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                     // TODO: Diagnostic 
                 }
                 game_dll_time_last = game_dll_time;
+                game_memory.executable_reloaded = true;
             }
             END_BLOCK(win32_executable_ready);
 
@@ -1185,14 +1249,16 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             }
             END_BLOCK(win32_record_input);
 
+#if 0
             game_input.dt_per_frame = (desired_mspf / 1000.0f);
+#endif
 
-            BEGIN_BLOCK(win32_game_main);
-            if (game.game_main) 
+            BEGIN_BLOCK(win32_game_update);
+            if (game.game_update) 
             {
-                game.game_main(&game_memory, game_state, &game_input, &gameScreenBuffer);
+                game.game_update(&game_memory, game_state, &game_input, &gameScreenBuffer);
             }
-            END_BLOCK(win32_game_main);
+            END_BLOCK(win32_game_update);
 
             BEGIN_BLOCK(win32_render);
             HDC dc = GetDC(hwnd);
@@ -1201,6 +1267,9 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             // win32_update_screen(dc, wd.width, wd.height);
             ReleaseDC(hwnd, dc);
             END_BLOCK(win32_render);
+
+            f32 actual_mspf = win32_get_elapsed_ms(last_counter, win32_get_wall_clock());
+            game_input.dt_per_frame = (actual_mspf / 1000.0f);
 
             // TODO: leave this off until we have vblank support?
 #if 0

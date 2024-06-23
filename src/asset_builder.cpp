@@ -387,7 +387,7 @@ bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_heig
         // font header.
         Asset_Font_Header font_header = {};
         font_header.kerning_pair_count = kern_count;
-        font_header.vertical_advance = metric.tmHeight + metric.tmInternalLeading + metric.tmExternalLeading;
+        font_header.vertical_advance = (metric.tmHeight + metric.tmInternalLeading + metric.tmExternalLeading);
 
         Asset_Kerning *asset_kern_pairs = push_array(Asset_Kerning, kern_count);
         for (s32 idx = 0;

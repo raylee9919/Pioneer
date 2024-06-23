@@ -65,12 +65,14 @@ struct Asset_Font_Header
     u32 kerning_pair_count;
     u32 vertical_advance;
 };
+
 struct Asset_Kerning 
 {
     u32 first;
     u32 second;
     s32 value;
 };
+
 struct Asset_Glyph 
 {
     u32 codepoint;

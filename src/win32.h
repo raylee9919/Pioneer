@@ -35,7 +35,7 @@ struct Win32_Game
     FILETIME            dll_last_write_time;
     HMODULE             dll;
 
-    Game_Main           *game_main;
+    Game_Update         *game_update;
     Debug_Frame_End     *debug_frame_end;
 
     b32                 is_valid;

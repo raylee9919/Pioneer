@@ -141,20 +141,10 @@ build_animation_transform(Asset_Model *model, s32 bone_id,
 }
 
 
-global_var m4x4 *grass_world_transforms;
-global_var s32 grass_count;
-global_var Asset_Mesh *grass_mesh;
-global_var f32 grass_max_vertex_y;
-global_var Bitmap *turbulence_map;
-
 #define GRASS_COUNT_MAX 100'000
 #define GRASS_DENSITY 10
 #define GRASS_RANDOM_OFFSET 0.10f
 #define TURBULENCE_MAP_SIDE 256 
-
-global_var m4x4 *star_world_transforms;
-global_var s32 star_count;
-global_var Asset_Mesh *star_mesh;
 
 #define STAR_COUNT_MAX 100'000
 
@@ -185,7 +175,7 @@ global_var Game_Memory *g_debug_memory;
 #endif
 
 extern "C"
-GAME_MAIN(game_main)
+GAME_UPDATE(game_update)
 {
 
 #if __DEBUG
@@ -209,7 +199,7 @@ GAME_MAIN(game_main)
         Chunk *chunk = get_chunk(&game_state->world_arena, chunk_hashmap, Chunk_Position{0, 0, 0});
         v3 dim = _v3_(1.0f, 1.0f, 1.0f);
 
-        grass_world_transforms = push_array(&game_state->world_arena, m4x4, GRASS_COUNT_MAX); 
+        game_state->grass_world_transforms = push_array(&game_state->world_arena, m4x4, GRASS_COUNT_MAX); 
 
         s32 hX = round_f32_to_s32(game_state->world->chunk_dim.x * 0.5f);
         s32 hZ = round_f32_to_s32(game_state->world->chunk_dim.z * 0.5f);
@@ -243,8 +233,8 @@ GAME_MAIN(game_main)
                         f32 scale           = rand_range(&game_state->random_series, 0.75f, 1.0f);
                         v3 scaling          = _v3_(scale, scale, scale);
 
-                        Assert(grass_count != GRASS_COUNT_MAX);
-                        grass_world_transforms[grass_count++] = transpose(trs_to_transform(translation, rotation, scaling));
+                        Assert(game_state->grass_count != GRASS_COUNT_MAX);
+                        game_state->grass_world_transforms[game_state->grass_count++] = transpose(trs_to_transform(translation, rotation, scaling));
                     }
                 }
 #endif
@@ -253,9 +243,6 @@ GAME_MAIN(game_main)
 
         Entity *xbot = push_entity(world_arena, chunk_hashmap, eEntity_XBot, Chunk_Position{0, 0, 0}, world->chunk_dim);
         game_state->player = xbot;
-
-        load_bone_hierarchy(&game_state->world_arena, game_memory->platform.debug_platform_read_file);
-
 
         game_state->debug_cam = push_struct(&game_state->world_arena, Camera);
         Camera *cam = game_state->debug_cam;
@@ -266,25 +253,17 @@ GAME_MAIN(game_main)
         cam->world_translation = _v3_(0, D * sin(T * 2.0f), D * cos(T * 2.0f));
         cam->world_rotation = _qt_(cos(T), -sin(T), 0, 0);
 
-        //
-        // NOISE MAP
-        //
-#if 0
-        turbulence_map = gen_turbulence_map(&game_state->world_arena, &game_state->random_series, TURBULENCE_MAP_SIDE);
-#else
-        turbulence_map = load_bmp(&game_state->world_arena, game_memory->platform.debug_platform_read_file, "turbulence.bmp");
-#endif
 
 
 
         // STAR
-        star_world_transforms = push_array(&game_state->world_arena, m4x4, STAR_COUNT_MAX);
+        game_state->star_world_transforms = push_array(&game_state->world_arena, m4x4, STAR_COUNT_MAX);
 #define STAR_COUNT 10'000
 #define STAR_SCALE 0.2f
 #define STAR_DIST  200.0f
         for (u32 cnt = 0; cnt < STAR_COUNT; ++cnt)
         {
-            Assert(star_count < STAR_COUNT_MAX);
+            Assert(game_state->star_count < STAR_COUNT_MAX);
             f32 x = rand_bilateral(&game_state->random_series);
             f32 y = rand_bilateral(&game_state->random_series);
             f32 z = rand_bilateral(&game_state->random_series);
@@ -293,7 +272,7 @@ GAME_MAIN(game_main)
             v3 translation  = STAR_DIST * v;
             qt rotation     = _qt_(cos(theta), sin(theta) * v);
             v3 scaling      = _v3_(STAR_SCALE, STAR_SCALE, STAR_SCALE);
-            star_world_transforms[star_count++] = transpose(trs_to_transform(translation, rotation, scaling));
+            game_state->star_world_transforms[game_state->star_count++] = transpose(trs_to_transform(translation, rotation, scaling));
         }
 
 
@@ -333,7 +312,7 @@ GAME_MAIN(game_main)
         }
 
         // asset arena.
-        init_arena(&transient_state->assetArena,
+        init_arena(&transient_state->asset_arena,
                    MB(20),
                    (u8 *)transMem + sizeof(Transient_State) + transient_state->transient_arena.size);
 
@@ -342,22 +321,34 @@ GAME_MAIN(game_main)
         Game_Assets *game_assets            = &transient_state->game_assets; // TODO: Ain't thrilled about it.
         game_assets->read_entire_file       = game_memory->platform.debug_platform_read_file;
 
-        load_model(&game_assets->xbot_model, "xbot.3d", &game_state->world_arena, game_memory->platform.debug_platform_read_file);
-        load_model(&game_assets->cube_model, "cube.3d", &game_state->world_arena, game_memory->platform.debug_platform_read_file);
-        load_model(&game_assets->octahedral_model, "octahedral.3d", &game_state->world_arena, game_memory->platform.debug_platform_read_file);
-        load_model(&game_assets->grass_model, "grass.3d", &game_state->world_arena, game_memory->platform.debug_platform_read_file);
-        grass_mesh = game_assets->grass_model->meshes;
+        load_model(&game_assets->xbot_model, "xbot.3d", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        load_model(&game_assets->cube_model, "cube.3d", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        load_model(&game_assets->octahedral_model, "octahedral.3d", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+
+        load_model(&game_assets->grass_model, "grass.3d", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
         for (u32 vertex_idx = 0;
-             vertex_idx < grass_mesh->vertex_count;
+             vertex_idx < game_assets->grass_model->meshes[0].vertex_count;
              ++vertex_idx)
         {
-            Asset_Vertex *vertex = grass_mesh->vertices + vertex_idx;
-            grass_max_vertex_y = Max(grass_max_vertex_y, vertex->pos.y);
+            Asset_Vertex *vertex = game_assets->grass_model->meshes[0].vertices + vertex_idx;
+            game_assets->grass_max_vertex_y = Max(game_assets->grass_max_vertex_y, vertex->pos.y);
         }
+        load_bone_hierarchy(&transient_state->asset_arena, game_assets);
 
-        star_mesh = game_assets->octahedral_model->meshes;
 
-        load_font(&game_state->world_arena, game_memory->platform.debug_platform_read_file, &transient_state->game_assets);
+
+        game_assets->star_mesh = game_assets->octahedral_model->meshes;
+
+        load_font(&transient_state->asset_arena, game_memory->platform.debug_platform_read_file, &transient_state->game_assets);
+
+        //
+        // NOISE MAP
+        //
+#if 0
+        turbulence_map = gen_turbulence_map(&game_state->world_arena, &game_state->random_series, TURBULENCE_MAP_SIDE);
+#else
+        game_assets->turbulence_map = load_bmp(&transient_state->asset_arena, game_memory->platform.debug_platform_read_file, "turbulence.bmp");
+#endif
 
 
         transient_state->init = true;  
@@ -381,68 +372,64 @@ GAME_MAIN(game_main)
     //
     Entity *player = game_state->player;
     player->accel = _v3_(0, 0, 0);
-#if __DEBUG
+
     Debug_State *debug_state = (Debug_State *)g_debug_memory->debug_storage;
+
+#if DEBUG_UI_USE_DEBUG_CAMERA
     Assert(debug_state);
-    if (!debug_state->is_debug_mode) 
+    if (game_input->W.is_set)
     {
-        if (game_input->W.is_set)
-        {
-            m4x4 rotation = to_m4x4(player->world_rotation);
-            player->accel = rotation * _v3_(0, 0, 1);
-        }
-        if (game_input->D.is_set)
-        {
-            player->world_rotation = _qt_(cos(dt), 0,-sin(dt), 0) * player->world_rotation;
-        }
-        if (game_input->A.is_set)
-        {
-            player->world_rotation = _qt_(cos(dt), 0, sin(dt), 0) * player->world_rotation;
-        }
+        m4x4 rotation = to_m4x4(player->world_rotation);
+        player->accel = rotation * _v3_(0, 0, 1);
     }
-    else
+    if (game_input->D.is_set)
     {
-        Camera *cam = game_state->debug_cam;
-        f32 C = dt * 3.0f;
-        if (game_input->W.is_set)
-        {
-            m4x4 rotation = to_m4x4(cam->world_rotation);
-            cam->world_translation += rotation * _v3_(0, 0, -C);
-        }
-        if (game_input->S.is_set)
-        {
-            m4x4 rotation = to_m4x4(cam->world_rotation);
-            cam->world_translation += rotation * _v3_(0, 0, C);
-        }
-        if (game_input->D.is_set)
-        {
-            m4x4 rotation = to_m4x4(cam->world_rotation);
-            cam->world_translation += rotation * _v3_(C, 0, 0);
-        }
-        if (game_input->A.is_set)
-        {
-            m4x4 rotation = to_m4x4(cam->world_rotation);
-            cam->world_translation += rotation * _v3_(-C, 0, 0);
-        }
+        player->world_rotation = _qt_(cos(dt), 0,-sin(dt), 0) * player->world_rotation;
+    }
+    if (game_input->A.is_set)
+    {
+        player->world_rotation = _qt_(cos(dt), 0, sin(dt), 0) * player->world_rotation;
+    }
+#else
+    Camera *cam = game_state->debug_cam;
+    f32 C = dt * 3.0f;
+    if (game_input->W.is_set)
+    {
+        m4x4 rotation = to_m4x4(cam->world_rotation);
+        cam->world_translation += rotation * _v3_(0, 0, -C);
+    }
+    if (game_input->S.is_set)
+    {
+        m4x4 rotation = to_m4x4(cam->world_rotation);
+        cam->world_translation += rotation * _v3_(0, 0, C);
+    }
+    if (game_input->D.is_set)
+    {
+        m4x4 rotation = to_m4x4(cam->world_rotation);
+        cam->world_translation += rotation * _v3_(C, 0, 0);
+    }
+    if (game_input->A.is_set)
+    {
+        m4x4 rotation = to_m4x4(cam->world_rotation);
+        cam->world_translation += rotation * _v3_(-C, 0, 0);
+    }
 
-        if (game_input->Q.is_set)
-        {
-            m4x4 rotation = to_m4x4(cam->world_rotation);
-            cam->world_translation += rotation * _v3_(0, -C, 0);
-        }
-        if (game_input->E.is_set)
-        {
-            m4x4 rotation = to_m4x4(cam->world_rotation);
-            cam->world_translation += rotation * _v3_(0, C, 0);
-        }
-
+    if (game_input->Q.is_set)
+    {
+        m4x4 rotation = to_m4x4(cam->world_rotation);
+        cam->world_translation += rotation * _v3_(0, -C, 0);
+    }
+    if (game_input->E.is_set)
+    {
+        m4x4 rotation = to_m4x4(cam->world_rotation);
+        cam->world_translation += rotation * _v3_(0, C, 0);
     }
 #endif
 
 #if __DEBUG
     if (debug_state->init)
     {
-#if 1
+#if 0
         if (debug_state->debug_toggle_delay > 0.0f)
         {
             debug_state->debug_toggle_delay -= dt;
@@ -526,7 +513,7 @@ GAME_MAIN(game_main)
                                     m4x4 *final_transforms = push_array(&transient_state->transient_arena, m4x4, MAX_BONE_PER_MESH);
                                     build_animation_transform(model, model->root_bone_id,
                                                               entity->cur_anim, entity->anim_dt,
-                                                              &g_bone_hierarchy,
+                                                              &game_assets->bone_hierarchy,
                                                               final_transforms,
                                                               model->root_transform);
                                     entity->anim_dt += dt;
@@ -578,8 +565,12 @@ GAME_MAIN(game_main)
     }
 #endif
 
-    push_grass(render_group, grass_mesh, grass_count, grass_world_transforms, game_state->time, grass_max_vertex_y, turbulence_map);
-    push_star(render_group, star_mesh, star_count, star_world_transforms, game_state->time);
+#if DEBUG_UI_DRAW_GRASS
+    push_grass(render_group, &game_assets->grass_model->meshes[0], game_state->grass_count, game_state->grass_world_transforms, game_state->time, game_assets->grass_max_vertex_y, game_assets->turbulence_map);
+#endif
+#if DEBUG_UI_DRAW_STAR
+    push_star(render_group, game_assets->star_mesh, game_state->star_count, game_state->star_world_transforms, game_state->time);
+#endif
     
 
 

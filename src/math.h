@@ -201,6 +201,13 @@ len(v2 A)
     return result;
 }
 
+inline v2
+arm2(f32 T)
+{
+    v2 result = _v2_(cos(T), sin(T));
+    return result;
+}
+
 //
 // @v3
 //
@@ -792,11 +799,31 @@ struct Rect2
 };
 
 inline Rect2
-_Rect2_(v2 min, v2 max)
+rect2_min_max(v2 min, v2 max)
 {
     Rect2 result = {};
     result.min = min;
     result.max = max;
+    return result;
+}
+
+inline Rect2
+rect2_cen_half_dim(v2 cen, v2 h_dim)
+{
+    Rect2 result = {};
+    result.min = cen - h_dim;
+    result.max = cen + h_dim;
+    return result;
+}
+
+inline Rect2
+rect2_inv_inf()
+{
+    Rect2 result = {};
+    result.min.x =  F32_MAX;
+    result.min.y =  F32_MAX;
+    result.max.x = -F32_MAX;
+    result.max.y = -F32_MAX;
     return result;
 }
 
