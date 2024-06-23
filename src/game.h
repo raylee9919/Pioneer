@@ -63,10 +63,10 @@ struct Temporary_Memory
     size_t used;
 };
 
-struct WorkMemory_Arena 
+struct Work_Memory_Arena 
 {
-    b32                 isUsed;
-    Memory_Arena        memoryArena;
+    b32                 is_used;
+    Memory_Arena        arena;
     Temporary_Memory    flush;
 };
 
@@ -248,7 +248,7 @@ struct Load_Asset_Work_Data
     Memory_Arena        *assetArena;
     Asset_ID            assetID;
     const char          *fileName;
-    WorkMemory_Arena    *workSlot;
+    Work_Memory_Arena   *workSlot;
 };
 
 struct Game_State 
@@ -259,7 +259,7 @@ struct Game_State
     Random_Series       random_series;
 
     Entity              *player;
-    Camera              *debug_cam;
+    Camera              *debug_camera;
 
     World               *world;
     Memory_Arena        world_arena;
@@ -278,7 +278,7 @@ struct Transient_State
     Platform_Work_Queue     *high_priority_queue;
     Platform_Work_Queue     *low_priority_queue;
 
-    WorkMemory_Arena        workArena[4];
+    Work_Memory_Arena       work_arenas[4];
 
     Memory_Arena            asset_arena;
     Game_Assets             game_assets;

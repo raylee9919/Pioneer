@@ -325,7 +325,7 @@ GetBitmap(Transient_State *trans_state, Asset_ID assetID,
         if (atomic_compare_exchange_u32((u32 *)&trans_state->game_assets.bitmapStates[assetID],
                                         Asset_State_Queued, Asset_State_Unloaded)) 
         {
-            WorkMemory_Arena *workSlot = begin_work_memory(trans_state);
+            Work_Memory_Arena *workSlot = begin_work_memory(trans_state);
             if (workSlot) 
             {
                 Load_Asset_Work_Data *workData = push_struct(&workSlot->memoryArena, Load_Asset_Work_Data);

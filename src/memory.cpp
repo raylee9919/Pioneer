@@ -57,19 +57,20 @@ end_temporary_memory(Temporary_Memory *temporaryMemory)
     arena->tempCount--;
 }
 
-internal WorkMemory_Arena *
+internal Work_Memory_Arena *
 begin_work_memory(Transient_State *transState)
 {
-    WorkMemory_Arena *result = 0;
+    Work_Memory_Arena *result = 0;
     for (s32 idx = 0;
-         idx < array_count(transState->workArena);
+         idx < array_count(transState->work_arenas);
          ++idx)
     {
-        WorkMemory_Arena *workSlot = transState->workArena + idx;
-        if (!workSlot->isUsed) {
-            result = workSlot;
-            result->isUsed = true;
-            result->flush = begin_temporary_memory(&result->memoryArena);
+        Work_Memory_Arena *work_slot = transState->work_arenas + idx;
+        if (!work_slot->is_used) 
+        {
+            result = work_slot;
+            result->is_used = true;
+            result->flush = begin_temporary_memory(&result->arena);
             break;
         }
     }
@@ -77,11 +78,11 @@ begin_work_memory(Transient_State *transState)
 }
 
 internal void
-end_work_memory(WorkMemory_Arena *workMemory_Arena)
+end_work_memory(Work_Memory_Arena *workMemory_Arena)
 {
     end_temporary_memory(&workMemory_Arena->flush);
     __WRITE_BARRIER__
-    workMemory_Arena->isUsed = false;
+    workMemory_Arena->is_used = false;
 }
 
 internal void

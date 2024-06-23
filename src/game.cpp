@@ -244,14 +244,15 @@ GAME_UPDATE(game_update)
         Entity *xbot = push_entity(world_arena, chunk_hashmap, eEntity_XBot, Chunk_Position{0, 0, 0}, world->chunk_dim);
         game_state->player = xbot;
 
-        game_state->debug_cam = push_struct(&game_state->world_arena, Camera);
-        Camera *cam = game_state->debug_cam;
-        cam->type = eCamera_Type_Perspective;
-        cam->focal_length = 0.5f;
         f32 T = pi32 * 0.1;
         f32 D = 5;
-        cam->world_translation = _v3_(0, D * sin(T * 2.0f), D * cos(T * 2.0f));
-        cam->world_rotation = _qt_(cos(T), -sin(T), 0, 0);
+
+        game_state->debug_camera = push_camera( &game_state->world_arena,
+                                                eCamera_Type_Perspective,
+                                                (f32)game_screen_buffer->width, (f32)game_screen_buffer->height,
+                                                0.5f,
+                                                _v3_(0, D * sin(T * 2.0f), D * cos(T * 2.0f)),
+                                                _qt_(cos(T), -sin(T), 0, 0) );
 
 
 
@@ -276,7 +277,6 @@ GAME_UPDATE(game_update)
         }
 
 
-
         game_state->init = true;
     }
 
@@ -290,31 +290,28 @@ GAME_UPDATE(game_update)
     //
     // Init Transient Memory
     //
-    void *transMem  = game_memory->transient_memory;
-    u64 transMemCap = game_memory->transient_memory_size;
-    Assert(sizeof(Transient_State) < transMemCap);
-    Transient_State *transient_state = (Transient_State *)transMem;
+    void *transient_memory  = game_memory->transient_memory;
+    u64 transient_memory_capacity = game_memory->transient_memory_size;
+    Assert(sizeof(Transient_State) < transient_memory_capacity);
+    Transient_State *transient_state = (Transient_State *)transient_memory;
 
     if (!transient_state->init)
     {
-        // transient arena.
-        init_arena(&transient_state->transient_arena,
-                   MB(200),
-                   (u8 *)transMem + sizeof(Transient_State));
+        init_arena(&transient_state->transient_arena, MB(200),
+                   (u8 *)transient_memory + sizeof(Transient_State));
 
         // reserved memory for multi-thread work data.
         for (u32 idx = 0;
-             idx < array_count(transient_state->workArena);
+             idx < array_count(transient_state->work_arenas);
              ++idx) 
         {
-            WorkMemory_Arena *workSlot = transient_state->workArena + idx;
-            init_sub_arena(&workSlot->memoryArena, &transient_state->transient_arena, MB(4));
+            Work_Memory_Arena *work_slot = transient_state->work_arenas + idx;
+            init_sub_arena(&work_slot->arena, &transient_state->transient_arena, MB(4));
         }
 
         // asset arena.
-        init_arena(&transient_state->asset_arena,
-                   MB(20),
-                   (u8 *)transMem + sizeof(Transient_State) + transient_state->transient_arena.size);
+        init_arena(&transient_state->asset_arena, MB(20),
+                   (u8 *)transient_memory + sizeof(Transient_State) + transient_state->transient_arena.size);
 
         transient_state->high_priority_queue    = game_memory->high_priority_queue;
         transient_state->low_priority_queue     = game_memory->low_priority_queue;
@@ -354,15 +351,15 @@ GAME_UPDATE(game_update)
         transient_state->init = true;  
     }
 
+    Game_Assets *game_assets = &transient_state->game_assets;
+
     Temporary_Memory render_memory = begin_temporary_memory(&transient_state->transient_arena);
 
     debug_start(game_screen_buffer->width, game_screen_buffer->height);
 
-    game_state->debug_cam->width    = (f32)game_screen_buffer->width;
-    game_state->debug_cam->height   = (f32)game_screen_buffer->height;
 
     Render_Group *render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
-                                                    game_state->debug_cam);
+                                                    game_state->debug_camera);
 
 
     v3 chunk_dim = game_state->world->chunk_dim;
@@ -474,7 +471,6 @@ GAME_UPDATE(game_update)
     //
     // @draw
     //
-    Game_Assets *game_assets = &transient_state->game_assets;
 
 #if 1
     for (s32 Z = minPos.z;
@@ -572,11 +568,6 @@ GAME_UPDATE(game_update)
     push_star(render_group, game_assets->star_mesh, game_state->star_count, game_state->star_world_transforms, game_state->time);
 #endif
     
-
-
-
-
-
 
 #if __DEBUG
     debug_end(game_input, &transient_state->game_assets);
