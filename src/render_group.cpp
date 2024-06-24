@@ -104,121 +104,88 @@ push_rect(Render_Group *group, Rect2 rect, f32 z, v4 color)
 enum String_Op
 {
     eString_Op_Draw,
-    eString_Op_Get_Dim,
+    eString_Op_Get_Rect2,
 };
 
-internal v2 
+internal Rect2
 string_op(String_Op op, Render_Group *render_group,
           v3 left_bottom,
           const char *str, Game_Assets *game_assets, v4 color = _v4_(1, 1, 1, 1))
 {
-    v2 result = {};
+    Rect2 result = rect2_inv_inf();
 
-    if (op == eString_Op_Draw)
+    f32 left_x  = left_bottom.x;
+    f32 kern    = 0.0f;
+    f32 C       = 0.0f;
+    f32 A       = 0.0f;
+
+    for (const char *ch = str;
+         *ch;
+         ++ch)
     {
-        f32 left_x  = left_bottom.x;
-        f32 kern    = 0.0f;
-        f32 C       = 0.0f;
-        f32 A       = 0.0f;
-
-        for (const char *ch = str;
-             *ch;
-             ++ch)
+        Asset_Glyph *glyph = game_assets->glyphs[*ch];
+        if (glyph)
         {
-            Asset_Glyph *glyph = game_assets->glyphs[*ch];
-            if (glyph)
-            {
-                C = (f32)game_assets->glyphs[*ch]->C;
+            C = (f32)game_assets->glyphs[*ch]->C;
 
-                if (*ch != ' ')
+            if (*ch != ' ')
+            {
+                Bitmap *bitmap = &glyph->bitmap;
+                f32 w = (f32)bitmap->width;
+                f32 h = (f32)bitmap->height;
+                v3 max = _v3_(left_x + w, left_bottom.y + glyph->ascent, left_bottom.z);
+                v3 min = max - _v3_(w, h, 0);
+
+                if (op == eString_Op_Draw)
                 {
-                    Bitmap *bitmap = &glyph->bitmap;
-                    f32 w = (f32)bitmap->width;
-                    f32 h = (f32)bitmap->height;
-                    v3 max = _v3_(left_x + w, left_bottom.y + glyph->ascent, left_bottom.z);
-                    v3 min = max - _v3_(w, h, 0);
                     push_bitmap(render_group, min, max, bitmap, color);
-                }
-
-                if (*(ch + 1))
-                {
-                    kern = (f32)get_kerning(&game_assets->kern_hashmap, *ch, *(ch + 1));
-                    if (game_assets->glyphs[*(ch + 1)])
-                    {
-                        A = (f32)game_assets->glyphs[*(ch + 1)]->A;
-                    }
-                    f32 advance_x = (glyph->B + C + A + kern);
-                    left_x += advance_x;
-                }
-            } 
-            else if (*ch == ' ')
-            {
-                // TODO: horizontal advance info in asset.
-                left_x += (C + 10.0f);
-            } 
-            else 
-            {
-
-            }
-        }
-
-        return result;
-    }
-    else
-    {
-        Assert(op == eString_Op_Get_Dim);
-
-        f32 kern    = 0.0f;
-        f32 C       = 0.0f;
-        f32 A       = 0.0f;
-
-        for (const char *ch = str;
-             *ch;
-             ++ch)
-        {
-            Asset_Glyph *glyph = game_assets->glyphs[*ch];
-            if (glyph)
-            {
-                if (*ch != ' ')
-                {
-                    f32 h = (f32)glyph->bitmap.height;
-                    if (h > result.y)
-                    {
-                        result.y = h;
-                    }
-                }
-
-                if (*(ch + 1))
-                {
-                    kern = (f32)get_kerning(&game_assets->kern_hashmap, *ch, *(ch + 1));
-                    Asset_Glyph *next_glyph = game_assets->glyphs[*(ch + 1)];
-                    if (next_glyph)
-                    {
-                        result.x += (glyph->B + glyph->C + next_glyph->A + kern);
-                    }
-                    else
-                    {
-                        result.x += (glyph->B + glyph->C + kern);
-                    }
                 }
                 else
                 {
-                    result.x += (glyph->B + glyph->C);
+                    Assert(op == eString_Op_Get_Rect2);
+                    if (result.min.x > min.x)
+                    {
+                        result.min.x = min.x;
+                    }
+                    if (result.min.y > min.y)
+                    {
+                        result.min.y = min.y;
+                    }
+
+                    if (result.max.x < max.x)
+                    {
+                        result.max.x = max.x;
+                    }
+                    if (result.max.y < max.y)
+                    {
+                        result.max.y = max.y;
+                    }
                 }
-            } 
-            else if (*ch == ' ')
-            {
-                // TODO: horizontal advance info in asset.
-                result.x += (glyph->C + 10.0f);
-            } 
-            else 
-            {
-
             }
-        }
 
-        return result;
+            if (*(ch + 1))
+            {
+                kern = (f32)get_kerning(&game_assets->kern_hashmap, *ch, *(ch + 1));
+                if (game_assets->glyphs[*(ch + 1)])
+                {
+                    A = (f32)game_assets->glyphs[*(ch + 1)]->A;
+                }
+                f32 advance_x = (glyph->B + C + A + kern);
+                left_x += advance_x;
+            }
+        } 
+        else if (*ch == ' ')
+        {
+            // TODO: horizontal advance info in asset.
+            left_x += (C + 10.0f);
+        } 
+        else 
+        {
+
+        }
     }
+
+    return result;
 }
 
 internal Camera *

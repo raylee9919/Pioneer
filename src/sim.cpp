@@ -235,7 +235,7 @@ subtract(Chunk_Position A, Chunk_Position B, v3 chunk_dim)
 }
 
 internal void
-update_entity_pos(Game_State *game_state, Entity *self, f32 dt, Chunk_Position simMin, Chunk_Position simMax)
+update_entity_pos(Game_State *game_state, Entity *self, f32 dt, Chunk_Position sim_min, Chunk_Position simMax)
 {
     TIMED_FUNCTION();
     Chunk_Position old_chunk_pos = self->chunk_pos;
@@ -258,15 +258,15 @@ update_entity_pos(Game_State *game_state, Entity *self, f32 dt, Chunk_Position s
          count < 4 && t_remain > 0.0f;
          ++count) 
     {
-        for (s32 Z = simMin.z;
+        for (s32 Z = sim_min.z;
              Z <= simMax.z;
              ++Z) 
         {
-            for (s32 Y = simMin.y;
+            for (s32 Y = sim_min.y;
                  Y <= simMax.y;
                  ++Y) 
             {
-                for (s32 X = simMin.x;
+                for (s32 X = sim_min.x;
                      X <= simMax.x;
                      ++X) 
                 {

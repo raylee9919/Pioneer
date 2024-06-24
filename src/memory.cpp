@@ -15,9 +15,10 @@ push_size_(Memory_Arena *arena, size_t size)
 
     return result;
 }
-#define push_size(arena, size)           push_size_(arena, size)
-#define push_struct(arena, type)         (type *)push_size_(arena, sizeof(type))
-#define push_array(arena, type, count)   (type *)push_size_(arena, count * sizeof(type))
+#define push_size(arena, size)              push_size_(arena, size)
+#define push_struct(arena, type)            (type *)push_size_(arena, sizeof(type))
+#define push_array(arena, type, count)      (type *)push_size_(arena, count * sizeof(type))
+#define push_copy(arena, src, size)         copy(push_size(arena, size), src, size)
 
 internal void
 init_arena(Memory_Arena *arena, size_t size, void *base)
@@ -85,8 +86,8 @@ end_work_memory(Work_Memory_Arena *workMemory_Arena)
     workMemory_Arena->is_used = false;
 }
 
-internal void
-memcpy(void *dst, void *src, size_t size)
+internal void *
+copy(void *dst, void *src, size_t size)
 {
     if (size)
     {
@@ -97,5 +98,6 @@ memcpy(void *dst, void *src, size_t size)
             *dst_at++ = *src_at++;
         }
     }
-}
 
+    return dst;
+}

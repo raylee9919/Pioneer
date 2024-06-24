@@ -1,5 +1,4 @@
 #ifndef DEBUG_H
-#define DEBUG_H
 /* ========================================================================
    $File: $
    $Date: $
@@ -10,11 +9,28 @@
 
 struct Debug_Variable;
 
+enum Debug_Variable_To_Text_Flag
+{
+    eDebug_Var_To_Text_Add_Debug_UI         = 0x1,
+    eDebug_Var_To_Text_Add_Name             = 0x2,
+    eDebug_Var_To_Text_Float_Suffix         = 0x4,
+    eDebug_Var_To_Text_Line_Feed_End        = 0x8,
+    eDebug_Var_To_Text_Null_Terminator      = 0x10,
+    eDebug_Var_To_Text_Colon                = 0x20,
+    eDebug_Var_To_Text_Pretty_Bools         = 0x40,
+};
+
 enum Debug_Variable_Type
 {
-    eDebug_Variable_Type_Boolean,
+    eDebug_Variable_Type_b32,
+    eDebug_Variable_Type_s32,
+    eDebug_Variable_Type_u32,
+    eDebug_Variable_Type_f32,
+    eDebug_Variable_Type_v2,
+    eDebug_Variable_Type_v3,
+    eDebug_Variable_Type_v4,
 
-    eDebug_Variable_Type_Group
+    eDebug_Variable_Type_Group,
 };
 
 struct Debug_Variable_Group
@@ -22,6 +38,12 @@ struct Debug_Variable_Group
     b32 expanded;
     Debug_Variable *first_child;
     Debug_Variable *last_child;
+};
+
+struct Debug_Variable_Hierarchy
+{
+    v2 ui_p;
+    Debug_Variable *group;
 };
 
 struct Debug_Variable
@@ -34,6 +56,12 @@ struct Debug_Variable
     union
     {
         b32 bool32;
+        s32 int32;
+        u32 uint32;
+        f32 float32;
+        v2 vector2;
+        v3 vector3;
+        v4 vector4;
         Debug_Variable_Group group;
     };
 };
@@ -92,6 +120,17 @@ struct Debug_Thread
     Debug_Thread *next;
 };
 
+enum Debug_Interaction
+{
+    eDebug_Interaction_None,
+
+    eDebug_Interaction_NOP,
+
+    eDebug_Interaction_Toggle_Value,
+    eDebug_Interaction_Drag_Value,
+    eDebug_Interaction_Tear_Value,
+};
+
 struct Debug_State
 {
     b32 init;
@@ -100,8 +139,6 @@ struct Debug_State
 
     Memory_Arena debug_arena;
 
-    Debug_Variable *root_group;
-
     Render_Group *render_group;
 
     b32 compiling;
@@ -109,7 +146,15 @@ struct Debug_State
 
     v2 menu_p;
     b32 menu_active;
-    u32 hot_menu_idx;
+
+    Debug_Variable *root_group;
+    Debug_Variable_Hierarchy hierarchy;
+
+    Debug_Interaction interaction;
+    v2 last_mouse_p;
+    Debug_Variable *hot;
+    Debug_Variable *next_hot;
+    Debug_Variable *interacting_with;
 
     f32 left_edge;
     f32 at_y;
@@ -137,8 +182,9 @@ struct Debug_State
     Open_Debug_Block *first_free_block;
 };
 
-internal void debug_start(u32 width, u32 height);
+internal void debug_start(u32 width, u32 height, f32 v_advance);
 internal void debug_end(Game_Input *input, Game_Assets *game_assets);
 internal void refresh_collation(Debug_State *debug_state);
 
+#define DEBUG_H
 #endif

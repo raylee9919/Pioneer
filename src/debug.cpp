@@ -30,7 +30,7 @@ get_debug_state(void)
 }
 
 internal void
-debug_start(u32 width, u32 height)
+debug_start(u32 width, u32 height, f32 v_advance)
 {
     TIMED_FUNCTION();
 
@@ -67,6 +67,12 @@ debug_start(u32 width, u32 height)
         debug_state->at_y = 0.5f * height;
         debug_state->width = (f32)width;
         debug_state->height = (f32)height;
+
+        debug_state->at_y = (f32)height - v_advance;
+        debug_state->left_edge = 0.0f;
+
+        debug_state->hierarchy.group = debug_state->root_group;
+        debug_state->hierarchy.ui_p = _v2_(debug_state->left_edge, debug_state->at_y);
     }
 }
 
@@ -119,6 +125,99 @@ accumulate_debug_statistic(Debug_Statistic *stat, f64 value)
     stat->avg += value;
 }
 
+internal size_t
+debug_variable_to_text(char *buffer, char *end, Debug_Variable *var, u32 flags)
+{
+    char *at = buffer;
+
+    if (flags & eDebug_Var_To_Text_Add_Debug_UI)
+    {
+        at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                          "#define DEBUG_UI_");
+    }
+
+    if (flags & eDebug_Var_To_Text_Add_Name)
+    {
+        at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                          "%s%s ", var->name, (flags & eDebug_Var_To_Text_Colon) ? ":" : "");
+    }
+
+    switch (var->type)
+    {
+        case eDebug_Variable_Type_b32:
+        {
+            if (flags & eDebug_Var_To_Text_Pretty_Bools)
+            {
+            at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                              "%s", var->bool32 ? "true" : "false");
+            }
+            else
+            {
+                at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                                  "%d", var->bool32);
+            }
+        } break;
+
+        case eDebug_Variable_Type_s32:
+        {
+            at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                              "%d", var->int32);
+        } break;
+
+        case eDebug_Variable_Type_u32:
+        {
+            at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                              "%u", var->uint32);
+        } break;
+
+        case eDebug_Variable_Type_f32:
+        {
+            at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                              "%f", var->float32);
+            if (flags & eDebug_Var_To_Text_Float_Suffix)
+            {
+                *at++ = 'f';
+            }
+        } break;
+
+        case eDebug_Variable_Type_v2:
+        {
+            at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                              "_v2_(%f, %f)", var->vector2.x, var->vector2.y);
+        } break;
+
+        case eDebug_Variable_Type_v3:
+        {
+            at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                              "_v3_(%f, %f, %f)", var->vector3.x, var->vector3.y, var->vector3.z);
+        } break;
+
+        case eDebug_Variable_Type_v4:
+        {
+            at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                              "_v4_(%f, %f, %f, %f)", var->vector4.r, var->vector4.g, var->vector4.b, var->vector4.a);
+        } break;
+
+        case eDebug_Variable_Type_Group:
+        {
+        } break;
+
+        INVALID_DEFAULT_CASE;
+    }
+
+    if (flags & eDebug_Var_To_Text_Line_Feed_End)
+    {
+        *at++ = '\n';
+    }
+
+    if (flags & eDebug_Var_To_Text_Null_Terminator)
+    {
+        *at++ = 0;
+    }
+
+    return (at - buffer);
+}
+
 internal void
 write_config(Debug_State *debug_state)
 {
@@ -127,17 +226,36 @@ write_config(Debug_State *debug_state)
     char *at = tmp;
     char *end = tmp + sizeof(tmp);
     
+    int depth = 0;
     Debug_Variable *var = debug_state->root_group->group.first_child;
+
     while (var)
     {
-        if (var->type == eDebug_Variable_Type_Boolean)
+        for (int indent = 0;
+             indent < depth;
+             ++indent)
         {
-            at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at), "#define DEBUG_UI_%s %d\n", var->name, var->bool32);
+            *at++ = ' ';
+            *at++ = ' ';
+            *at++ = ' ';
+            *at++ = ' ';
         }
 
         if (var->type == eDebug_Variable_Type_Group)
         {
+            at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                              "// ");
+        }
+        at += debug_variable_to_text(at, end, var, 
+                                     eDebug_Var_To_Text_Add_Debug_UI|
+                                     eDebug_Var_To_Text_Add_Name|
+                                     eDebug_Var_To_Text_Float_Suffix|
+                                     eDebug_Var_To_Text_Line_Feed_End);
+
+        if (var->type == eDebug_Variable_Type_Group)
+        {
             var = var->group.first_child;
+            ++depth;
         }
         else
         {
@@ -151,10 +269,12 @@ write_config(Debug_State *debug_state)
                 else
                 {
                     var = var->parent;
+                    --depth;
                 }
             }
         }
     }
+
     Platform_API *platform = &g_debug_memory->platform; 
     platform->debug_platform_write_file("../src/config.h", (u32)(at - tmp), tmp);
 
@@ -171,36 +291,44 @@ write_config(Debug_State *debug_state)
 internal void
 debug_draw_main_menu(Debug_State *debug_state, Game_Assets *game_assets, v2 menu_p, v2 mouse_p)
 {
-    f32 at_y = (debug_state->height - game_assets->v_advance);
-    f32 at_x = 0.0f;
+    f32 at_x = debug_state->hierarchy.ui_p.x;
+    f32 at_y = debug_state->hierarchy.ui_p.y;
+
+    debug_state->next_hot = 0;
 
     int depth = 0;
-    Debug_Variable *var = debug_state->root_group->group.first_child;
+    Debug_Variable *var = debug_state->hierarchy.group->group.first_child;
 
     while (var)
     {
         v4 item_color = v4{1, 1, 1, 1};
         char text[256];
-        switch (var->type)
+        debug_variable_to_text(text, text + sizeof(text), var, 
+                               eDebug_Var_To_Text_Add_Name|
+                               eDebug_Var_To_Text_Null_Terminator|
+                               eDebug_Var_To_Text_Colon|
+                               eDebug_Var_To_Text_Pretty_Bools);
+
+        v3 text_p = _v3_(at_x + depth * 2.0f * game_assets->v_advance, at_y, 0.0f);
+
+        Rect2 text_rect = string_op(eString_Op_Get_Rect2, debug_state->render_group, text_p, text, game_assets);
+        if (is_in_rect(text_rect, mouse_p))
         {
-            case eDebug_Variable_Type_Boolean:
-            {
-                _snprintf_s(text, sizeof(text), sizeof(text),
-                            "%s: %s", var->name, var->bool32 ? "true" : "false");
-            } break;
-            
-            case eDebug_Variable_Type_Group:
-            {
-                _snprintf_s(text, sizeof(text), sizeof(text),
-                            "%s", var->name);
-            } break;
+            debug_state->next_hot = var;
+        }
+
+        if (debug_state->hot == var)
+        {
+            item_color = _v4_(1, 1, 0, 1);
         }
 
         string_op(eString_Op_Draw, debug_state->render_group,
-                  _v3_(at_x, at_y, 0.0f), text, game_assets, item_color);
+                  text_p, text, game_assets, item_color);
+
         at_y -= (game_assets->v_advance);
 
-        if (var->type == eDebug_Variable_Type_Group)
+        if (var->type == eDebug_Variable_Type_Group &&
+            var->group.expanded)
         {
             var = var->group.first_child;
             ++depth;
@@ -266,6 +394,169 @@ debug_draw_main_menu(Debug_State *debug_state, Game_Assets *game_assets, v2 menu
 }
 
 internal void
+debug_begin_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p)
+{
+    if (debug_state->hot)
+    {
+        switch (debug_state->hot->type)
+        {
+            case eDebug_Variable_Type_b32:
+            {
+                debug_state->interaction = eDebug_Interaction_Toggle_Value;
+            } break;
+
+            case eDebug_Variable_Type_f32:
+            {
+                debug_state->interaction = eDebug_Interaction_Drag_Value;
+            } break;
+
+            case eDebug_Variable_Type_Group:
+            {
+                debug_state->interaction = eDebug_Interaction_Toggle_Value;
+            } break;
+        }
+
+        if (debug_state->interaction)
+        {
+            debug_state->interacting_with = debug_state->hot;
+        }
+    }
+    else
+    {
+        debug_state->interaction = eDebug_Interaction_NOP;
+    }
+}
+
+internal void
+debug_end_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p)
+{
+    if (debug_state->interaction != eDebug_Interaction_NOP)
+    {
+        Debug_Variable *var = debug_state->interacting_with;
+        Assert(var);
+
+        switch (debug_state->interaction)
+        {
+            case eDebug_Interaction_Toggle_Value:
+            {
+                switch (var->type)
+                {
+                    case eDebug_Variable_Type_b32:
+                    {
+                        var->bool32 = !var->bool32;
+                    } break;
+
+                    case eDebug_Variable_Type_Group:
+                    {
+                        var->group.expanded = !var->group.expanded;
+                    } break;
+                }
+            } break;
+
+            case eDebug_Interaction_Drag_Value:
+            {
+            } break;
+
+            case eDebug_Interaction_Tear_Value:
+            {
+            } break;
+        }
+
+        write_config(debug_state);
+    }
+
+    debug_state->interaction = eDebug_Interaction_None;
+    debug_state->interacting_with = 0;
+}
+
+internal void
+debug_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p, Game_Assets *game_assets)
+{
+    v2 d_mouse_p = (mouse_p - debug_state->last_mouse_p);
+    /*
+       if (input->mouse.is_down[eMouse_Right])
+       {
+       if (input->mouse.toggle[eMouse_Right])
+       {
+       debug_state->menu_p = mouse_p;
+       }
+       debug_draw_main_menu(debug_state, game_assets, debug_state->menu_p, mouse_p);
+       }
+    */
+
+    if (debug_state->interaction)
+    {
+        Debug_Variable *var = debug_state->interacting_with;
+
+        switch (debug_state->interaction)
+        {
+            case eDebug_Interaction_Drag_Value:
+            {
+                switch (var->type)
+                {
+                    case eDebug_Variable_Type_f32:
+                    {
+                        var->float32 += 0.1f * d_mouse_p.x;
+                    } break;
+                }
+            } break;
+        }
+
+        // click interaction.
+        if (!input->mouse.is_down[eMouse_Left] &&
+            input->mouse.toggle[eMouse_Left])
+        {
+            debug_end_interact(debug_state, input, mouse_p);
+        }
+    }
+    else
+    {
+        debug_state->hot = debug_state->next_hot;
+
+        // TODO: revise as mouse half transition counts;
+        if (input->mouse.is_down[eMouse_Left])
+        {
+            debug_begin_interact(debug_state, input, mouse_p);
+        }
+        else if (input->mouse.toggle[eMouse_Left])
+        {
+            debug_begin_interact(debug_state, input, mouse_p);
+            debug_end_interact(debug_state, input, mouse_p);
+        }
+    }
+
+
+#if 0
+    if (input->mouse.is_down[eMouse_Left] &&
+        input->mouse.toggle[eMouse_Left])
+    {
+        if (debug_state->hot_variable)
+        {
+            Debug_Variable *var = debug_state->hot_variable;
+            switch (debug_state->hot_variable->type)
+            {
+                case eDebug_Variable_Type_b32:
+                {
+                    var->bool32 = !var->bool32;
+                } break;
+
+                case eDebug_Variable_Type_Group:
+                {
+                    var->group.expanded = !var->group.expanded;
+                } break;
+
+                INVALID_DEFAULT_CASE;
+            }
+
+            write_config(debug_state);
+        }
+    }
+#endif
+
+    debug_state->last_mouse_p = mouse_p;
+}
+
+internal void
 debug_end(Game_Input *input, Game_Assets *game_assets)
 {
     TIMED_FUNCTION();
@@ -275,32 +566,12 @@ debug_end(Game_Input *input, Game_Assets *game_assets)
     {
         Render_Group *render_group = debug_state->render_group;
 
+        debug_state->next_hot = 0;
         Debug_Record *hot_record = 0;
 
         v2 mouse_p = input->mouse.P;
-
-#if 0
-        if (input->mouse.is_down[eMouse_Right])
-        {
-            if (input->mouse.toggle[eMouse_Right])
-            {
-                debug_state->menu_p = mouse_p;
-            }
-            debug_draw_main_menu(debug_state, game_assets, debug_state->menu_p, mouse_p);
-        }
-        else
-        {
-            if (input->mouse.toggle[eMouse_Right])
-            {
-                if (debug_state->hot_menu_idx < array_count(debug_variable_list))
-                {
-                    debug_variable_list[debug_state->hot_menu_idx].value =
-                        !debug_variable_list[debug_state->hot_menu_idx].value;
-                    write_config(debug_state);
-                }
-            }
-        }
-#endif
+        debug_draw_main_menu(debug_state, game_assets, debug_state->menu_p, mouse_p);
+        debug_interact(debug_state, input, mouse_p, game_assets);
 
         if (debug_state->compiling)
         {
@@ -316,7 +587,6 @@ debug_end(Game_Input *input, Game_Assets *game_assets)
                 debug_state->compiling = false;
             }
         }
-
 
 #if 0
         for (u32 counter_idx = 0;
@@ -373,24 +643,17 @@ debug_end(Game_Input *input, Game_Assets *game_assets)
         }
 #endif
 
-#if 0
-        if (debug_state->is_debug_mode)
-        {
-            push_string(render_group, _v3_(debug_state->width * 0.02f, debug_state->height * 0.5f, -1.0f),
-                        "DEBUG MODE", game_assets);
-        }
-#endif
-
         if (debug_state->frame_count)
         {
             char text_buffer[256];
             _snprintf_s(text_buffer, sizeof(text_buffer), 
                         "last frame time: %.02fms",
                         debug_state->frames[debug_state->frame_count - 1].wall_seconds_elapsed * 1000.0f);
-            string_op(eString_Op_Draw, render_group, 
-                      _v3_(debug_state->width * 0.02f, debug_state->height * 0.8f, 0.0f),
-                      text_buffer,
-                      game_assets);
+            Rect2 text_rect = string_op(eString_Op_Get_Rect2, render_group, 
+                                        _v3_(0, 0, 0), text_buffer, game_assets);
+            v2 screen_dim = _v2_(debug_state->width, debug_state->height);
+            v2 text_dim = _v2_(text_rect.max.x - text_rect.min.x, text_rect.max.y - text_rect.min.y);
+            string_op(eString_Op_Draw, render_group, _v3_(screen_dim - text_dim, 0.0f), text_buffer, game_assets);
         }
 
         push_rect(debug_state->render_group, rect2_min_max(_v2_(10, 10), _v2_(40, 40)), 0.0f, _v4_(DEBUG_UI_COLOR, 0, 1, 1));

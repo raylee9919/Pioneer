@@ -34,7 +34,7 @@ load_model(Asset_Model **asset_model, const char *file_name,
 
         tmp_size = sizeof(Asset_Vertex) * mesh->vertex_count;
         mesh->vertices = (Asset_Vertex *)push_size(arena, tmp_size);
-        memcpy(mesh->vertices, at, tmp_size);
+        copy(mesh->vertices, at, tmp_size);
         at += tmp_size;
 
         mesh->index_count = *(u32 *)at;
@@ -42,7 +42,7 @@ load_model(Asset_Model **asset_model, const char *file_name,
 
         tmp_size = sizeof(u32) * mesh->index_count;
         mesh->indices = (u32 *)push_size(arena, tmp_size);
-        memcpy(mesh->indices, at, tmp_size);
+        copy(mesh->indices, at, tmp_size);
         at += tmp_size;
 
         mesh->material_idx = *(u32 *)at;
@@ -57,7 +57,7 @@ load_model(Asset_Model **asset_model, const char *file_name,
 
     tmp_size = sizeof(Asset_Material) * model->material_count;
     model->materials = (Asset_Material *)push_size(arena, tmp_size);
-    memcpy(model->materials, at, tmp_size);
+    copy(model->materials, at, tmp_size);
     at += tmp_size;
 
 
@@ -75,7 +75,7 @@ load_model(Asset_Model **asset_model, const char *file_name,
 
         tmp_size = sizeof(Asset_Bone) * model->bone_count;
         model->bones = (Asset_Bone *)push_size(arena, tmp_size);
-        memcpy(model->bones, at, tmp_size);
+        copy(model->bones, at, tmp_size);
         at += tmp_size;
     }
 
@@ -126,17 +126,17 @@ load_model(Asset_Model **asset_model, const char *file_name,
 
                 tmp_size = sizeof(dt_v3_Pair) * anim_bone->translation_count;
                 anim_bone->translations = (dt_v3_Pair *)push_size(arena, tmp_size);
-                memcpy(anim_bone->translations, at, tmp_size);
+                copy(anim_bone->translations, at, tmp_size);
                 at += tmp_size;
 
                 tmp_size = sizeof(dt_qt_Pair) * anim_bone->rotation_count;
                 anim_bone->rotations = (dt_qt_Pair *)push_size(arena, tmp_size);
-                memcpy(anim_bone->rotations, at, tmp_size);
+                copy(anim_bone->rotations, at, tmp_size);
                 at += tmp_size;
 
                 tmp_size = sizeof(dt_v3_Pair) * anim_bone->scaling_count;
                 anim_bone->scalings = (dt_v3_Pair *)push_size(arena, tmp_size);
-                memcpy(anim_bone->scalings, at, tmp_size);
+                copy(anim_bone->scalings, at, tmp_size);
                 at += tmp_size;
             }
         }
@@ -167,7 +167,7 @@ load_bone_hierarchy(Memory_Arena *arena, Game_Assets *game_assets)
         {
             size_t tmp_size = sizeof(s32) * bone->child_count;
             bone->child_ids = (s32 *)push_size(arena, tmp_size);
-            memcpy(bone->child_ids, at, tmp_size);
+            copy(bone->child_ids, at, tmp_size);
             at += tmp_size;
         }
     }

@@ -5,6 +5,10 @@
    $Creator: Sung Woo Lee $
    $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
    ======================================================================== */
+/*
+ * TODO:
+ * mouse half transition counts
+ */
 #include <windows.h>
 #include <Xinput.h>
 #include <gl/GL.h>

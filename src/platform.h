@@ -345,6 +345,21 @@ extern "C"
     #define END_BLOCK(name)
 #endif
 
+//
+// Common Utility Functions
+//
+internal u32
+string_length(char *string)
+{
+    u32 result = 0;
+    while (*string++)
+    {
+        result++;
+    }
+    return result;
+}
+
+
 #ifdef __cplusplus
 }
 #endif

@@ -280,10 +280,11 @@ GAME_UPDATE(game_update)
         game_state->init = true;
     }
 
-
     // @dt
     f32 dt = game_input->dt_per_frame;
     game_state->time += dt;
+
+    game_state->player->u = DEBUG_UI_XBOT_ACCEL_CONSTANT;
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -355,7 +356,7 @@ GAME_UPDATE(game_update)
 
     Temporary_Memory render_memory = begin_temporary_memory(&transient_state->transient_arena);
 
-    debug_start(game_screen_buffer->width, game_screen_buffer->height);
+    debug_start(game_screen_buffer->width, game_screen_buffer->height, (f32)game_assets->v_advance);
 
 
     Render_Group *render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
@@ -371,9 +372,9 @@ GAME_UPDATE(game_update)
     player->accel = _v3_(0, 0, 0);
 
     Debug_State *debug_state = (Debug_State *)g_debug_memory->debug_storage;
-
-#if DEBUG_UI_USE_DEBUG_CAMERA
     Assert(debug_state);
+
+#if !DEBUG_UI_USE_DEBUG_CAMERA
     if (game_input->W.is_set)
     {
         m4x4 rotation = to_m4x4(player->world_rotation);
@@ -388,7 +389,7 @@ GAME_UPDATE(game_update)
         player->world_rotation = _qt_(cos(dt), 0, sin(dt), 0) * player->world_rotation;
     }
 #else
-    Camera *cam = game_state->debug_cam;
+    Camera *cam = game_state->debug_camera;
     f32 C = dt * 3.0f;
     if (game_input->W.is_set)
     {

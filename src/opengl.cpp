@@ -410,6 +410,8 @@ gl_clear_color(f32 r, f32 g, f32 b, f32 a, b32 is_framebuffer_srgb)
 internal void
 gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 {
+    TIMED_FUNCTION();
+
     glViewport(0, 0, win_w, win_h);
 
     glEnable(GL_BLEND);
