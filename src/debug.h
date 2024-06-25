@@ -30,8 +30,17 @@ enum Debug_Variable_Type
     eDebug_Variable_Type_v3,
     eDebug_Variable_Type_v4,
 
+    eDebug_Variable_Type_Counter_Thread_List,
+
     eDebug_Variable_Type_Group,
 };
+inline b32
+debug_should_be_written(Debug_Variable_Type type)
+{
+    b32 result = (type != eDebug_Variable_Type_Counter_Thread_List);
+
+    return result;
+}
 
 struct Debug_Variable_Group
 {
@@ -44,6 +53,11 @@ struct Debug_Variable_Hierarchy
 {
     v2 ui_p;
     Debug_Variable *group;
+};
+
+struct Debug_Profile_Settings
+{
+    v2 dimension;
 };
 
 struct Debug_Variable
@@ -63,6 +77,7 @@ struct Debug_Variable
         v3 vector3;
         v4 vector4;
         Debug_Variable_Group group;
+        Debug_Profile_Settings profile;
     };
 };
 
@@ -129,6 +144,8 @@ enum Debug_Interaction
     eDebug_Interaction_Toggle_Value,
     eDebug_Interaction_Drag_Value,
     eDebug_Interaction_Tear_Value,
+
+    eDebug_Interaction_Resize_Profile,
 };
 
 struct Debug_State
@@ -138,8 +155,10 @@ struct Debug_State
     Platform_Work_Queue *high_priority_queue;
 
     Memory_Arena debug_arena;
-
+    
     Render_Group *render_group;
+
+    Game_Assets *game_assets;
 
     b32 compiling;
     Debug_Executing_Process compiler;
@@ -152,11 +171,14 @@ struct Debug_State
 
     Debug_Interaction interaction;
     v2 last_mouse_p;
+    Debug_Interaction hot_interaction;
     Debug_Variable *hot;
-    Debug_Variable *next_hot;
     Debug_Variable *interacting_with;
+    Debug_Interaction next_hot_interaction;
+    Debug_Variable *next_hot;
 
     f32 left_edge;
+    f32 right_edge;
     f32 at_y;
 
     f32 width;
@@ -173,9 +195,6 @@ struct Debug_State
     u32 frame_count;
     f32 frame_bar_scale;
     b32 paused;
-
-    b32 profile_on;
-    Rect2 profile_rect;
 
     Debug_Frame *frames;
     Debug_Thread *first_thread;

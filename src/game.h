@@ -6,8 +6,8 @@
    $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
    ======================================================================== */
 
-#define Max(a, b) ( (a > b) ? a : b )
-#define Min(a, b) ( (a < b) ? a : b )
+#define maximum(a, b) ( (a > b) ? a : b )
+#define minimum(a, b) ( (a < b) ? a : b )
 #define array_count(array) ( sizeof(array) / sizeof(array[0]) )
 #define zero_struct(Struct) clear_to_zero(sizeof(Struct), Struct)
 

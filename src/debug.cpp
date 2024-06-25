@@ -14,7 +14,7 @@
 internal void restart_collation(Debug_State *debug_state, u32 invalid_event_array_idx);
 
 inline Debug_State *
-get_debug_state(Game_Memory *memory)
+debug_get_state(Game_Memory *memory)
 {
     Debug_State *debug_state = (Debug_State *)memory->debug_storage;
     Assert(debug_state->init);
@@ -23,9 +23,9 @@ get_debug_state(Game_Memory *memory)
 }
 
 inline Debug_State *
-get_debug_state(void)
+debug_get_state(void)
 {
-    Debug_State *result = get_debug_state(g_debug_memory);
+    Debug_State *result = debug_get_state(g_debug_memory);
     return result;
 }
 
@@ -44,11 +44,36 @@ debug_start(u32 width, u32 height, f32 v_advance)
             init_arena(&debug_state->debug_arena,
                        g_debug_memory->debug_storage_size - sizeof(Debug_State),
                        debug_state + 1);
-            debug_create_variables(debug_state);
+
+            Debug_Variable_Definition_Context context = {};
+            context.state = debug_state;
+            context.arena = &debug_state->debug_arena;
+            context.group = debug_begin_variable_group(&context, "Root");
+
+            debug_begin_variable_group(&context, "Debugging");
+
+            debug_create_variables(&context);
+            debug_begin_variable_group(&context, "Profile");
+            debug_begin_variable_group(&context, "By Thread");
+            Debug_Variable *thread_list = 
+                debug_add_variable(&context, eDebug_Variable_Type_Counter_Thread_List, "");
+            thread_list->profile.dimension = _v2_(1024.0f, 100.0f);
+            debug_end_variable_group(&context);
+            debug_begin_variable_group(&context, "By Function");
+            Debug_Variable *function_list = 
+                debug_add_variable(&context, eDebug_Variable_Type_Counter_Thread_List, "");
+            function_list->profile.dimension = _v2_(1024.0f, 200.0f);
+            debug_end_variable_group(&context);
+            debug_end_variable_group(&context);
+
+            debug_end_variable_group(&context);
+
+            debug_state->root_group = context.group;
 
             Camera *debug_overlay_camera = push_camera(&debug_state->debug_arena, eCamera_Type_Orthographic, (f32)width, (f32)height);
             debug_state->render_group = alloc_render_group(&debug_state->debug_arena, MB(16),
                                                            debug_overlay_camera);
+            debug_state->game_assets = &((Transient_State *)g_debug_memory->transient_memory)->game_assets;
 
             debug_state->paused = false;
             debug_state->scope_to_record = 0;
@@ -64,15 +89,36 @@ debug_start(u32 width, u32 height, f32 v_advance)
         begin_render(debug_state->render_group);
 
         debug_state->left_edge = 0.0f;
+        debug_state->left_edge = (f32)width;
         debug_state->at_y = 0.5f * height;
         debug_state->width = (f32)width;
         debug_state->height = (f32)height;
 
-        debug_state->at_y = (f32)height - v_advance;
+        debug_state->at_y = (f32)height;
         debug_state->left_edge = 0.0f;
 
         debug_state->hierarchy.group = debug_state->root_group;
         debug_state->hierarchy.ui_p = _v2_(debug_state->left_edge, debug_state->at_y);
+    }
+}
+
+internal void
+debug_text_line(char *string)
+{
+    Debug_State *debug_state = debug_get_state();
+    if (debug_state)
+    {
+        Render_Group *render_group = debug_state->render_group;
+        Game_Assets *game_assets = debug_state->game_assets;
+        Assert(game_assets);
+        f32 line_advance = (f32)game_assets->v_advance;
+
+        string_op(eString_Op_Draw, render_group,
+                  _v3_(debug_state->left_edge,
+                       debug_state->at_y - line_advance,
+                       0.0f),
+                  string, game_assets, _v4_(1, 1, 1, 1));
+        debug_state->at_y -= game_assets->v_advance;
     }
 }
 
@@ -231,26 +277,29 @@ write_config(Debug_State *debug_state)
 
     while (var)
     {
-        for (int indent = 0;
-             indent < depth;
-             ++indent)
+        if (debug_should_be_written(var->type))
         {
-            *at++ = ' ';
-            *at++ = ' ';
-            *at++ = ' ';
-            *at++ = ' ';
-        }
+            for (int indent = 0;
+                 indent < depth;
+                 ++indent)
+            {
+                *at++ = ' ';
+                *at++ = ' ';
+                *at++ = ' ';
+                *at++ = ' ';
+            }
 
-        if (var->type == eDebug_Variable_Type_Group)
-        {
-            at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                              "// ");
+            if (var->type == eDebug_Variable_Type_Group)
+            {
+                at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                                  "// ");
+            }
+            at += debug_variable_to_text(at, end, var, 
+                                         eDebug_Var_To_Text_Add_Debug_UI|
+                                         eDebug_Var_To_Text_Add_Name|
+                                         eDebug_Var_To_Text_Float_Suffix|
+                                         eDebug_Var_To_Text_Line_Feed_End);
         }
-        at += debug_variable_to_text(at, end, var, 
-                                     eDebug_Var_To_Text_Add_Debug_UI|
-                                     eDebug_Var_To_Text_Add_Name|
-                                     eDebug_Var_To_Text_Float_Suffix|
-                                     eDebug_Var_To_Text_Line_Feed_End);
 
         if (var->type == eDebug_Variable_Type_Group)
         {
@@ -273,6 +322,7 @@ write_config(Debug_State *debug_state)
                 }
             }
         }
+
     }
 
     Platform_API *platform = &g_debug_memory->platform; 
@@ -289,6 +339,95 @@ write_config(Debug_State *debug_state)
 }
 
 internal void
+draw_profile_in(Debug_State *debug_state, Rect2 profile_rect, v2 mouse_p)
+{
+    Game_Assets *game_assets = debug_state->game_assets;
+
+    push_rect(debug_state->render_group, profile_rect, 0.0f, _v4_(0, 0, 0, 0.25f));
+
+    f32 bar_spacing = 4.0f;
+    f32 lane_height = 0.0f;
+    u32 lane_count = debug_state->frame_bar_lane_count;
+
+    u32 max_frame = debug_state->frame_count;
+    if (max_frame > 10)
+    {
+        max_frame = 10;
+    }
+
+    if (lane_count > 0 && max_frame > 0)
+    {
+        lane_height = ((get_height(profile_rect) / (f32)max_frame) - bar_spacing) / (f32)lane_count;
+    }
+
+    f32 bar_height = lane_height * lane_count;
+    f32 bars_plus_spacing = bar_height + bar_spacing;
+    f32 chart_left = profile_rect.min.x;
+    f32 chart_height = bars_plus_spacing * (f32)max_frame;
+    f32 chart_width = get_width(profile_rect);
+    f32 chart_top = profile_rect.max.y;
+    f32 scale = chart_width * debug_state->frame_bar_scale;
+
+    v3 colors[] =
+    {
+        _v3_(1, 0, 0),
+        _v3_(0, 1, 0),
+        _v3_(0, 0, 1),
+        _v3_(1, 1, 0),
+        _v3_(0, 1, 1),
+        _v3_(1, 0, 1),
+        _v3_(1, 0.5f, 0),
+        _v3_(1, 0, 0.5f),
+        _v3_(0.5f, 1, 0),
+        _v3_(0, 1, 0.5f),
+        _v3_(0.5f, 0, 1),
+        _v3_(0, 0.5f, 1),
+    };
+
+
+    for (u32 frame_idx = 0;
+         frame_idx < max_frame;
+         ++frame_idx)
+    {
+        Debug_Frame *frame = debug_state->frames + debug_state->frame_count - (frame_idx + 1);
+        f32 stack_x = chart_left;
+        f32 stack_y = chart_top - bars_plus_spacing * (f32)frame_idx;
+
+        for (u32 region_idx = 0;
+             region_idx < frame->region_count;
+             ++region_idx)
+        {
+            Debug_Frame_Region *region = frame->regions + region_idx;
+
+            // v3 color = colors[region_idx % array_count(colors)];
+            v3 color = colors[region->color_idx % array_count(colors)];
+            f32 this_min_x = stack_x + scale * region->min_t;
+            f32 this_max_x = stack_x + scale * region->max_t;
+
+            Rect2 region_rect = rect2_min_max(_v2_(this_min_x, stack_y - lane_height * (region->lane_idx + 1)),
+                                              _v2_(this_max_x, stack_y - lane_height * region->lane_idx));
+
+            push_rect(debug_state->render_group, region_rect, 0.0f, _v4_(color, 1.0f));
+
+            if (is_in_rect(region_rect, mouse_p))
+            {
+                Debug_Record *record = region->record;
+                char text_buffer[256];
+                _snprintf_s(text_buffer, sizeof(text_buffer), 
+                            "%s: %10ucy [%s(%d)]",
+                            record->block_name,
+                            (u32)region->cycle_count,
+                            record->file_name,
+                            record->line_number);
+                string_op(eString_Op_Draw, debug_state->render_group, _v3_(mouse_p, -1.0f), text_buffer, game_assets);
+
+                // hot_record = record;
+            }
+        }
+    }
+}
+
+internal void
 debug_draw_main_menu(Debug_State *debug_state, Game_Assets *game_assets, v2 menu_p, v2 mouse_p)
 {
     f32 at_x = debug_state->hierarchy.ui_p.x;
@@ -296,36 +435,74 @@ debug_draw_main_menu(Debug_State *debug_state, Game_Assets *game_assets, v2 menu
 
     debug_state->next_hot = 0;
 
+    f32 spacing_y = 4.0f;
     int depth = 0;
     Debug_Variable *var = debug_state->hierarchy.group->group.first_child;
+    f32 line_advance = (f32)game_assets->v_advance;
 
     while (var)
     {
-        v4 item_color = v4{1, 1, 1, 1};
-        char text[256];
-        debug_variable_to_text(text, text + sizeof(text), var, 
-                               eDebug_Var_To_Text_Add_Name|
-                               eDebug_Var_To_Text_Null_Terminator|
-                               eDebug_Var_To_Text_Colon|
-                               eDebug_Var_To_Text_Pretty_Bools);
+        b32 is_hot = (debug_state->hot == var);
+        v4 item_color = (is_hot && debug_state->hot_interaction == 0) ? _v4_(1, 1, 0, 1) : _v4_(1, 1, 1, 1);
 
-        v3 text_p = _v3_(at_x + depth * 2.0f * game_assets->v_advance, at_y, 0.0f);
-
-        Rect2 text_rect = string_op(eString_Op_Get_Rect2, debug_state->render_group, text_p, text, game_assets);
-        if (is_in_rect(text_rect, mouse_p))
+        Rect2 bounds = {};
+        switch (var->type)
         {
-            debug_state->next_hot = var;
+            case eDebug_Variable_Type_Counter_Thread_List:
+            {
+                v2 min_corner = _v2_(at_x + depth * 2.0f * line_advance, at_y - var->profile.dimension.y);
+                v2 max_corner = _v2_(min_corner.x + var->profile.dimension.x, at_y);
+                v2 size_p = _v2_(max_corner.x, min_corner.y);
+                bounds = rect2_min_max(min_corner, max_corner);
+                draw_profile_in(debug_state, bounds, mouse_p);
+
+                Rect2 size_box = rect2_cen_half_dim(size_p, _v2_(4.0f, 4.0f));
+                push_rect(debug_state->render_group, size_box, 0.0f,
+                          (is_hot && debug_state->hot_interaction == eDebug_Interaction_Resize_Profile) ?
+                          _v4_(1, 1, 0, 1) : _v4_(1, 1, 1, 1));
+
+                if (is_in_rect(size_box, mouse_p))
+                {
+                    debug_state->next_hot_interaction = eDebug_Interaction_Resize_Profile;
+                    debug_state->next_hot = var;
+                }
+                else if (is_in_rect(bounds, mouse_p))
+                {
+                    debug_state->next_hot_interaction = eDebug_Interaction_None;
+                    debug_state->next_hot = var;
+                }
+            } break;
+
+            default:
+            {
+                char text[256];
+                debug_variable_to_text(text, text + sizeof(text), var, 
+                                       eDebug_Var_To_Text_Add_Name|
+                                       eDebug_Var_To_Text_Null_Terminator|
+                                       eDebug_Var_To_Text_Colon|
+                                       eDebug_Var_To_Text_Pretty_Bools);
+
+                f32 left_p_x = at_x + depth * 2.0f * line_advance;
+                f32 top_p_y = at_y;
+                bounds = string_op(eString_Op_Get_Rect2, debug_state->render_group, _v3_(0, 0, 0), text, game_assets);
+                bounds = offset(bounds, _v2_(left_p_x, top_p_y - get_dim(bounds).y));
+
+                string_op(eString_Op_Draw,
+                          debug_state->render_group,
+                          _v3_(_v2_(left_p_x, top_p_y - get_dim(bounds).y), 0.0f),
+                          text,
+                          game_assets,
+                          item_color);
+
+                if (is_in_rect(bounds, mouse_p))
+                {
+                    debug_state->next_hot_interaction = eDebug_Interaction_None;
+                    debug_state->next_hot = var;
+                }
+            } break;
         }
 
-        if (debug_state->hot == var)
-        {
-            item_color = _v4_(1, 1, 0, 1);
-        }
-
-        string_op(eString_Op_Draw, debug_state->render_group,
-                  text_p, text, game_assets, item_color);
-
-        at_y -= (game_assets->v_advance);
+        at_y = (bounds.min.y - spacing_y);
 
         if (var->type == eDebug_Variable_Type_Group &&
             var->group.expanded)
@@ -350,6 +527,9 @@ debug_draw_main_menu(Debug_State *debug_state, Game_Assets *game_assets, v2 menu
             }
         }
     }
+
+    debug_state->at_y = at_y;
+
 #if 0
     u32 new_hot_menu_idx = array_count(debug_variable_list);
     f32 best_distance_sq = F32_MAX;
@@ -398,22 +578,29 @@ debug_begin_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p)
 {
     if (debug_state->hot)
     {
-        switch (debug_state->hot->type)
+        if (debug_state->hot_interaction)
         {
-            case eDebug_Variable_Type_b32:
+            debug_state->interaction = debug_state->hot_interaction;
+        }
+        else
+        {
+            switch (debug_state->hot->type)
             {
-                debug_state->interaction = eDebug_Interaction_Toggle_Value;
-            } break;
+                case eDebug_Variable_Type_b32:
+                {
+                    debug_state->interaction = eDebug_Interaction_Toggle_Value;
+                } break;
 
-            case eDebug_Variable_Type_f32:
-            {
-                debug_state->interaction = eDebug_Interaction_Drag_Value;
-            } break;
+                case eDebug_Variable_Type_f32:
+                {
+                    debug_state->interaction = eDebug_Interaction_Drag_Value;
+                } break;
 
-            case eDebug_Variable_Type_Group:
-            {
-                debug_state->interaction = eDebug_Interaction_Toggle_Value;
-            } break;
+                case eDebug_Variable_Type_Group:
+                {
+                    debug_state->interaction = eDebug_Interaction_Toggle_Value;
+                } break;
+            }
         }
 
         if (debug_state->interaction)
@@ -453,10 +640,6 @@ debug_end_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p)
                 }
             } break;
 
-            case eDebug_Interaction_Drag_Value:
-            {
-            } break;
-
             case eDebug_Interaction_Tear_Value:
             {
             } break;
@@ -473,6 +656,7 @@ internal void
 debug_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p, Game_Assets *game_assets)
 {
     v2 d_mouse_p = (mouse_p - debug_state->last_mouse_p);
+
     /*
        if (input->mouse.is_down[eMouse_Right])
        {
@@ -500,6 +684,13 @@ debug_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p, Game_Ass
                     } break;
                 }
             } break;
+
+            case eDebug_Interaction_Resize_Profile:
+            {
+                var->profile.dimension += _v2_(d_mouse_p.x, -d_mouse_p.y);
+                var->profile.dimension.x = maximum(var->profile.dimension.x, 10.0f);
+                var->profile.dimension.y = maximum(var->profile.dimension.y, 10.0f);
+            } break;
         }
 
         // click interaction.
@@ -512,6 +703,7 @@ debug_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p, Game_Ass
     else
     {
         debug_state->hot = debug_state->next_hot;
+        debug_state->hot_interaction = debug_state->next_hot_interaction;
 
         // TODO: revise as mouse half transition counts;
         if (input->mouse.is_down[eMouse_Left])
@@ -525,34 +717,6 @@ debug_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p, Game_Ass
         }
     }
 
-
-#if 0
-    if (input->mouse.is_down[eMouse_Left] &&
-        input->mouse.toggle[eMouse_Left])
-    {
-        if (debug_state->hot_variable)
-        {
-            Debug_Variable *var = debug_state->hot_variable;
-            switch (debug_state->hot_variable->type)
-            {
-                case eDebug_Variable_Type_b32:
-                {
-                    var->bool32 = !var->bool32;
-                } break;
-
-                case eDebug_Variable_Type_Group:
-                {
-                    var->group.expanded = !var->group.expanded;
-                } break;
-
-                INVALID_DEFAULT_CASE;
-            }
-
-            write_config(debug_state);
-        }
-    }
-#endif
-
     debug_state->last_mouse_p = mouse_p;
 }
 
@@ -561,12 +725,13 @@ debug_end(Game_Input *input, Game_Assets *game_assets)
 {
     TIMED_FUNCTION();
 
-    Debug_State *debug_state = get_debug_state();
+    Debug_State *debug_state = debug_get_state();
     if (debug_state)
     {
         Render_Group *render_group = debug_state->render_group;
 
         debug_state->next_hot = 0;
+        debug_state->next_hot_interaction = eDebug_Interaction_None;
         Debug_Record *hot_record = 0;
 
         v2 mouse_p = input->mouse.P;
@@ -578,9 +743,7 @@ debug_end(Game_Input *input, Game_Assets *game_assets)
             Debug_Process_State state = g_debug_memory->platform.debug_platform_get_process_state(debug_state->compiler);
             if (state.is_running)
             {
-                string_op(eString_Op_Draw, debug_state->render_group,
-                          _v3_(debug_state->width * 0.05f, debug_state->height * 0.9f, 0.0f),
-                          "Compiling...", game_assets);
+                debug_text_line("COMPILING");
             }
             else
             {
@@ -649,101 +812,11 @@ debug_end(Game_Input *input, Game_Assets *game_assets)
             _snprintf_s(text_buffer, sizeof(text_buffer), 
                         "last frame time: %.02fms",
                         debug_state->frames[debug_state->frame_count - 1].wall_seconds_elapsed * 1000.0f);
-            Rect2 text_rect = string_op(eString_Op_Get_Rect2, render_group, 
-                                        _v3_(0, 0, 0), text_buffer, game_assets);
-            v2 screen_dim = _v2_(debug_state->width, debug_state->height);
-            v2 text_dim = _v2_(text_rect.max.x - text_rect.min.x, text_rect.max.y - text_rect.min.y);
-            string_op(eString_Op_Draw, render_group, _v3_(screen_dim - text_dim, 0.0f), text_buffer, game_assets);
+            debug_text_line(text_buffer);
         }
 
         push_rect(debug_state->render_group, rect2_min_max(_v2_(10, 10), _v2_(40, 40)), 0.0f, _v4_(DEBUG_UI_COLOR, 0, 1, 1));
 
-        if (debug_state->profile_on)
-        {
-            debug_state->profile_rect = rect2_min_max(_v2_(50.0f, 50.0f), _v2_(200.0f, 200.0f));
-            push_rect(debug_state->render_group, debug_state->profile_rect, 0.0f, _v4_(0, 0, 0, 0.25f));
-
-            f32 bar_spacing = 4.0f;
-            f32 lane_height = 0.0f;
-            u32 lane_count = debug_state->frame_bar_lane_count;
-
-            u32 max_frame = debug_state->frame_count;
-            if (max_frame > 10)
-            {
-                max_frame = 10;
-            }
-
-            if (lane_count > 0 && max_frame > 0)
-            {
-                lane_height = ((get_height(debug_state->profile_rect) / (f32)max_frame) - bar_spacing) / (f32)lane_count;
-            }
-
-            f32 bar_height = lane_height * lane_count;
-            f32 bars_plus_spacing = bar_height + bar_spacing;
-            f32 chart_left = debug_state->profile_rect.min.x;
-            f32 chart_height = bars_plus_spacing * (f32)max_frame;
-            f32 chart_width = get_width(debug_state->profile_rect);
-            f32 chart_top = debug_state->profile_rect.max.y;
-            f32 scale = chart_width * debug_state->frame_bar_scale;
-
-            v3 colors[] =
-            {
-                _v3_(1, 0, 0),
-                _v3_(0, 1, 0),
-                _v3_(0, 0, 1),
-                _v3_(1, 1, 0),
-                _v3_(0, 1, 1),
-                _v3_(1, 0, 1),
-                _v3_(1, 0.5f, 0),
-                _v3_(1, 0, 0.5f),
-                _v3_(0.5f, 1, 0),
-                _v3_(0, 1, 0.5f),
-                _v3_(0.5f, 0, 1),
-                _v3_(0, 0.5f, 1),
-            };
-
-
-            for (u32 frame_idx = 0;
-                 frame_idx < max_frame;
-                 ++frame_idx)
-            {
-                Debug_Frame *frame = debug_state->frames + debug_state->frame_count - (frame_idx + 1);
-                f32 stack_x = chart_left;
-                f32 stack_y = chart_top - bars_plus_spacing * (f32)frame_idx;
-
-                for (u32 region_idx = 0;
-                     region_idx < frame->region_count;
-                     ++region_idx)
-                {
-                    Debug_Frame_Region *region = frame->regions + region_idx;
-
-                    // v3 color = colors[region_idx % array_count(colors)];
-                    v3 color = colors[region->color_idx % array_count(colors)];
-                    f32 this_min_x = stack_x + scale * region->min_t;
-                    f32 this_max_x = stack_x + scale * region->max_t;
-
-                    Rect2 region_rect = rect2_min_max(_v2_(this_min_x, stack_y - lane_height * (region->lane_idx + 1)),
-                                                      _v2_(this_max_x, stack_y - lane_height * region->lane_idx));
-
-                    push_rect(render_group, region_rect, 0.0f, _v4_(color, 1.0f));
-
-                    if (is_in_rect(region_rect, mouse_p))
-                    {
-                        Debug_Record *record = region->record;
-                        char text_buffer[256];
-                        _snprintf_s(text_buffer, sizeof(text_buffer), 
-                                    "%s: %10ucy [%s(%d)]",
-                                    record->block_name,
-                                    (u32)region->cycle_count,
-                                    record->file_name,
-                                    record->line_number);
-                        string_op(eString_Op_Draw, render_group, _v3_(mouse_p, -1.0f), text_buffer, game_assets);
-
-                        hot_record = record;
-                    }
-                }
-            }
-        }
 
         if (input->mouse.is_down[eMouse_Left] && 
             input->mouse.toggle[eMouse_Left])
@@ -998,7 +1071,7 @@ DEBUG_FRAME_END(debug_frame_end)
     u32 event_count     = (event_array_idx_event_idx & 0xffffffff);
     g_debug_table->event_count[event_array_idx] = event_count;
 
-    Debug_State *debug_state = get_debug_state(game_memory);
+    Debug_State *debug_state = debug_get_state(game_memory);
     if (debug_state)
     {
         if (game_memory->executable_reloaded)

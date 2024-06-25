@@ -827,6 +827,15 @@ rect2_inv_inf()
     return result;
 }
 
+inline Rect2
+offset(Rect2 rect, v2 offset)
+{
+    Rect2 result = {};
+    result.min = rect.min + offset;
+    result.max = rect.max + offset;
+    return result;
+}
+
 struct Rect3 
 {
     v3 cen;

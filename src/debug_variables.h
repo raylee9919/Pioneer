@@ -78,36 +78,29 @@ debug_end_variable_group(Debug_Variable_Definition_Context *context)
 
 
 internal void
-debug_create_variables(Debug_State *state)
+debug_create_variables(Debug_Variable_Definition_Context *context)
 {
-    Debug_Variable_Definition_Context context = {};
-    context.state = state;
-    context.arena = &state->debug_arena;
-    context.group = debug_begin_variable_group(&context, "Root");
+#define DEBUG_VARIABLE_LISTING(name) debug_add_variable(context, #name, DEBUG_UI_##name)
 
-#define DEBUG_VARIABLE_LISTING(name) debug_add_variable(&context, #name, DEBUG_UI_##name)
-
-    debug_begin_variable_group(&context, "Renderer");
+    debug_begin_variable_group(context, "Renderer");
     {
         DEBUG_VARIABLE_LISTING(COLOR);
 
-        debug_begin_variable_group(&context, "Draw");
+        debug_begin_variable_group(context, "Draw");
         {
             DEBUG_VARIABLE_LISTING(DRAW_GRASS);
             DEBUG_VARIABLE_LISTING(DRAW_STAR);
         }
-        debug_end_variable_group(&context);
+        debug_end_variable_group(context);
     }
-    debug_end_variable_group(&context);
+    debug_end_variable_group(context);
 
-    debug_begin_variable_group(&context, "Camera");
+    debug_begin_variable_group(context, "Camera");
     {
         DEBUG_VARIABLE_LISTING(USE_DEBUG_CAMERA);
     }
-    debug_end_variable_group(&context);
+    debug_end_variable_group(context);
     DEBUG_VARIABLE_LISTING(XBOT_ACCEL_CONSTANT);
 
 #undef DEBUG_VARIABLE_LISTING
-
-    state->root_group = context.group;
 }

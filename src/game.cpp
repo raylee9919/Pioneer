@@ -329,7 +329,7 @@ GAME_UPDATE(game_update)
              ++vertex_idx)
         {
             Asset_Vertex *vertex = game_assets->grass_model->meshes[0].vertices + vertex_idx;
-            game_assets->grass_max_vertex_y = Max(game_assets->grass_max_vertex_y, vertex->pos.y);
+            game_assets->grass_max_vertex_y = maximum(game_assets->grass_max_vertex_y, vertex->pos.y);
         }
         load_bone_hierarchy(&transient_state->asset_arena, game_assets);
 
