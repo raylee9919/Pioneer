@@ -393,7 +393,8 @@ win32_get_window_dimension(HWND hwnd)
 internal void
 win32_resize_dib_section(Win32ScreenBuffer *screen_buffer, int width, int height) 
 {
-    if (screen_buffer->memory) {
+    if (screen_buffer->memory) 
+    {
         VirtualFree(g_screen_buffer.memory, 0, MEM_RELEASE);
     }
 
@@ -967,16 +968,21 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     wnd_class.lpszClassName     = "GameWindowClass";
     RegisterClassA(&wnd_class);
 
-    // Win32ResizeDIBSection(&g_screen_buffer, 960, 540);
-    win32_resize_dib_section(&g_screen_buffer, 1920, 1080);
-
     HWND hwnd = CreateWindowExA(0, wnd_class.lpszClassName, "Game",
                                 WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+#if 1
                                 CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+#else
+                                0, 0, 1920, 1080,
+#endif
                                 0, 0, hinst, 0);
     Assert(hwnd);
 
     win32_toggle_fullscreen(hwnd);
+
+    Win32_Window_Dimension dim = win32_get_window_dimension(hwnd);
+    win32_resize_dib_section(&g_screen_buffer, dim.width, dim.height);
+
     win32_init_opengl(GetDC(hwnd));
 
     win32_load_xinput();
@@ -1211,7 +1217,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             }
 
             Win32_Window_Dimension wd = win32_get_window_dimension(hwnd);
-
+            win32_resize_dib_section(&g_screen_buffer, dim.width, dim.height);
 
             Mouse_Input *mouse = &game_input.mouse;
             // TODO: we don't need to calculate aspect ratio every frame!
