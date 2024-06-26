@@ -42,17 +42,27 @@ debug_should_be_written(Debug_Variable_Type type)
     return result;
 }
 
+struct Debug_Variable_Reference
+{
+    Debug_Variable *var;
+    Debug_Variable_Reference *next;
+    Debug_Variable_Reference *parent;
+};
+
 struct Debug_Variable_Group
 {
     b32 expanded;
-    Debug_Variable *first_child;
-    Debug_Variable *last_child;
+    Debug_Variable_Reference *first_child;
+    Debug_Variable_Reference *last_child;
 };
 
 struct Debug_Variable_Hierarchy
 {
     v2 ui_p;
-    Debug_Variable *group;
+    Debug_Variable_Reference *group;
+
+    Debug_Variable_Hierarchy *next;
+    Debug_Variable_Hierarchy *prev;
 };
 
 struct Debug_Profile_Settings
@@ -146,6 +156,7 @@ enum Debug_Interaction
     eDebug_Interaction_Tear_Value,
 
     eDebug_Interaction_Resize_Profile,
+    eDebug_Interaction_Move_Hierarchy,
 };
 
 struct Debug_State
@@ -166,8 +177,8 @@ struct Debug_State
     v2 menu_p;
     b32 menu_active;
 
-    Debug_Variable *root_group;
-    Debug_Variable_Hierarchy hierarchy;
+    Debug_Variable_Reference *root_group;
+    Debug_Variable_Hierarchy hierarchy_sentinel;
 
     Debug_Interaction interaction;
     v2 last_mouse_p;
@@ -176,6 +187,9 @@ struct Debug_State
     Debug_Variable *interacting_with;
     Debug_Interaction next_hot_interaction;
     Debug_Variable *next_hot;
+    Debug_Variable_Hierarchy *next_hot_hierarchy;
+
+    Debug_Variable_Hierarchy *dragging_hierarchy;
 
     f32 left_edge;
     f32 right_edge;
