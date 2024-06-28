@@ -116,6 +116,17 @@ debug_add_variable(Debug_Variable_Definition_Context *context, char *name, f32 v
     return ref;
 }
 
+internal Debug_Variable_Reference *
+debug_add_variable(Debug_Variable_Definition_Context *context, char *name, Bitmap *bitmap)
+{
+    Debug_Variable_Reference *ref = debug_add_variable(context, eDebug_Variable_Type_Bitmap_Display, name);
+    ref->var->bitmap_display.bitmap = bitmap;
+    ref->var->bitmap_display.dim = _v2_(25.0f, 25.0f);
+    ref->var->bitmap_display.alpha = true;
+
+    return ref;
+}
+
 internal void
 debug_end_variable_group(Debug_Variable_Definition_Context *context)
 {
@@ -149,9 +160,8 @@ debug_create_variables(Debug_Variable_Definition_Context *context)
         use_debug_cam_ref = DEBUG_VARIABLE_LISTING(USE_DEBUG_CAMERA);
     }
     debug_end_variable_group(context);
-    DEBUG_VARIABLE_LISTING(XBOT_ACCEL_CONSTANT);
 
-    debug_add_variable_reference(context, use_debug_cam_ref->var);
+    DEBUG_VARIABLE_LISTING(XBOT_ACCEL_CONSTANT);
 
 #undef DEBUG_VARIABLE_LISTING
 }

@@ -9,7 +9,8 @@
 #define maximum(a, b) ( (a > b) ? a : b )
 #define minimum(a, b) ( (a < b) ? a : b )
 #define array_count(array) ( sizeof(array) / sizeof(array[0]) )
-#define zero_struct(Struct) clear_to_zero(sizeof(Struct), Struct)
+#define zero_struct(INSTANCE) zero_size(sizeof(INSTANCE), &(INSTANCE))
+#define zero_array(COUNT, POINTER) zero_size(COUNT * sizeof((POINTER)[0]), POINTER)
 
 #include "intrinsics.h"
 #include "math.h"
@@ -37,7 +38,7 @@ str_equal(char *A, char *B)
 }
 
 internal void
-clear_to_zero(size_t size, void *data) 
+zero_size(size_t size, void *data) 
 {
     u8 *at = (u8 *)data;
     while (size--) 
@@ -221,6 +222,8 @@ struct Game_Assets
 {
     Asset_State         bitmapStates[GAI_Count];
     Bitmap              *bitmaps[GAI_Count];
+
+    Bitmap              *debug_bitmap;
 
     u32                 v_advance;
     Kerning_Hashmap     kern_hashmap;

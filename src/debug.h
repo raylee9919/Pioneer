@@ -31,13 +31,15 @@ enum Debug_Variable_Type
     eDebug_Variable_Type_v4,
 
     eDebug_Variable_Type_Counter_Thread_List,
+    eDebug_Variable_Type_Bitmap_Display,
 
     eDebug_Variable_Type_Group,
 };
 inline b32
 debug_should_be_written(Debug_Variable_Type type)
 {
-    b32 result = (type != eDebug_Variable_Type_Counter_Thread_List);
+    b32 result = (type != eDebug_Variable_Type_Counter_Thread_List &&
+                  type != eDebug_Variable_Type_Bitmap_Display);
 
     return result;
 }
@@ -70,6 +72,13 @@ struct Debug_Profile_Settings
     v2 dimension;
 };
 
+struct Debug_Bitmap_Display
+{
+    Bitmap *bitmap;
+    v2 dim;
+    b32 alpha;
+};
+
 struct Debug_Variable
 {
     Debug_Variable_Type type;
@@ -88,6 +97,7 @@ struct Debug_Variable
         v4 vector4;
         Debug_Variable_Group group;
         Debug_Profile_Settings profile;
+        Debug_Bitmap_Display bitmap_display;
     };
 };
 
@@ -145,18 +155,32 @@ struct Debug_Thread
     Debug_Thread *next;
 };
 
-enum Debug_Interaction
+enum Debug_Interaction_Type
 {
     eDebug_Interaction_None,
 
     eDebug_Interaction_NOP,
 
+    eDebug_Interaction_Auto_Modify_Variable,
+
     eDebug_Interaction_Toggle_Value,
     eDebug_Interaction_Drag_Value,
     eDebug_Interaction_Tear_Value,
 
-    eDebug_Interaction_Resize_Profile,
-    eDebug_Interaction_Move_Hierarchy,
+    eDebug_Interaction_Resize,
+    eDebug_Interaction_Move,
+};
+
+struct Debug_Interaction
+{
+    Debug_Interaction_Type type;
+    union
+    {
+        void *generic;
+        Debug_Variable *var;
+        Debug_Variable_Hierarchy *hierarchy;
+        v2 *p;
+    };
 };
 
 struct Debug_State
@@ -180,16 +204,10 @@ struct Debug_State
     Debug_Variable_Reference *root_group;
     Debug_Variable_Hierarchy hierarchy_sentinel;
 
-    Debug_Interaction interaction;
     v2 last_mouse_p;
+    Debug_Interaction interaction;
     Debug_Interaction hot_interaction;
-    Debug_Variable *hot;
-    Debug_Variable *interacting_with;
     Debug_Interaction next_hot_interaction;
-    Debug_Variable *next_hot;
-    Debug_Variable_Hierarchy *next_hot_hierarchy;
-
-    Debug_Variable_Hierarchy *dragging_hierarchy;
 
     f32 left_edge;
     f32 right_edge;

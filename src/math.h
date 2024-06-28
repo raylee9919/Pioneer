@@ -836,6 +836,15 @@ offset(Rect2 rect, v2 offset)
     return result;
 }
 
+inline Rect2
+add_radius_to(Rect2 rect, v2 radius)
+{
+    Rect2 result = rect;
+    rect.min -= radius;
+    rect.max += radius;
+    return result;
+}
+
 struct Rect3 
 {
     v3 cen;

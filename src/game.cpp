@@ -348,6 +348,10 @@ GAME_UPDATE(game_update)
         game_assets->turbulence_map = load_bmp(&transient_state->asset_arena, game_memory->platform.debug_platform_read_file, "turbulence.bmp");
 #endif
 
+#if __DEBUG
+        game_assets->debug_bitmap = load_bmp(&transient_state->asset_arena, game_memory->platform.debug_platform_read_file, "doggo.bmp");
+#endif
+
 
         transient_state->init = true;  
     }
