@@ -47,6 +47,16 @@ zero_size(size_t size, void *data)
     }
 }
 
+#define DLIST_INSERT(sentinel, element) \
+    (element)->next = (sentinel)->next; \
+    (element)->prev = (sentinel); \
+    (element)->next->prev = (element); \
+    (element)->prev->next = (element);
+
+#define DLIST_INIT(sentinel) \
+    (sentinel)->next = (sentinel); \
+    (sentinel)->prev = (sentinel);
+
 struct Memory_Arena 
 {
     size_t  size;

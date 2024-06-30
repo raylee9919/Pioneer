@@ -709,7 +709,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 internal void
 gl_init()
 {
-#if __DEBUG
+#if __INTERNAL
     if (glDebugMessageCallbackARB) 
     {
         glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);

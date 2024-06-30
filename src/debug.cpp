@@ -9,9 +9,21 @@
 // TODO: stop using stdio
 #include <stdio.h>
 
+#include "debug.h"
 #include "debug_variables.h"
 
 internal void restart_collation(Debug_State *debug_state, u32 invalid_event_array_idx);
+
+inline Debug_ID
+debug_id_from_link(Debug_Tree *tree, Debug_Variable_Link *link)
+{
+    Debug_ID result = {};
+
+    result.value[0] = tree;
+    result.value[1] = link;
+
+    return result;
+}
 
 inline Debug_State *
 debug_get_state(Game_Memory *memory)
@@ -29,98 +41,17 @@ debug_get_state(void)
     return result;
 }
 
-internal Debug_Variable_Hierarchy *
-add_hierarchy(Debug_State *debug_state, Debug_Variable_Reference *group, v2 at_p)
+internal Debug_Tree *
+add_tree(Debug_State *debug_state, Debug_Variable *group, v2 at_p)
 {
-    Debug_Variable_Hierarchy *hierarchy = push_struct(&debug_state->debug_arena, Debug_Variable_Hierarchy);
-    hierarchy->ui_p = at_p;
-    hierarchy->group = group;
-    hierarchy->next = debug_state->hierarchy_sentinel.next;
-    hierarchy->prev = &debug_state->hierarchy_sentinel;
+    Debug_Tree *tree = push_struct(&debug_state->debug_arena, Debug_Tree);
 
-    hierarchy->next->prev = hierarchy;
-    hierarchy->prev->next = hierarchy;
+    tree->ui_p = at_p;
+    tree->group = group;
 
-    return hierarchy;
-}
+    DLIST_INSERT(&debug_state->tree_sentinel, tree);
 
-internal void
-debug_start(u32 width, u32 height, f32 v_advance)
-{
-    TIMED_FUNCTION();
-
-    Debug_State *debug_state = (Debug_State *)g_debug_memory->debug_storage;
-
-    if (debug_state)
-    {
-        if (!debug_state->init)
-        {
-            debug_state->high_priority_queue = g_debug_memory->high_priority_queue;
-            debug_state->hierarchy_sentinel.next = &debug_state->hierarchy_sentinel;
-            debug_state->hierarchy_sentinel.prev = &debug_state->hierarchy_sentinel;
-            debug_state->hierarchy_sentinel.group = 0;
-
-            init_arena(&debug_state->debug_arena,
-                       g_debug_memory->debug_storage_size - sizeof(Debug_State),
-                       debug_state + 1);
-
-            debug_state->game_assets = &((Transient_State *)g_debug_memory->transient_memory)->game_assets;
-
-            Debug_Variable_Definition_Context context = {};
-            context.state = debug_state;
-            context.arena = &debug_state->debug_arena;
-            context.group = debug_begin_variable_group(&context, "Root");
-
-            debug_begin_variable_group(&context, "Debugging");
-
-            debug_create_variables(&context);
-            debug_begin_variable_group(&context, "Profile");
-            debug_begin_variable_group(&context, "By Thread");
-            Debug_Variable_Reference *thread_list = 
-                debug_add_variable(&context, eDebug_Variable_Type_Counter_Thread_List, "");
-            thread_list->var->profile.dimension = _v2_(1024.0f, 100.0f);
-            debug_end_variable_group(&context);
-            debug_begin_variable_group(&context, "By Function");
-            Debug_Variable_Reference *function_list = 
-                debug_add_variable(&context, eDebug_Variable_Type_Counter_Thread_List, "");
-            function_list->var->profile.dimension = _v2_(1024.0f, 200.0f);
-            debug_end_variable_group(&context);
-            debug_end_variable_group(&context);
-
-            debug_add_variable(&context, "Test Bitmap", debug_state->game_assets->debug_bitmap);
-
-            debug_end_variable_group(&context);
-
-            debug_state->root_group = context.group;
-
-            Camera *debug_overlay_camera = push_camera(&debug_state->debug_arena, eCamera_Type_Orthographic, (f32)width, (f32)height);
-            debug_state->render_group = alloc_render_group(&debug_state->debug_arena, MB(16),
-                                                           debug_overlay_camera);
-
-            debug_state->paused = false;
-            debug_state->scope_to_record = 0;
-
-            debug_state->init = true;
-
-            init_sub_arena(&debug_state->collate_arena, &debug_state->debug_arena, MB(32));
-            debug_state->collate_tmp = begin_temporary_memory(&debug_state->collate_arena);
-
-            restart_collation(debug_state, 0);
-
-            add_hierarchy(debug_state, debug_state->root_group, _v2_(0.0f, (f32)height));
-        }
-
-        begin_render(debug_state->render_group);
-
-        debug_state->left_edge = 0.0f;
-        debug_state->left_edge = (f32)width;
-        debug_state->at_y = 0.5f * height;
-        debug_state->width = (f32)width;
-        debug_state->height = (f32)height;
-
-        debug_state->at_y = (f32)height;
-        debug_state->left_edge = 0.0f;
-    }
+    return tree;
 }
 
 internal void
@@ -265,7 +196,9 @@ debug_variable_to_text(char *buffer, char *end, Debug_Variable *var, u32 flags)
                               "_v4_(%f, %f, %f, %f)", var->vector4.r, var->vector4.g, var->vector4.b, var->vector4.a);
         } break;
 
-        case eDebug_Variable_Type_Group:
+        case eDebug_Variable_Type_Counter_Thread_List:
+        case eDebug_Variable_Type_Bitmap_Display:
+        case eDebug_Variable_Type_Var_Group:
         {
         } break;
 
@@ -285,6 +218,12 @@ debug_variable_to_text(char *buffer, char *end, Debug_Variable *var, u32 flags)
     return (at - buffer);
 }
 
+struct Debug_Variable_Iterator
+{
+    Debug_Variable_Link *link;
+    Debug_Variable_Link *sentinel;
+};
+
 internal void
 write_config(Debug_State *debug_state)
 {
@@ -294,57 +233,55 @@ write_config(Debug_State *debug_state)
     char *end = tmp + sizeof(tmp);
     
     int depth = 0;
-    Debug_Variable_Reference *ref = debug_state->root_group->var->group.first_child;
+    Debug_Variable_Iterator stack[DEBUG_MAX_VARIABLE_STACK_DEPTH];
 
-    while (ref)
+    stack[depth].link = debug_state->root_group->var_group.next;
+    stack[depth].sentinel = &debug_state->root_group->var_group;
+    ++depth;
+    while (depth > 0)
     {
-        Debug_Variable *var = ref->var;
-        if (debug_should_be_written(var->type))
+        Debug_Variable_Iterator *iter = stack + (depth - 1);
+        if (iter->link == iter->sentinel)
         {
-            for (int indent = 0;
-                 indent < depth;
-                 ++indent)
-            {
-                *at++ = ' ';
-                *at++ = ' ';
-                *at++ = ' ';
-                *at++ = ' ';
-            }
-
-            if (var->type == eDebug_Variable_Type_Group)
-            {
-                at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                                  "// ");
-            }
-            at += debug_variable_to_text(at, end, var, 
-                                         eDebug_Var_To_Text_Add_Debug_UI|
-                                         eDebug_Var_To_Text_Add_Name|
-                                         eDebug_Var_To_Text_Float_Suffix|
-                                         eDebug_Var_To_Text_Line_Feed_End);
-        }
-
-        if (var->type == eDebug_Variable_Type_Group)
-        {
-            ref = var->group.first_child;
-            ++depth;
+            --depth;
         }
         else
         {
-            while (ref)
+            Debug_Variable *var = iter->link->var;
+            iter->link = iter->link->next;
+
+            if (debug_should_be_written(var->type))
             {
-                if (ref->next)
+                for (int indent = 0;
+                     indent < depth;
+                     ++indent)
                 {
-                    ref = ref->next;
-                    break;
+                    *at++ = ' ';
+                    *at++ = ' ';
+                    *at++ = ' ';
+                    *at++ = ' ';
                 }
-                else
+
+                if (var->type == eDebug_Variable_Type_Var_Group)
                 {
-                    ref = ref->parent;
-                    --depth;
+                    at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                                      "// ");
                 }
+                at += debug_variable_to_text(at, end, var, 
+                                             eDebug_Var_To_Text_Add_Debug_UI|
+                                             eDebug_Var_To_Text_Add_Name|
+                                             eDebug_Var_To_Text_Float_Suffix|
+                                             eDebug_Var_To_Text_Line_Feed_End);
+            }
+
+            if (var->type == eDebug_Variable_Type_Var_Group)
+            {
+                iter = stack + depth;
+                iter->link = var->var_group.next;
+                iter->sentinel = &var->var_group;
+                ++depth;
             }
         }
-
     }
 
     Platform_API *platform = &g_debug_memory->platform; 
@@ -583,109 +520,167 @@ end_element(Layout_Element *element)
     layout->at.y = total_bounds.min.y - spacing_y;
 }
 
+inline b32
+debug_ids_are_equal(Debug_ID a, Debug_ID b)
+{
+    b32 result = (a.value[0] == b.value[0] &&
+                  a.value[1] == b.value[1]);
+    return result;
+}
+
+internal Debug_View *
+get_or_create_debug_view_for(Debug_State *debug_state, Debug_ID id)
+{
+    // TODO: better hash function!
+    u32 hash_idx = (u32)((((u64)id.value[0] >> 2) + ((u64)id.value[1] >> 2)) % array_count(debug_state->view_hash));
+    Debug_View **hash_slot = debug_state->view_hash + hash_idx;
+
+    Debug_View *result = 0;
+    for (Debug_View *search = *hash_slot;
+         search;
+         search = search->next_in_hash)
+    {
+        if (debug_ids_are_equal(search->id, id))
+        {
+            result = search;
+            break;
+        }
+    }
+
+    if (!result)
+    {
+        result = push_struct(&debug_state->debug_arena, Debug_View);
+        result->id = id;
+        result->type = eDebug_View_Type_Unknown;
+        result->next_in_hash = *hash_slot;
+        *hash_slot = result;
+    }
+
+    return result;
+}
+
+inline Debug_Interaction
+var_link_interaction(Debug_Interaction_Type type, Debug_Tree *tree, Debug_Variable_Link *link)
+{
+    Debug_Interaction item_interaction = {};
+    item_interaction.id = debug_id_from_link(tree, link);
+    item_interaction.type = type;
+    item_interaction.var = link->var;
+
+    return item_interaction;
+}
 
 internal void
-debug_draw_main_menu(Debug_State *debug_state, Game_Assets *game_assets, v2 menu_p, v2 mouse_p)
+debug_draw_main_menu(Debug_State *debug_state, v2 menu_p, v2 mouse_p)
 {
-    for (Debug_Variable_Hierarchy *hierarchy = debug_state->hierarchy_sentinel.next;
-         hierarchy != &debug_state->hierarchy_sentinel;
-         hierarchy = hierarchy->next)
+    Game_Assets *game_assets = debug_state->game_assets;
+
+    for (Debug_Tree *tree = debug_state->tree_sentinel.next;
+         tree != &debug_state->tree_sentinel;
+         tree = tree->next)
     {
         Layout layout = {};
         layout.debug_state = debug_state;
         layout.mouse_p = mouse_p;
-        layout.at = hierarchy->ui_p;
+        layout.at = tree->ui_p;
         layout.line_advance = (f32)game_assets->v_advance;
         layout.spacing_y = 4.0f;
 
-        Debug_Variable_Reference *ref = hierarchy->group->var->group.first_child;
+        int depth = 0;
+        Debug_Variable_Iterator stack[DEBUG_MAX_VARIABLE_STACK_DEPTH];
 
-        while (ref)
+        stack[depth].link = tree->group->var_group.next;
+        stack[depth].sentinel = &tree->group->var_group;
+        ++depth;
+        while (depth > 0)
         {
-            Debug_Variable *var = ref->var;
-
-            Debug_Interaction item_interaction = {};
-            item_interaction.type = eDebug_Interaction_Auto_Modify_Variable;
-            item_interaction.var = var;
-
-            b32 is_hot = interaction_is_hot(debug_state, item_interaction);
-            v4 item_color = is_hot ? _v4_(1, 1, 0, 1) : _v4_(1, 1, 1, 1);
-
-            switch (var->type)
+            Debug_Variable_Iterator *iter = stack + (depth - 1);
+            if (iter->link == iter->sentinel)
             {
-                case eDebug_Variable_Type_Counter_Thread_List:
-                {
-                    Layout_Element element = begin_element_rect(&layout, &var->profile.dimension);
-                    make_element_sizeable(&element);
-                    default_interaction(&element, item_interaction);
-                    end_element(&element);
-
-                    draw_profile_in(debug_state, element.bounds, mouse_p);
-                } break;
-
-                case eDebug_Variable_Type_Bitmap_Display:
-                {
-                    Debug_Interaction tear_interaction = {};
-                    tear_interaction.type = eDebug_Interaction_Tear_Value;
-                    tear_interaction.var = var;
-
-                    Layout_Element element = begin_element_rect(&layout, &var->bitmap_display.dim);
-                    make_element_sizeable(&element);
-                    default_interaction(&element, tear_interaction);
-                    end_element(&element);
-
-                    push_rect(debug_state->render_group, element.bounds, 0.0f, _v4_(0, 0, 0, 1.0f));
-                    push_bitmap(debug_state->render_group, _v3_(element.bounds.min, 0.0f), _v3_(element.bounds.max, 0.0f), var->bitmap_display.bitmap);
-                } break;
-
-                default:
-                {
-                    char text[256];
-                    debug_variable_to_text(text, text + sizeof(text), var, 
-                                           eDebug_Var_To_Text_Add_Name|
-                                           eDebug_Var_To_Text_Null_Terminator|
-                                           eDebug_Var_To_Text_Colon|
-                                           eDebug_Var_To_Text_Pretty_Bools);
-
-                    Rect2 text_bounds = string_op(eString_Op_Get_Rect2, debug_state->render_group, _v3_(0, 0, 0), text, game_assets);
-                    v2 dim = _v2_(get_dim(text_bounds).x, layout.line_advance);
-
-                    Layout_Element element = begin_element_rect(&layout, &dim);
-                    default_interaction(&element, item_interaction);
-                    end_element(&element);
-
-                    string_op(eString_Op_Draw,
-                              debug_state->render_group,
-                              _v3_(_v2_(element.bounds.min.x,
-                                        element.bounds.max.y - game_assets->v_advance),
-                                   0.0f),
-                              text,
-                              game_assets,
-                              item_color);
-
-                } break;
-            }
-
-            if (var->type == eDebug_Variable_Type_Group &&
-                var->group.expanded)
-            {
-                ref = var->group.first_child;
-                ++layout.depth;
+                --depth;
             }
             else
             {
-                while (ref)
+                layout.depth = depth;
+
+                Debug_Variable_Link *link = iter->link;
+                Debug_Variable *var = iter->link->var;
+                iter->link = iter->link->next;
+
+                Debug_Interaction item_interaction = 
+                    var_link_interaction(eDebug_Interaction_Auto_Modify_Variable, tree, link);
+
+                b32 is_hot = interaction_is_hot(debug_state, item_interaction);
+                v4 item_color = is_hot ? _v4_(1, 1, 0, 1) : _v4_(1, 1, 1, 1);
+
+                Debug_View *view = get_or_create_debug_view_for(debug_state, debug_id_from_link(tree, link));
+                switch (var->type)
                 {
-                    if (ref->next)
+                    case eDebug_Variable_Type_Counter_Thread_List:
                     {
-                        ref = ref->next;
-                        break;
-                    }
-                    else
+                        Layout_Element element = begin_element_rect(&layout, &view->inline_block.dim);
+                        make_element_sizeable(&element);
+                        default_interaction(&element, item_interaction);
+                        end_element(&element);
+
+                        draw_profile_in(debug_state, element.bounds, mouse_p);
+                    } break;
+
+                    case eDebug_Variable_Type_Bitmap_Display:
                     {
-                        ref = ref->parent;
-                        --layout.depth;
-                    }
+                        Bitmap *bitmap = var->bitmap_display.bitmap;
+                        f32 bitmap_scale = view->inline_block.dim.y;
+                        if (bitmap)
+                        {
+                            view->inline_block.dim.x = (bitmap_scale * bitmap->width) / bitmap->height;
+                        }
+
+                        Debug_Interaction tear_interaction = var_link_interaction(eDebug_Interaction_Tear_Value, tree, link);
+
+                        Layout_Element element = begin_element_rect(&layout, &view->inline_block.dim);
+                        make_element_sizeable(&element);
+                        default_interaction(&element, tear_interaction);
+                        end_element(&element);
+
+                        push_rect(debug_state->render_group, element.bounds, 0.0f, _v4_(0, 0, 0, 1.0f));
+                        push_bitmap(debug_state->render_group, _v3_(element.bounds.min, 0.0f), _v3_(element.bounds.max, 0.0f), bitmap);
+                    } break;
+
+                    default:
+                    {
+                        char text[256];
+                        debug_variable_to_text(text, text + sizeof(text), var, 
+                                               eDebug_Var_To_Text_Add_Name|
+                                               eDebug_Var_To_Text_Null_Terminator|
+                                               eDebug_Var_To_Text_Colon|
+                                               eDebug_Var_To_Text_Pretty_Bools);
+
+                        Rect2 text_bounds = string_op(eString_Op_Get_Rect2, debug_state->render_group, _v3_(0, 0, 0), text, game_assets);
+                        v2 dim = _v2_(get_dim(text_bounds).x, layout.line_advance);
+
+                        Layout_Element element = begin_element_rect(&layout, &dim);
+                        default_interaction(&element, item_interaction);
+                        end_element(&element);
+
+                        string_op(eString_Op_Draw,
+                                  debug_state->render_group,
+                                  _v3_(_v2_(element.bounds.min.x,
+                                            element.bounds.max.y - game_assets->v_advance),
+                                       0.0f),
+                                  text,
+                                  game_assets,
+                                  item_color);
+
+                    } break;
+                }
+
+                if (var->type == eDebug_Variable_Type_Var_Group &&
+                    view->collapsible.expanded_always)
+                {
+                    iter = stack + depth;
+                    iter->link = var->var_group.next;
+                    iter->sentinel = &var->var_group;
+                    ++depth;
                 }
             }
         }
@@ -696,9 +691,9 @@ debug_draw_main_menu(Debug_State *debug_state, Game_Assets *game_assets, v2 menu
         {
             Debug_Interaction move_interaction = {};
             move_interaction.type = eDebug_Interaction_Move;
-            move_interaction.p = &hierarchy->ui_p;
+            move_interaction.p = &tree->ui_p;
 
-            Rect2 move_box = rect2_cen_half_dim(hierarchy->ui_p - _v2_(4.0f, 4.0f), _v2_(4.0f, 4.0f));
+            Rect2 move_box = rect2_cen_half_dim(tree->ui_p - _v2_(4.0f, 4.0f), _v2_(4.0f, 4.0f));
             push_rect(debug_state->render_group, move_box, 0.0f,
                       interaction_is_hot(debug_state, move_interaction) ? _v4_(1, 1, 0, 1) : _v4_(1, 1, 1, 1));
 
@@ -772,7 +767,7 @@ debug_begin_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p, b3
                     debug_state->hot_interaction.type = eDebug_Interaction_Drag_Value;
                 } break;
 
-                case eDebug_Variable_Type_Group:
+                case eDebug_Variable_Type_Var_Group:
                 {
                     debug_state->hot_interaction.type = eDebug_Interaction_Toggle_Value;
                 } break;
@@ -788,12 +783,12 @@ debug_begin_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p, b3
         {
             case eDebug_Interaction_Tear_Value:
             {
-                Debug_Variable_Reference *root_group = debug_add_root_group(debug_state, "New_User_Group");
-                debug_add_variable_reference(debug_state, root_group, debug_state->hot_interaction.var);
-                Debug_Variable_Hierarchy *hierarchy = add_hierarchy(debug_state, root_group, _v2_(0, 0));
-                hierarchy->ui_p = mouse_p;
+                Debug_Variable *root_group = debug_add_root_group(debug_state, "New_User_Group");
+                debug_add_variable_to_group(debug_state, root_group, debug_state->hot_interaction.var);
+                Debug_Tree *tree = add_tree(debug_state, root_group, _v2_(0, 0));
+                tree->ui_p = mouse_p;
                 debug_state->hot_interaction.type = eDebug_Interaction_Move;
-                debug_state->hot_interaction.p = &hierarchy->ui_p;
+                debug_state->hot_interaction.p = &tree->ui_p;
             } break;
         }
 
@@ -821,9 +816,10 @@ debug_end_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p)
                     var->bool32 = !var->bool32;
                 } break;
 
-                case eDebug_Variable_Type_Group:
+                case eDebug_Variable_Type_Var_Group:
                 {
-                    var->group.expanded = !var->group.expanded;
+                    Debug_View *view = get_or_create_debug_view_for(debug_state, debug_state->interaction.id);
+                    view->collapsible.expanded_always = !view->collapsible.expanded_always;
                 } break;
             }
         } break;
@@ -855,7 +851,7 @@ debug_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p)
     if (debug_state->interaction.type)
     {
         Debug_Variable *var = debug_state->interaction.var;
-        Debug_Variable_Hierarchy *hierarchy = debug_state->interaction.hierarchy;
+        Debug_Tree *tree = debug_state->interaction.tree;
         v2 *p = debug_state->interaction.p;
 
         switch (debug_state->interaction.type)
@@ -911,122 +907,6 @@ debug_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p)
     }
 
     debug_state->last_mouse_p = mouse_p;
-}
-
-internal void
-debug_end(Game_Input *input, Game_Assets *game_assets)
-{
-    TIMED_FUNCTION();
-
-    Debug_State *debug_state = debug_get_state();
-    if (debug_state)
-    {
-        Render_Group *render_group = debug_state->render_group;
-
-        zero_struct(debug_state->next_hot_interaction);
-        Debug_Record *hot_record = 0;
-
-        v2 mouse_p = input->mouse.P;
-        debug_draw_main_menu(debug_state, game_assets, debug_state->menu_p, mouse_p);
-        debug_interact(debug_state, input, mouse_p);
-
-        if (debug_state->compiling)
-        {
-            Debug_Process_State state = g_debug_memory->platform.debug_platform_get_process_state(debug_state->compiler);
-            if (state.is_running)
-            {
-                debug_text_line("COMPILING");
-            }
-            else
-            {
-                debug_state->compiling = false;
-            }
-        }
-
-#if 0
-        for (u32 counter_idx = 0;
-             counter_idx < debug_state->counter_count;
-             ++counter_idx)
-        {
-            Debug_Counter_State *counter = debug_state->counter_states + counter_idx;
-
-            Debug_Statistic hit_count_stat;
-            Debug_Statistic cycle_count_stat;
-            Debug_Statistic cycle_over_hit_stat;
-
-            begin_debug_statistic(&hit_count_stat);
-            begin_debug_statistic(&cycle_count_stat);
-            begin_debug_statistic(&cycle_over_hit_stat);
-
-            for (u32 snapshot_idx = 0;
-                 snapshot_idx < DEBUG_SNAPSHOT_COUNT;
-                 ++snapshot_idx)
-            {
-                accumulate_debug_statistic(&hit_count_stat, counter->snapshots[snapshot_idx].hit_count);
-                accumulate_debug_statistic(&cycle_count_stat, (u32)counter->snapshots[snapshot_idx].cycle_count);
-
-                f64 cycle_over_hit = 0.0f;
-                if (counter->snapshots[snapshot_idx].hit_count)
-                {
-                    cycle_over_hit = ((f64)counter->snapshots[snapshot_idx].cycle_count /
-                                      (f64)counter->snapshots[snapshot_idx].hit_count);
-                }
-                accumulate_debug_statistic(&cycle_over_hit_stat, cycle_over_hit);
-            }
-            end_debug_statistic(&hit_count_stat);
-            end_debug_statistic(&cycle_count_stat);
-            end_debug_statistic(&cycle_over_hit_stat);
-
-            if (counter->block_name)
-            {
-                char text_buffer[256];
-                _snprintf_s(text_buffer, sizeof(text_buffer), 
-                            "%32s(%4d): %10ucy %8uh %10ucy/h",
-                            counter->block_name,
-                            counter->line_number,
-                            (u32)cycle_count_stat.avg,
-                            (u32)hit_count_stat.avg,
-                            (u32)cycle_over_hit_stat.avg);
-                push_string(render_group, _v3_(0, 0, 0), text_buffer, cen_y, game_assets);
-                *cen_y -= (f32)game_assets->v_advance;
-
-                if (cycle_count_stat.max > 0.0f)
-                {
-
-                }
-            }
-        }
-#endif
-
-        if (debug_state->frame_count)
-        {
-            char text_buffer[256];
-            _snprintf_s(text_buffer, sizeof(text_buffer), 
-                        "last frame time: %.02fms",
-                        debug_state->frames[debug_state->frame_count - 1].wall_seconds_elapsed * 1000.0f);
-            debug_text_line(text_buffer);
-        }
-
-        push_rect(debug_state->render_group, rect2_min_max(_v2_(10, 10), _v2_(40, 40)), 0.0f, _v4_(DEBUG_UI_COLOR, 0, 1, 1));
-
-
-        if (input->mouse.is_down[eMouse_Left] && 
-            input->mouse.toggle[eMouse_Left])
-        {
-            if (hot_record)
-            {
-                debug_state->scope_to_record = hot_record;
-            }
-            else
-            {
-                debug_state->scope_to_record = 0;
-            }
-            refresh_collation(debug_state);
-        }
-
-        render_group_to_output_batch(debug_state->render_group, &g_debug_memory->render_batch);
-        end_render(debug_state->render_group);
-    }
 }
 
 #define DEBUG_RECORDS_MAIN_COUNT __COUNTER__
@@ -1246,6 +1126,205 @@ refresh_collation(Debug_State *debug_state)
     collate_debug_records(debug_state, g_debug_table->current_event_array_idx);
 }
 
+internal void
+debug_start(Debug_State *debug_state, Game_Assets *game_assets, u32 width, u32 height)
+{
+    TIMED_FUNCTION();
+
+    if (!debug_state->init)
+    {
+        debug_state->high_priority_queue = g_debug_memory->high_priority_queue;
+        debug_state->tree_sentinel.next = &debug_state->tree_sentinel;
+        debug_state->tree_sentinel.prev = &debug_state->tree_sentinel;
+        debug_state->tree_sentinel.group = 0;
+
+        init_arena(&debug_state->debug_arena,
+                   g_debug_memory->debug_storage_size - sizeof(Debug_State),
+                   debug_state + 1);
+
+        debug_state->game_assets = &((Transient_State *)g_debug_memory->transient_memory)->game_assets;
+
+        Debug_Variable_Definition_Context context = {};
+        context.state = debug_state;
+        context.arena = &debug_state->debug_arena;
+        context.group_stack[0] = 0;
+
+        debug_state->root_group = debug_begin_variable_group(&context, "Root");
+        debug_begin_variable_group(&context, "Debugging");
+
+        debug_create_variables(&context);
+        debug_begin_variable_group(&context, "Profile");
+        debug_begin_variable_group(&context, "By Thread");
+        debug_add_variable(&context, eDebug_Variable_Type_Counter_Thread_List, "");
+        debug_end_variable_group(&context);
+        debug_begin_variable_group(&context, "By Function");
+        debug_add_variable(&context, eDebug_Variable_Type_Counter_Thread_List, "");
+        debug_end_variable_group(&context);
+        debug_end_variable_group(&context);
+
+        debug_add_variable(&context, "Test Bitmap", debug_state->game_assets->debug_bitmap);
+
+        debug_end_variable_group(&context);
+        debug_end_variable_group(&context);
+        Assert(context.group_depth == 0);
+
+        Camera *debug_overlay_camera = push_camera(&debug_state->debug_arena, eCamera_Type_Orthographic, (f32)width, (f32)height);
+        debug_state->render_group = alloc_render_group(&debug_state->debug_arena, MB(16),
+                                                       debug_overlay_camera);
+
+        debug_state->paused = false;
+        debug_state->scope_to_record = 0;
+
+        debug_state->init = true;
+
+        init_sub_arena(&debug_state->collate_arena, &debug_state->debug_arena, MB(32));
+        debug_state->collate_tmp = begin_temporary_memory(&debug_state->collate_arena);
+
+        restart_collation(debug_state, 0);
+
+        add_tree(debug_state, debug_state->root_group, _v2_(0.0f, (f32)height));
+    }
+
+    begin_render(debug_state->render_group);
+
+    debug_state->left_edge = 0.0f;
+    debug_state->left_edge = (f32)width;
+    debug_state->at_y = 0.5f * height;
+    debug_state->width = (f32)width;
+    debug_state->height = (f32)height;
+
+    debug_state->at_y = (f32)height;
+    debug_state->left_edge = 0.0f;
+
+}
+
+internal void
+debug_end(Debug_State *debug_state, Game_Input *input)
+{
+    TIMED_FUNCTION();
+
+    Render_Group *render_group = debug_state->render_group;
+
+    zero_struct(debug_state->next_hot_interaction);
+    Debug_Record *hot_record = 0;
+
+    v2 mouse_p = input->mouse.P;
+    debug_draw_main_menu(debug_state, debug_state->menu_p, mouse_p);
+    debug_interact(debug_state, input, mouse_p);
+
+    if (debug_state->compiling)
+    {
+        Debug_Process_State state = g_debug_memory->platform.debug_platform_get_process_state(debug_state->compiler);
+        if (state.is_running)
+        {
+            debug_text_line("COMPILING");
+        }
+        else
+        {
+            debug_state->compiling = false;
+        }
+    }
+
+#if 0
+    for (u32 counter_idx = 0;
+         counter_idx < debug_state->counter_count;
+         ++counter_idx)
+    {
+        Debug_Counter_State *counter = debug_state->counter_states + counter_idx;
+
+        Debug_Statistic hit_count_stat;
+        Debug_Statistic cycle_count_stat;
+        Debug_Statistic cycle_over_hit_stat;
+
+        begin_debug_statistic(&hit_count_stat);
+        begin_debug_statistic(&cycle_count_stat);
+        begin_debug_statistic(&cycle_over_hit_stat);
+
+        for (u32 snapshot_idx = 0;
+             snapshot_idx < DEBUG_SNAPSHOT_COUNT;
+             ++snapshot_idx)
+        {
+            accumulate_debug_statistic(&hit_count_stat, counter->snapshots[snapshot_idx].hit_count);
+            accumulate_debug_statistic(&cycle_count_stat, (u32)counter->snapshots[snapshot_idx].cycle_count);
+
+            f64 cycle_over_hit = 0.0f;
+            if (counter->snapshots[snapshot_idx].hit_count)
+            {
+                cycle_over_hit = ((f64)counter->snapshots[snapshot_idx].cycle_count /
+                                  (f64)counter->snapshots[snapshot_idx].hit_count);
+            }
+            accumulate_debug_statistic(&cycle_over_hit_stat, cycle_over_hit);
+        }
+        end_debug_statistic(&hit_count_stat);
+        end_debug_statistic(&cycle_count_stat);
+        end_debug_statistic(&cycle_over_hit_stat);
+
+        if (counter->block_name)
+        {
+            char text_buffer[256];
+            _snprintf_s(text_buffer, sizeof(text_buffer), 
+                        "%32s(%4d): %10ucy %8uh %10ucy/h",
+                        counter->block_name,
+                        counter->line_number,
+                        (u32)cycle_count_stat.avg,
+                        (u32)hit_count_stat.avg,
+                        (u32)cycle_over_hit_stat.avg);
+            push_string(render_group, _v3_(0, 0, 0), text_buffer, cen_y, game_assets);
+            *cen_y -= (f32)game_assets->v_advance;
+
+            if (cycle_count_stat.max > 0.0f)
+            {
+
+            }
+        }
+    }
+#endif
+
+    if (debug_state->frame_count)
+    {
+        char text_buffer[256];
+        _snprintf_s(text_buffer, sizeof(text_buffer), 
+                    "last frame time: %.02fms",
+                    debug_state->frames[debug_state->frame_count - 1].wall_seconds_elapsed * 1000.0f);
+        debug_text_line(text_buffer);
+    }
+
+    push_rect(debug_state->render_group, rect2_min_max(_v2_(10, 10), _v2_(40, 40)), 0.0f, _v4_(DEBUG_UI_COLOR, 0, 1, 1));
+
+
+    if (input->mouse.is_down[eMouse_Left] && 
+        input->mouse.toggle[eMouse_Left])
+    {
+        if (hot_record)
+        {
+            debug_state->scope_to_record = hot_record;
+        }
+        else
+        {
+            debug_state->scope_to_record = 0;
+        }
+        refresh_collation(debug_state);
+    }
+
+    render_group_to_output_batch(debug_state->render_group, &g_debug_memory->render_batch);
+    end_render(debug_state->render_group);
+
+}
+
+internal Game_Assets *
+debug_get_game_assets(Game_Memory *memory)
+{
+    Game_Assets *assets = 0;
+
+    Transient_State *trans_state = (Transient_State *)memory->transient_memory;
+    if (trans_state->init)
+    {
+        assets = &trans_state->game_assets;
+    }
+
+    return assets;
+}
+
 extern "C"
 DEBUG_FRAME_END(debug_frame_end)
 {
@@ -1263,10 +1342,14 @@ DEBUG_FRAME_END(debug_frame_end)
     u32 event_count     = (event_array_idx_event_idx & 0xffffffff);
     g_debug_table->event_count[event_array_idx] = event_count;
 
-    Debug_State *debug_state = debug_get_state(game_memory);
+    Debug_State *debug_state = (Debug_State *)memory->debug_storage;
     if (debug_state)
     {
-        if (game_memory->executable_reloaded)
+        Game_Assets *game_assets = debug_get_game_assets(memory);
+
+        debug_start(debug_state, game_assets, game_screen_buffer->width, game_screen_buffer->height);
+
+        if (memory->executable_reloaded)
         {
             restart_collation(debug_state, g_debug_table->current_event_array_idx);
         }
@@ -1279,6 +1362,8 @@ DEBUG_FRAME_END(debug_frame_end)
             }
             collate_debug_records(debug_state, g_debug_table->current_event_array_idx);
         }
+
+        debug_end(debug_state, game_input);
     }
 
     return g_debug_table;

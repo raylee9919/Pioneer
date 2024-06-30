@@ -170,10 +170,12 @@ extern "C"
         Platform_Complete_All_Work  *platform_complete_all_work;
 
         Read_Entire_File            *debug_platform_read_file;
+#if __INTERNAL
         DEBUG_PLATFORM_WRITE_FILE_  *debug_platform_write_file;
         DEBUG_PLATFORM_FREE_MEMORY_ *debug_platform_free_memory;
         Debug_Platform_Execute_System_Command *debug_platform_execute_system_command;
         Debug_Platform_Get_Process_State *debug_platform_get_process_state;
+#endif
     };
 
     struct Render_Batch 
@@ -265,11 +267,14 @@ extern "C"
         Debug_Record    records[MAX_DEBUG_TRANSLATION_UNITS][MAX_DEBUG_RECORD_COUNT];
     };
 
+#if __INTERNAL
     extern Debug_Table *g_debug_table;
+#endif
 
-    #define DEBUG_FRAME_END(name) Debug_Table *name(Game_Memory *game_memory)
+    #define DEBUG_FRAME_END(name) Debug_Table *name(Game_Memory *memory, Game_Screen_Buffer *game_screen_buffer, Game_Input *game_input)
     typedef DEBUG_FRAME_END(Debug_Frame_End);
 
+#if __INTERNAL
     #define record_debug_event_common(record_idx, event_type) \
         u64 array_idx_event_idx = atomic_add_u64(&g_debug_table->event_array_idx_event_idx, 1); \
         u32 event_idx       = (u32)(array_idx_event_idx & 0xffffffff); \
@@ -298,7 +303,6 @@ extern "C"
         record->block_name  = "frame_marker";\
     }
 
-#if __PROFILE
     #define TIMED_BLOCK__(block_name, number, ...) Timed_Block timed_block_##number(__COUNTER__, __FILE__, __LINE__, block_name, ##__VA_ARGS__)
     #define TIMED_BLOCK_(block_name, number, ...) TIMED_BLOCK__(block_name, number, ##__VA_ARGS__)
     #define TIMED_BLOCK(block_name, ...) TIMED_BLOCK_(#block_name, __LINE__, ##__VA_ARGS__)
@@ -339,10 +343,11 @@ extern "C"
         }
     };
 #else
-    #define TIMED_BLOCK(block_name, ...)
+    #define TIMED_BLOCK(...)
     #define TIMED_FUNCTION(...)
-    #define BEGIN_BLOCK(name)
-    #define END_BLOCK(name)
+    #define BEGIN_BLOCK(...)
+    #define END_BLOCK(...)
+    #define FRAME_MARKER(...)
 #endif
 
 //

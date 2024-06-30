@@ -293,7 +293,7 @@ const int context_attrib_list[] =
     WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
     WGL_CONTEXT_MINOR_VERSION_ARB, 3,
     WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
-#if __DEBUG
+#if __INTERNAL
         | WGL_CONTEXT_DEBUG_BIT_ARB
 #endif
         ,
@@ -936,8 +936,10 @@ DEBUG_PLATFORM_GET_PROCESS_STATE(win32_get_process_state)
     return result;
 }
 
+#if __INTERNAL
 global_var Debug_Table g_debug_table_;
 Debug_Table *g_debug_table = &g_debug_table_;
+#endif
 
 int WINAPI
 WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) 
@@ -956,7 +958,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     g_counter_hz = (f64)g_counter_hz_large_integer.QuadPart;
     timeBeginPeriod(1);
 
-#if __DEBUG
+#if __INTERNAL
     g_show_cursor = true;
 #endif
 
@@ -992,7 +994,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     f32 desired_mspf = 1000.0f / (f32)desired_hz;
 
 
-#if __DEBUG
+#if __INTERNAL
     LPVOID base_address = (LPVOID)TB(2);
 #else
     LPVOID base_address = 0;
@@ -1018,21 +1020,23 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     game_memory.platform.platform_add_entry = Win32AddEntry;
     game_memory.platform.platform_complete_all_work = win32_complete_all_work;
     game_memory.platform.debug_platform_read_file = DebugPlatformReadEntireFile;
+#if __INTERNAL
     game_memory.platform.debug_platform_write_file = DebugPlatformWriteEntireFile;
     game_memory.platform.debug_platform_free_memory = DebugPlatformFreeMemory;
     game_memory.platform.debug_platform_execute_system_command = win32_execute_system_command;
     game_memory.platform.debug_platform_get_process_state = win32_get_process_state;
+#endif
 
     win32_init_render_batch(&game_memory.render_batch, KB(4));
 
     Game_State *game_state = (Game_State *)game_memory.permanent_memory;
 
-    Game_Screen_Buffer gameScreenBuffer = {};
-    gameScreenBuffer.memory = g_screen_buffer.memory;
-    gameScreenBuffer.width = g_screen_buffer.width;
-    gameScreenBuffer.height = g_screen_buffer.height;
-    gameScreenBuffer.bpp = g_screen_buffer.bpp;
-    gameScreenBuffer.pitch = g_screen_buffer.bpp * g_screen_buffer.width;
+    Game_Screen_Buffer game_screen_buffer = {};
+    game_screen_buffer.memory = g_screen_buffer.memory;
+    game_screen_buffer.width = g_screen_buffer.width;
+    game_screen_buffer.height = g_screen_buffer.height;
+    game_screen_buffer.bpp = g_screen_buffer.bpp;
+    game_screen_buffer.pitch = g_screen_buffer.bpp * g_screen_buffer.width;
 
     HMODULE xinput_dll = LoadLibraryA(TEXT("xinput.dll"));
     if (!xinput_dll) 
@@ -1080,7 +1084,9 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                 win32_complete_all_work(&high_priority_queue);
                 win32_complete_all_work(&low_priority_queue);
 
+#if __INTERNAL
                 g_debug_table = &g_debug_table_;
+#endif
 
                 if (game.dll) 
                 {
@@ -1162,14 +1168,14 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                                 {
                                     win32_process_keyboard(&game_input.alt, is_down);
                                 } break;
-#if __DEBUG
+#if __INTERNAL
                                 case VK_OEM_3: // tilde
                                 {
                                     win32_process_keyboard(&game_input.tilde, is_down);
                                 } break;
 #endif
 
-#if __DEBUG
+#if __INTERNAL
                                 case 'L': 
                                 {
                                     if (is_down) 
@@ -1266,7 +1272,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             BEGIN_BLOCK(win32_game_update);
             if (game.game_update) 
             {
-                game.game_update(&game_memory, game_state, &game_input, &gameScreenBuffer);
+                game.game_update(&game_memory, game_state, &game_input, &game_screen_buffer);
             }
             END_BLOCK(win32_game_update);
 
@@ -1280,6 +1286,24 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
 
             f32 actual_mspf = win32_get_elapsed_ms(last_counter, win32_get_wall_clock());
             game_input.dt_per_frame = (actual_mspf / 1000.0f);
+
+            //
+            //
+            //
+
+#if __INTERNAL
+            BEGIN_BLOCK(win32_debug_collation);
+            if (game.debug_frame_end)
+            {
+                g_debug_table = game.debug_frame_end(&game_memory, &game_screen_buffer, &game_input);
+            }
+            g_debug_table_.event_array_idx_event_idx = 0;
+            END_BLOCK(win32_debug_collation);
+#endif
+
+            //
+            //
+            //
 
             // TODO: leave this off until we have vblank support?
 #if 0
@@ -1303,26 +1327,18 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             END_BLOCK(win32_framerate_wait);
 #endif
 
-#if __DEBUG
-            BEGIN_BLOCK(win32_debug_collation);
-            if (game.debug_frame_end)
-            {
-                g_debug_table = game.debug_frame_end(&game_memory);
-            }
-            g_debug_table_.event_array_idx_event_idx = 0;
-            END_BLOCK(win32_debug_collation);
-#endif
-
             LARGE_INTEGER end_counter = win32_get_wall_clock();
             FRAME_MARKER(win32_get_seconds_elapsed(last_counter, end_counter));
             last_counter = end_counter;
 
+#if __INTERNAL
             if (g_debug_table)
             {
                 // TODO: move this to a global variable so that
                 // there can be timers below this one?
                 g_debug_table->record_count[TRANSLATION_UNIT_IDX] = __COUNTER__;
             }
+#endif
         }
     }
 

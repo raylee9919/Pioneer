@@ -12,7 +12,6 @@
 #include "types.h"
 #include "game.h"
 #include "memory.cpp"
-#include "debug.h"
 #include "render_group.cpp"
 #include "sim.cpp"
 #include "asset.cpp"
@@ -170,7 +169,7 @@ gen_turbulence_map(Memory_Arena *arena, Random_Series *series, u32 side)
     return result;
 }
 
-#if __DEBUG
+#if __INTERNAL
 global_var Game_Memory *g_debug_memory;
 #endif
 
@@ -178,7 +177,7 @@ extern "C"
 GAME_UPDATE(game_update)
 {
 
-#if __DEBUG
+#if __INTERNAL
     g_debug_memory = game_memory;
 #endif
 
@@ -348,7 +347,7 @@ GAME_UPDATE(game_update)
         game_assets->turbulence_map = load_bmp(&transient_state->asset_arena, game_memory->platform.debug_platform_read_file, "turbulence.bmp");
 #endif
 
-#if __DEBUG
+#if __INTERNAL
         game_assets->debug_bitmap = load_bmp(&transient_state->asset_arena, game_memory->platform.debug_platform_read_file, "doggo.bmp");
 #endif
 
@@ -359,9 +358,6 @@ GAME_UPDATE(game_update)
     Game_Assets *game_assets = &transient_state->game_assets;
 
     Temporary_Memory render_memory = begin_temporary_memory(&transient_state->transient_arena);
-
-    debug_start(game_screen_buffer->width, game_screen_buffer->height, (f32)game_assets->v_advance);
-
 
     Render_Group *render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
                                                     game_state->debug_camera);
@@ -374,9 +370,6 @@ GAME_UPDATE(game_update)
     //
     Entity *player = game_state->player;
     player->accel = _v3_(0, 0, 0);
-
-    Debug_State *debug_state = (Debug_State *)g_debug_memory->debug_storage;
-    Assert(debug_state);
 
 #if !DEBUG_UI_USE_DEBUG_CAMERA
     if (game_input->W.is_set)
@@ -425,31 +418,6 @@ GAME_UPDATE(game_update)
     {
         m4x4 rotation = to_m4x4(cam->world_rotation);
         cam->world_translation += rotation * _v3_(0, C, 0);
-    }
-#endif
-
-#if __DEBUG
-    if (debug_state->init)
-    {
-#if 0
-        if (debug_state->debug_toggle_delay > 0.0f)
-        {
-            debug_state->debug_toggle_delay -= dt;
-        }
-        if (debug_state->debug_toggle_delay < 0.0f) 
-        {
-            debug_state->debug_toggle_delay = 0.0f;
-        }
-
-        if (game_input->tilde.is_set)
-        {
-            if (debug_state->debug_toggle_delay == 0.0f) 
-            {
-                debug_state->debug_toggle_delay = 0.1f;
-                debug_state->is_debug_mode = !debug_state->is_debug_mode;
-            }
-        }
-#endif
     }
 #endif
 
@@ -573,12 +541,16 @@ GAME_UPDATE(game_update)
     push_star(render_group, game_assets->star_mesh, game_state->star_count, game_state->star_world_transforms, game_state->time);
 #endif
     
-
-#if __DEBUG
-    debug_end(game_input, &transient_state->game_assets);
-#endif
     render_group_to_output_batch(render_group, &game_memory->render_batch);
     end_temporary_memory(&render_memory);
 }
 
+#if __INTERNAL
 #include "debug.cpp"
+#else
+extern "C"
+DEBUG_FRAME_END(debug_frame_end) 
+{
+    return 0;
+}
+#endif
