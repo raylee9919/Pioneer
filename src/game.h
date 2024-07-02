@@ -12,15 +12,14 @@
 #define zero_struct(INSTANCE) zero_size(sizeof(INSTANCE), &(INSTANCE))
 #define zero_array(COUNT, POINTER) zero_size(COUNT * sizeof((POINTER)[0]), POINTER)
 
+#define INTROSPECT(params)
+
 #include "intrinsics.h"
 #include "math.h"
-
 #include "platform.h"
-
 #include "asset_model.h"
 #include "asset.h"
 #include "random.h"
-
 
 struct Camera;
 
@@ -105,7 +104,7 @@ enum Entity_Flag
 {
     eEntity_Flag_Collides = 1
 };
-struct Entity 
+INTROSPECT(category:"regular butter") struct Entity 
 {
     Entity_Type         type;
     Chunk_Position      chunk_pos;
@@ -114,13 +113,11 @@ struct Entity
     qt                  world_rotation;
     v3                  world_scaling;
 
-#if 1
     v3                  dim;
     v3                  velocity;
     v3                  accel;
     f32                 u;
     u32                 flags;
-#endif
 
     Asset_Animation     *cur_anim;
     f32                 anim_dt;
@@ -272,7 +269,7 @@ struct Game_State
     Random_Series       random_series;
 
     Entity              *player;
-    Camera              *debug_camera;
+    Camera              *main_camera;
 
     World               *world;
     Memory_Arena        world_arena;
@@ -282,6 +279,8 @@ struct Game_State
 
     m4x4                *star_world_transforms;
     s32                 star_count;
+
+    Camera              *debug_camera;
 };
 
 struct Transient_State 
@@ -305,3 +304,5 @@ struct Transient_State
 typedef GAME_UPDATE(Game_Update);
 
 
+
+#include "meta.cpp"

@@ -85,6 +85,7 @@ enum Camera_Type
 struct Camera 
 {
     Camera_Type     type;
+
     f32             focal_length;
     f32             width;
     f32             height;

@@ -1199,6 +1199,74 @@ debug_start(Debug_State *debug_state, Game_Assets *game_assets, u32 width, u32 h
 }
 
 internal void
+debug_dump_struct(u32 member_count, Member_Definition *member_defs, void *struct_ptr, u32 indent_level = 0)
+{
+    for (u32 member_idx = 0;
+         member_idx < member_count;
+         ++member_idx)
+    {
+        char text_buffer_base[256];
+        char *text_buffer = text_buffer_base;
+        for (u32 indent = 0;
+             indent < indent_level;
+             ++indent)
+        {
+            *text_buffer++ = ' ';
+            *text_buffer++ = ' ';
+            *text_buffer++ = ' ';
+            *text_buffer++ = ' ';
+        }
+        text_buffer[0] = 0;
+        size_t text_buffer_left = (text_buffer_base + sizeof(text_buffer_base)) - text_buffer;
+
+        Member_Definition *member = member_defs + member_idx;
+
+        void *member_ptr = (((u8 *)struct_ptr) + member->offset);
+
+        if (member_ptr)
+        {
+            switch (member->type)
+            {
+                case eMeta_Type_u32:
+                {
+                    _snprintf_s(text_buffer, text_buffer_left, text_buffer_left, "%s: %u", member->name, *(u32 *)member_ptr);
+                } break;
+
+                case eMeta_Type_f32:
+                {
+                    _snprintf_s(text_buffer, text_buffer_left, text_buffer_left, "%s: %f", member->name, *(f32 *)member_ptr);
+                } break;
+
+                case eMeta_Type_v2:
+                {
+                    _snprintf_s(text_buffer, text_buffer_left, text_buffer_left, "%s: (%f, %f)",
+                                member->name,
+                                ((v2 *)member_ptr)->x,
+                                ((v2 *)member_ptr)->y);
+                } break;
+
+                case eMeta_Type_v3:
+                {
+                    _snprintf_s(text_buffer, text_buffer_left, text_buffer_left, "%s: (%f, %f, %f)",
+                                member->name,
+                                ((v3 *)member_ptr)->x,
+                                ((v3 *)member_ptr)->y,
+                                ((v3 *)member_ptr)->z);
+                } break;
+
+                // META_HANDLE_TYPE_DUMP(member_ptr, indent_level + 1);
+
+            }
+        }
+
+        if (text_buffer[0])
+        {
+            debug_text_line(text_buffer);
+        }
+    }
+};
+
+internal void
 debug_end(Debug_State *debug_state, Game_Input *input)
 {
     TIMED_FUNCTION();

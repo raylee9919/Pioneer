@@ -10,6 +10,7 @@
 
 #define push_render_entity(GROUP, STRUCT)  \
     (STRUCT *)__push_render_entity(GROUP, sizeof(STRUCT), e##STRUCT)
+
 internal Render_Entity_Header *
 __push_render_entity(Render_Group *renderGroup, u32 size, Render_Type type)
 {
@@ -188,6 +189,44 @@ string_op(String_Op op, Render_Group *render_group,
     return result;
 }
 
+internal void
+set_camera_projection(Camera *camera)
+{
+    if (camera->type == eCamera_Type_Perspective) 
+    {
+        m4x4 camera_rotation = to_m4x4(camera->world_rotation);
+        m4x4 V = camera_transform(get_column(camera_rotation, 0),
+                                  get_column(camera_rotation, 1),
+                                  get_column(camera_rotation, 2),
+                                  camera->world_translation);
+
+        f32 f = camera->focal_length;
+        f32 a = safe_ratio(camera->width, camera->height) * f;
+        f32 N = 0.1f;
+        f32 F = 500.0f;
+        f32 b = (N + F) / (N - F);
+        f32 c = (2 * N * F) / (N - F);
+        m4x4 P = {{
+                { f,  0,  0,  0},
+                { 0,  a,  0,  0},
+                { 0,  0,  b,  c},
+                { 0,  0, -1,  0}
+        }};
+        camera->projection = P * V;
+    } 
+    else
+    {
+        f32 a = 2 * safe_ratio(camera->width, camera->height);
+        f32 w = camera->width;
+        camera->projection = m4x4{{
+                { 2,  0,  0, -w},
+                { 0,  a,  0, -w},
+                { 0,  0,  w,  0},
+                { 0,  0,  0,  w}
+        }};
+    }
+}
+
 internal Camera *
 push_camera(Memory_Arena *arena, Camera_Type type, f32 width, f32 height,
             f32 focal_length = DEFAULT_FOCAL_LENGTH,
@@ -205,48 +244,6 @@ push_camera(Memory_Arena *arena, Camera_Type type, f32 width, f32 height,
     return result;
 }
 
-internal void
-calculate_camera_projection(Camera *camera)
-{
-    if (camera->type == eCamera_Type_Perspective) 
-    {
-        m4x4 camera_rotation = to_m4x4(camera->world_rotation);
-        m4x4 V = camera_transform(get_column(camera_rotation, 0),
-                                  get_column(camera_rotation, 1),
-                                  get_column(camera_rotation, 2),
-                                  camera->world_translation);
-
-        f32 f = camera->focal_length;
-        f32 a = safe_ratio(camera->width, camera->height) * f;
-        f32 N = 0.1f;
-        f32 F = 500.0f;
-        f32 b = (N + F) / (N - F);
-        f32 c = (2 * N * F) / (N - F);
-        m4x4 P = {{
-            { f,  0,  0,  0},
-            { 0,  a,  0,  0},
-            { 0,  0,  b,  c},
-            { 0,  0, -1,  0}
-        }};
-        camera->projection = P * V;
-    } 
-    else
-    {
-        // y                      
-        // |         
-        // |                      
-        // |_______x              
-        f32 a = 2 * safe_ratio(camera->width, camera->height);
-        f32 w = camera->width;
-        camera->projection = m4x4{{
-            { 2,  0,  0, -w},
-            { 0,  a,  0, -w},
-            { 0,  0,  w,  0},
-            { 0,  0,  0,  w}
-        }};
-    }
-}
-
 internal Render_Group *
 alloc_render_group(Memory_Arena *arena, size_t size, Camera *camera)
 {
@@ -255,9 +252,9 @@ alloc_render_group(Memory_Arena *arena, size_t size, Camera *camera)
     result->capacity            = size;
     result->base                = (u8 *)push_size(arena, result->capacity);
     result->used                = 0;
-    result->camera              = camera;
+    result->camera = camera;
 
-    calculate_camera_projection(camera);
+    set_camera_projection(camera);
 
     return result;
 }

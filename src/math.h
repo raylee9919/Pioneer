@@ -792,7 +792,7 @@ get_column(m4x4 M, u32 C)
 //
 // @Rect
 //
-struct Rect2 
+INTROSPECT(category:"math") struct Rect2 
 {
     v2 min;
     v2 max;
@@ -845,7 +845,7 @@ add_radius_to(Rect2 rect, v2 radius)
     return result;
 }
 
-struct Rect3 
+INTROSPECT(category:"math") struct Rect3 
 {
     v3 cen;
     v3 dim;
@@ -902,6 +902,16 @@ trs_to_transform(v3 translation, qt rotation, v3 scaling)
     m4x4 R = to_m4x4(rotation);
     m4x4 S = scale(identity(), scaling);
     m4x4 result = T * R * S;
+    return result;
+}
+
+inline qt 
+rotate(qt q, v3 axis, f32 t)
+{
+    f32 c = cos(t * 0.5f);
+    f32 s = sin(t * 0.5f);
+    v3 n = s * normalize(axis);
+    qt result = _qt_(c, n.x, n.y, n.z) * q;
     return result;
 }
 

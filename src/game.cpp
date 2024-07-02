@@ -245,8 +245,14 @@ GAME_UPDATE(game_update)
 
         f32 T = pi32 * 0.1;
         f32 D = 5;
-
         game_state->debug_camera = push_camera( &game_state->world_arena,
+                                                eCamera_Type_Perspective,
+                                                (f32)game_screen_buffer->width, (f32)game_screen_buffer->height,
+                                                0.5f,
+                                                _v3_(0, D * sin(T * 2.0f), D * cos(T * 2.0f)),
+                                                _qt_(cos(T), -sin(T), 0, 0) );
+
+        game_state->main_camera = push_camera( &game_state->world_arena,
                                                 eCamera_Type_Perspective,
                                                 (f32)game_screen_buffer->width, (f32)game_screen_buffer->height,
                                                 0.5f,
@@ -261,7 +267,9 @@ GAME_UPDATE(game_update)
 #define STAR_COUNT 10'000
 #define STAR_SCALE 0.2f
 #define STAR_DIST  200.0f
-        for (u32 cnt = 0; cnt < STAR_COUNT; ++cnt)
+        for (u32 cnt = 0;
+             cnt < STAR_COUNT;
+             ++cnt)
         {
             Assert(game_state->star_count < STAR_COUNT_MAX);
             f32 x = rand_bilateral(&game_state->random_series);
@@ -359,8 +367,6 @@ GAME_UPDATE(game_update)
 
     Temporary_Memory render_memory = begin_temporary_memory(&transient_state->transient_arena);
 
-    Render_Group *render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
-                                                    game_state->debug_camera);
 
 
     v3 chunk_dim = game_state->world->chunk_dim;
@@ -372,6 +378,10 @@ GAME_UPDATE(game_update)
     player->accel = _v3_(0, 0, 0);
 
 #if !DEBUG_UI_USE_DEBUG_CAMERA
+    Camera *main_camera = game_state->main_camera;
+    Render_Group *render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
+                                                    game_state->main_camera);
+
     if (game_input->W.is_set)
     {
         m4x4 rotation = to_m4x4(player->world_rotation);
@@ -379,62 +389,64 @@ GAME_UPDATE(game_update)
     }
     if (game_input->D.is_set)
     {
-        player->world_rotation = _qt_(cos(dt), 0,-sin(dt), 0) * player->world_rotation;
+        player->world_rotation = _qt_(cos(dt), 0, -sin(dt), 0) * player->world_rotation;
     }
     if (game_input->A.is_set)
     {
         player->world_rotation = _qt_(cos(dt), 0, sin(dt), 0) * player->world_rotation;
     }
 #else
-    Camera *cam = game_state->debug_camera;
+    Render_Group *render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
+                                                    game_state->debug_camera);
+    Camera *debug_camera = game_state->debug_camera;
     f32 C = dt * 3.0f;
     if (game_input->W.is_set)
     {
-        m4x4 rotation = to_m4x4(cam->world_rotation);
-        cam->world_translation += rotation * _v3_(0, 0, -C);
+        m4x4 rotation = to_m4x4(debug_camera->world_rotation);
+        debug_camera->world_translation += rotation * _v3_(0, 0, -C);
     }
     if (game_input->S.is_set)
     {
-        m4x4 rotation = to_m4x4(cam->world_rotation);
-        cam->world_translation += rotation * _v3_(0, 0, C);
+        m4x4 rotation = to_m4x4(debug_camera->world_rotation);
+        debug_camera->world_translation += rotation * _v3_(0, 0, C);
     }
     if (game_input->D.is_set)
     {
-        m4x4 rotation = to_m4x4(cam->world_rotation);
-        cam->world_translation += rotation * _v3_(C, 0, 0);
+        m4x4 rotation = to_m4x4(debug_camera->world_rotation);
+        debug_camera->world_translation += rotation * _v3_(C, 0, 0);
     }
     if (game_input->A.is_set)
     {
-        m4x4 rotation = to_m4x4(cam->world_rotation);
-        cam->world_translation += rotation * _v3_(-C, 0, 0);
+        m4x4 rotation = to_m4x4(debug_camera->world_rotation);
+        debug_camera->world_translation += rotation * _v3_(-C, 0, 0);
     }
 
     if (game_input->Q.is_set)
     {
-        m4x4 rotation = to_m4x4(cam->world_rotation);
-        cam->world_translation += rotation * _v3_(0, -C, 0);
+        m4x4 rotation = to_m4x4(debug_camera->world_rotation);
+        debug_camera->world_translation += rotation * _v3_(0, -C, 0);
     }
     if (game_input->E.is_set)
     {
-        m4x4 rotation = to_m4x4(cam->world_rotation);
-        cam->world_translation += rotation * _v3_(0, C, 0);
+        m4x4 rotation = to_m4x4(debug_camera->world_rotation);
+        debug_camera->world_translation += rotation * _v3_(0, C, 0);
     }
 #endif
 
     Chunk_Position camPos = Chunk_Position{};
-    v3 camDim       = {100.0f, 5.0f, 50.0f};
-    Chunk_Position minPos = camPos;
-    Chunk_Position maxPos = camPos;
-    minPos.offset -= 0.5f * camDim;
-    maxPos.offset += 0.5f * camDim;
-    recalc_pos(&minPos, chunk_dim);
-    recalc_pos(&maxPos, chunk_dim);
+    v3 camDim       = v3{100.0f, 5.0f, 50.0f};
+    Chunk_Position min_pos = camPos;
+    Chunk_Position max_pos = camPos;
+    min_pos.offset -= 0.5f * camDim;
+    max_pos.offset += 0.5f * camDim;
+    recalc_pos(&min_pos, chunk_dim);
+    recalc_pos(&max_pos, chunk_dim);
 
 
     //
     // Update entities
     //
-    update_entities(game_state, dt, minPos, maxPos);
+    update_entities(game_state, dt, min_pos, max_pos);
 
 
     //
@@ -446,16 +458,16 @@ GAME_UPDATE(game_update)
     //
 
 #if 1
-    for (s32 Z = minPos.z;
-         Z <= maxPos.z;
+    for (s32 Z = min_pos.z;
+         Z <= max_pos.z;
          ++Z) 
     {
-        for (s32 Y = minPos.y;
-             Y <= maxPos.y;
+        for (s32 Y = min_pos.y;
+             Y <= max_pos.y;
              ++Y) 
         {
-            for (s32 X = minPos.x;
-                 X <= maxPos.x;
+            for (s32 X = min_pos.x;
+                 X <= max_pos.x;
                  ++X) 
             {
                 Chunk *chunk = get_chunk(&game_state->world_arena,
@@ -485,7 +497,7 @@ GAME_UPDATE(game_update)
                                                               &game_assets->bone_hierarchy,
                                                               final_transforms,
                                                               model->root_transform);
-                                    entity->anim_dt += dt;
+                                    entity->anim_dt += dt * DEBUG_UI_XBOT_ANIMATION_SPEED;
                                     if (entity->anim_dt > entity->cur_anim->duration)
                                     {
                                         entity->anim_dt = 0.0f;
@@ -537,6 +549,7 @@ GAME_UPDATE(game_update)
 #if DEBUG_UI_DRAW_GRASS
     push_grass(render_group, &game_assets->grass_model->meshes[0], game_state->grass_count, game_state->grass_world_transforms, game_state->time, game_assets->grass_max_vertex_y, game_assets->turbulence_map);
 #endif
+
 #if DEBUG_UI_DRAW_STAR
     push_star(render_group, game_assets->star_mesh, game_state->star_count, game_state->star_world_transforms, game_state->time);
 #endif
@@ -545,9 +558,11 @@ GAME_UPDATE(game_update)
     end_temporary_memory(&render_memory);
 }
 
+
 #if __INTERNAL
 #include "debug.cpp"
 #else
+
 extern "C"
 DEBUG_FRAME_END(debug_frame_end) 
 {

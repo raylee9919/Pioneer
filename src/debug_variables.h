@@ -134,6 +134,7 @@ debug_create_variables(Debug_Variable_Definition_Context *context)
     }
     debug_end_variable_group(context);
 
+    DEBUG_VARIABLE_LISTING(XBOT_ANIMATION_SPEED);
     DEBUG_VARIABLE_LISTING(XBOT_ACCEL_CONSTANT);
 
 #undef DEBUG_VARIABLE_LISTING

@@ -6,7 +6,6 @@
    $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
    ======================================================================== */
 
-#include <stdio.h>
 #include <vector>
 #include <unordered_map>
 #include <string>
@@ -43,6 +42,7 @@ init_memory_arena()
     arena.used = 0;
     arena.base = malloc(total_memory_size);
     memset(arena.base, 0, total_memory_size);
+
     return arena;
 }
 
@@ -90,6 +90,7 @@ ai_m4x4_to_m4x4(aiMatrix4x4 ai_mat)
     mat.e[3][1] = ai_mat.d2;
     mat.e[3][2] = ai_mat.d3;
     mat.e[3][3] = ai_mat.d4;
+
     return mat;
 }
 
@@ -229,7 +230,7 @@ main(int argc, char **argv)
          file_idx < 1;
          ++file_idx)
     {
-        const char *file_name = "octahedral.dae"; // (*)
+        const char *file_name = "../data/octahedral.dae"; // (*)
         const aiScene *model = importer.ReadFile(file_name, aiProcessPreset_TargetRealtime_Quality);
 
         if (model)
