@@ -225,7 +225,19 @@ enum Debug_Event_Type
 {
     eDebug_Event_Frame_Marker,
     eDebug_Event_Begin_Block,
-    eDebug_Event_End_Block
+    eDebug_Event_End_Block,
+
+    eDebug_Event_Open_Data_Block,
+    eDebug_Event_Close_Data_Block,
+
+    eDebug_Event_f32,
+    eDebug_Event_s32,
+    eDebug_Event_u32,
+    eDebug_Event_v2,
+    eDebug_Event_v3,
+    eDebug_Event_v4,
+    eDebug_Event_Rect2,
+    eDebug_Event_Rect3,
 };
 
 struct Thread_ID_Core_Idx
@@ -236,15 +248,19 @@ struct Thread_ID_Core_Idx
 
 struct Debug_Event
 {
-    u64                 clock;
+    u64 clock;
+    Thread_ID_Core_Idx  tc;
+    u16 debug_record_idx;
+    u8  translation_unit;
+    u8  type;
     union
     {
-        Thread_ID_Core_Idx  tc;
-        f32                 seconds_elapsed;
+        f32 seconds_elapsed;
+        void *vec_ptr[3];
+        s32 vec_s32[6];
+        u32 vec_u32[6];
+        f32 vec_f32[6];
     };
-    u16                 debug_record_idx;
-    u8                  translation_unit;
-    u8                  type;
 };
 
 #define MAX_DEBUG_THREAD_COUNT                  256 
@@ -271,27 +287,22 @@ extern Debug_Table *g_debug_table;
 typedef DEBUG_FRAME_END(Debug_Frame_End);
 
 #if __INTERNAL
-#define record_debug_event_common(record_idx, event_type) \
-    u64 array_idx_event_idx = atomic_add_u64(&g_debug_table->event_array_idx_event_idx, 1); \
-u32 event_idx       = (u32)(array_idx_event_idx & 0xffffffff); \
-Assert(event_idx < MAX_DEBUG_EVENT_COUNT); \
-Debug_Event *event = g_debug_table->events[array_idx_event_idx >> 32] + event_idx; \
-event->clock            = __rdtsc(); \
-event->debug_record_idx = (u16)record_idx; \
-event->translation_unit = TRANSLATION_UNIT_IDX; \
-event->type             = (u8)event_type; \
-
 #define record_debug_event(record_idx, event_type) \
-{ \
-    record_debug_event_common(record_idx, event_type); \
+    u64 array_idx_event_idx = atomic_add_u64(&g_debug_table->event_array_idx_event_idx, 1); \
+    u32 event_idx       = (u32)(array_idx_event_idx & 0xffffffff); \
+    Assert(event_idx < MAX_DEBUG_EVENT_COUNT); \
+    Debug_Event *event = g_debug_table->events[array_idx_event_idx >> 32] + event_idx; \
+    event->clock            = __rdtsc(); \
+    event->debug_record_idx = (u16)record_idx; \
+    event->translation_unit = TRANSLATION_UNIT_IDX; \
+    event->type             = (u8)event_type; \
     event->tc.core_idx         = 0; \
     event->tc.thread_id        = (u16)get_thread_id(); \
-} \
 
 #define FRAME_MARKER(seconds_elapsed_init)\
 {\
     int counter = __COUNTER__;\
-    record_debug_event_common(counter, eDebug_Event_Frame_Marker); \
+    record_debug_event(counter, eDebug_Event_Frame_Marker); \
     event->seconds_elapsed = seconds_elapsed_init; \
     Debug_Record *record = g_debug_table->records[TRANSLATION_UNIT_IDX] + counter;\
     record->file_name   = __FILE__;\
@@ -313,12 +324,15 @@ event->type             = (u8)event_type; \
     record_debug_event(counter, eDebug_Event_Begin_Block);\
 }
 
+#define END_BLOCK_(counter)\
+{ \
+    record_debug_event(counter, eDebug_Event_End_Block); \
+}
+
 #define BEGIN_BLOCK(name)\
     int counter_##name = __COUNTER__;\
-BEGIN_BLOCK_(counter_##name, __FILE__, __LINE__, #name);\
+    BEGIN_BLOCK_(counter_##name, __FILE__, __LINE__, #name);\
 
-#define END_BLOCK_(counter)\
-    record_debug_event(counter, eDebug_Event_End_Block);
 
 #define END_BLOCK(name)\
     END_BLOCK_(counter_##name);
@@ -346,16 +360,112 @@ struct Timed_Block
     #define FRAME_MARKER(...)
 #endif
 
+#if defined(__cplusplus) && __INTERNAL
+
+inline void
+debug_value_set_event_data(Debug_Event *event, f32 value)
+{
+    event->type = eDebug_Event_f32;
+    event->vec_f32[0] = value;
+}
+
+inline void
+debug_value_set_event_data(Debug_Event *event, s32 value)
+{
+    event->type = eDebug_Event_s32;
+    event->vec_s32[0] = value;
+}
+
+inline void
+debug_value_set_event_data(Debug_Event *event, u32 value)
+{
+    event->type = eDebug_Event_u32;
+    event->vec_u32[0] = value;
+}
+
+inline void
+debug_value_set_event_data(Debug_Event *event, v2 value)
+{
+    event->type = eDebug_Event_v2;
+    event->vec_f32[0] = value.x;
+    event->vec_f32[1] = value.y;
+}
+
+inline void
+debug_value_set_event_data(Debug_Event *event, v3 value)
+{
+    event->type = eDebug_Event_v3;
+    event->vec_f32[0] = value.x;
+    event->vec_f32[1] = value.y;
+    event->vec_f32[2] = value.z;
+}
+
+inline void
+debug_value_set_event_data(Debug_Event *event, Rect2 value)
+{
+    event->type = eDebug_Event_Rect2;
+    event->vec_f32[0] = value.min.x;
+    event->vec_f32[1] = value.min.y;
+    event->vec_f32[2] = value.max.x;
+    event->vec_f32[3] = value.max.y;
+}
+
+#define DEBUG_BEGIN_DATA_BLOCK(name, ptr0, ptr1) \
+{ \
+    int counter = __COUNTER__; \
+    record_debug_event(counter, eDebug_Event_Open_Data_Block); \
+    event->vec_ptr[0] = ptr0; \
+    event->vec_ptr[1] = ptr1; \
+    Debug_Record *record = g_debug_table->records[TRANSLATION_UNIT_IDX] + counter; \
+    record->file_name = __FILE__; \
+    record->line_number = __LINE__; \
+    record->block_name = name; \
+} \
+
+#define DEBUG_END_DATA_BLOCK() \
+{ \
+    int counter = __COUNTER__; \
+    record_debug_event(counter, eDebug_Event_Close_Data_Block); \
+    Debug_Record *record = g_debug_table->records[TRANSLATION_UNIT_IDX] + counter; \
+    record->file_name = __FILE__; \
+    record->line_number = __LINE__; \
+} \
+
+
+#define DEBUG_VALUE(value) \
+{ \
+    int counter = __COUNTER__; \
+    record_debug_event(counter, eDebug_Event_f32); \
+    debug_value_set_event_data(event, value); \
+    Debug_Record *record = g_debug_table->records[TRANSLATION_UNIT_IDX] + counter; \
+    record->file_name = __FILE__; \
+    record->line_number = __LINE__; \
+    record->block_name = "value"; \
+} \
+
+#define DEBUG_BEGIN_ARRAY(...)
+#define DEBUG_END_ARRAY(...)
+
+#else
+
+#define DEBUG_BEGIN_DATA_BLOCK(...)
+#define DEBUG_END_DATA_BLOCK(...)
+#define DEBUG_VALUE(...)
+#define DEBUG_BEGIN_ARRAY(...)
+#define DEBUG_END_ARRAY(...)
+
+#endif
+
 //
 // Common Utility Functions
 //
 internal u32
 string_length(char *string)
 {
-    u32 result = 0;
+    u32 count = 0;
     while (*string++)
     {
-        result++;
+        count++;
     }
-    return result;
+    return count;
 }

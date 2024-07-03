@@ -12,8 +12,6 @@
 #include "debug.h"
 #include "debug_variables.h"
 
-internal void restart_collation(Debug_State *debug_state, u32 invalid_event_array_idx);
-
 inline Debug_ID
 debug_id_from_link(Debug_Tree *tree, Debug_Variable_Link *link)
 {
@@ -38,6 +36,7 @@ inline Debug_State *
 debug_get_state(void)
 {
     Debug_State *result = debug_get_state(g_debug_memory);
+
     return result;
 }
 
@@ -294,7 +293,6 @@ write_config(Debug_State *debug_state)
                                                                                 "c:/windows/system32/cmd.exe",
                                                                                 "/C build.bat");
     }
-    
 }
 
 internal void
@@ -410,11 +408,6 @@ struct Layout
     f32 line_advance;
     f32 spacing_y;
 };
-
-inline Rect2
-place_rect(Layout *layout, v2 dim)
-{
-}
 
 struct Layout_Element
 {
@@ -589,8 +582,14 @@ debug_draw_main_menu(Debug_State *debug_state, v2 menu_p, v2 mouse_p)
         int depth = 0;
         Debug_Variable_Iterator stack[DEBUG_MAX_VARIABLE_STACK_DEPTH];
 
-        stack[depth].link = tree->group->var_group.next;
-        stack[depth].sentinel = &tree->group->var_group;
+        Debug_Variable *group = tree->group;
+        if (debug_state->frame_count > 0)
+        {
+            group = debug_state->frames[0].root_group;
+        }
+
+        stack[depth].link = group->var_group.next;
+        stack[depth].sentinel = &group->var_group;
         ++depth;
         while (depth > 0)
         {
@@ -674,8 +673,9 @@ debug_draw_main_menu(Debug_State *debug_state, v2 menu_p, v2 mouse_p)
                     } break;
                 }
 
-                if (var->type == eDebug_Variable_Type_Var_Group &&
-                    view->collapsible.expanded_always)
+                if ((var->type == eDebug_Variable_Type_Var_Group)
+                    // && view->collapsible.expanded_always
+                    )
                 {
                     iter = stack + depth;
                     iter->link = var->var_group.next;
@@ -943,7 +943,8 @@ get_debug_thread(Debug_State *debug_state, u32 thread_id)
         result = push_struct(&debug_state->collate_arena, Debug_Thread);
         result->id = thread_id;
         result->lane_idx = debug_state->frame_bar_lane_count++;
-        result->first_open_block = 0;
+        result->first_open_code_block = 0;
+        result->first_open_data_block = 0;
         result->next = debug_state->first_thread;
         debug_state->first_thread = result;
     }
@@ -964,6 +965,92 @@ inline Debug_Record *
 get_record_from(Open_Debug_Block *block)
 {
     Debug_Record *result = block ? block->src : 0;
+
+    return result;
+}
+
+inline Open_Debug_Block *
+alloc_open_debug_block(Debug_State *debug_state, u32 frame_idx, Debug_Event *event,
+                       Debug_Record *src, Open_Debug_Block **first_open_block)
+{
+    Open_Debug_Block *result = debug_state->first_free_block;
+    if (result)
+    {
+        debug_state->first_free_block = result->next_free;
+    }
+    else
+    {
+        result = push_struct(&debug_state->collate_arena, Open_Debug_Block);
+    }
+
+    result->starting_frame_idx = frame_idx;
+    result->opening_event = event;
+    result->src = src;
+    result->next_free = 0;
+
+    result->parent = *first_open_block;
+    *first_open_block = result;
+
+    return result;
+}
+
+inline void
+deallocate_open_debug_block(Debug_State *debug_state, Open_Debug_Block **first_open_block)
+{
+    Open_Debug_Block *free_block = *first_open_block;
+    *first_open_block = free_block->parent;
+
+    free_block->next_free = debug_state->first_free_block;
+    debug_state->first_free_block = free_block;
+}
+
+inline b32
+events_match(Debug_Event a, Debug_Event b)
+{
+    b32 result = ((a.tc.thread_id == b.tc.thread_id) &&
+                  // TODO: remove this checking?
+                  // (a.debug_record_id == b.debug_record_id) &&
+                  (a.translation_unit == b.translation_unit));
+    return result;
+}
+
+internal Debug_Variable *
+collate_create_variable(Debug_State *state, Debug_Variable_Type type, char *name)
+{
+    Debug_Variable *var = push_struct(&state->collate_arena, Debug_Variable);
+    var->type = type;
+    var->name = (char *)push_copy(&state->collate_arena, name, string_length(name) + 1);
+
+    return var;
+}
+
+internal void
+collate_add_variable_group(Debug_State *state, Debug_Variable *group, Debug_Variable *add)
+{
+    Debug_Variable_Link *link = push_struct(&state->collate_arena, Debug_Variable_Link);
+    DLIST_INSERT(&group->var_group, link);
+    link->var = add;
+}
+
+internal Debug_Variable *
+collate_create_variable_group(Debug_State *debug_state, char *name)
+{
+    Debug_Variable *group = collate_create_variable(debug_state, eDebug_Variable_Type_Var_Group, name);
+    DLIST_INIT(&group->var_group);
+
+    return group;
+}
+
+internal Debug_Variable *
+collate_create_grouped_variable(Debug_State *debug_state, Open_Debug_Block *block,
+                                Debug_Variable_Type type, char *name)
+{
+    Debug_Variable *result = collate_create_variable(debug_state, type, name);
+    Assert(block);
+    Assert(block->group);
+
+    collate_add_variable_group(debug_state, block->group, result);
+
     return result;
 }
 
@@ -1016,6 +1103,7 @@ collate_debug_records(Debug_State *debug_state, u32 invalid_event_array_idx)
                 }
 
                 debug_state->collation_frame = debug_state->frames + debug_state->frame_count;
+                debug_state->collation_frame->root_group = collate_create_variable_group(debug_state, "Frame");
                 debug_state->collation_frame->begin_clock = event->clock;
                 debug_state->collation_frame->end_clock = 0;
                 debug_state->collation_frame->region_count = 0;
@@ -1028,72 +1116,139 @@ collate_debug_records(Debug_State *debug_state, u32 invalid_event_array_idx)
                 Debug_Thread *thread = get_debug_thread(debug_state, event->tc.thread_id);
                 u64 relative_clock = event->clock - debug_state->collation_frame->begin_clock;
 
-                if (event->type == eDebug_Event_Begin_Block)
+                switch (event->type)
                 {
-                    Open_Debug_Block *debug_block = debug_state->first_free_block;
-                    if (debug_block)
+                    case eDebug_Event_Begin_Block:
                     {
-                        debug_state->first_free_block = debug_block->next_free;
-                    }
-                    else
-                    {
-                        debug_block = push_struct(&debug_state->collate_arena, Open_Debug_Block);
-                    }
+                        Open_Debug_Block *debug_block =
+                            alloc_open_debug_block(debug_state, frame_idx, event, src, &thread->first_open_code_block);
+                    } break;
 
-                    debug_block->starting_frame_idx = frame_idx;
-                    debug_block->opening_event = event;
-                    debug_block->parent = thread->first_open_block;
-                    debug_block->src = src;
-                    thread->first_open_block = debug_block;
-                    debug_block->next_free = 0;
-                }
-                else if (event->type == eDebug_Event_End_Block)
-                {
-                    if (thread->first_open_block)
+                    case eDebug_Event_End_Block:
                     {
-                        Open_Debug_Block *matching_block = thread->first_open_block;
-                        Debug_Event *opening_event = matching_block->opening_event;
-                        if (opening_event->tc.thread_id == event->tc.thread_id &&
-                            opening_event->debug_record_idx == event->debug_record_idx &&
-                            opening_event->translation_unit == event->translation_unit)
+                        if (thread->first_open_code_block)
                         {
-                            if (matching_block->starting_frame_idx == frame_idx)
+                            Open_Debug_Block *matching_block = thread->first_open_code_block;
+                            Debug_Event *opening_event = matching_block->opening_event;
+                            if (events_match(*opening_event, *event))
                             {
-                                if (get_record_from(matching_block->parent) == debug_state->scope_to_record)
+                                if (matching_block->starting_frame_idx == frame_idx)
                                 {
-                                    f32 min_t = (f32)(opening_event->clock - debug_state->collation_frame->begin_clock);
-                                    f32 max_t = (f32)(event->clock - debug_state->collation_frame->begin_clock);
-                                    f32 threshold_t = 0.01f;
-                                    if ((max_t - min_t) > threshold_t)
+                                    if (get_record_from(matching_block->parent) == debug_state->scope_to_record)
                                     {
-                                        Debug_Frame_Region *region = add_region(debug_state, debug_state->collation_frame);
-                                        region->record = src;
-                                        region->cycle_count = (event->clock - opening_event->clock);
-                                        region->lane_idx = (u16)thread->lane_idx;
-                                        region->min_t = min_t;
-                                        region->max_t = max_t;
-                                        region->color_idx = (u16)opening_event->debug_record_idx;
+                                        f32 min_t = (f32)(opening_event->clock - debug_state->collation_frame->begin_clock);
+                                        f32 max_t = (f32)(event->clock - debug_state->collation_frame->begin_clock);
+                                        f32 threshold_t = 0.01f;
+                                        if ((max_t - min_t) > threshold_t)
+                                        {
+                                            Debug_Frame_Region *region = add_region(debug_state, debug_state->collation_frame);
+                                            region->record = src;
+                                            region->cycle_count = (event->clock - opening_event->clock);
+                                            region->lane_idx = (u16)thread->lane_idx;
+                                            region->min_t = min_t;
+                                            region->max_t = max_t;
+                                            region->color_idx = (u16)opening_event->debug_record_idx;
+                                        }
                                     }
                                 }
+                                else
+                                {
+                                    // TODO: record all frames in between and begin/end spans!
+                                }
+
+                                deallocate_open_debug_block(debug_state, &thread->first_open_code_block);
                             }
                             else
                             {
-                                // TODO: record all frames in between and begin/end spans!
+                                // TODO: record span that goes to the beginning of the frame series?
                             }
+                        }
+                    } break;
 
-                            thread->first_open_block->next_free = debug_state->first_free_block;
-                            debug_state->first_free_block = thread->first_open_block;
-                            thread->first_open_block = matching_block->parent;
-                        }
-                        else
+                    case eDebug_Event_Open_Data_Block:
+                    {
+                        Open_Debug_Block *debug_block =
+                            alloc_open_debug_block(debug_state, frame_idx, event, src, &thread->first_open_data_block);
+
+                        debug_block->group = collate_create_variable_group(debug_state, src->block_name);
+                        collate_add_variable_group(debug_state,
+                                                   debug_block->parent ? debug_block->parent->group : debug_state->collation_frame->root_group,
+                                                   debug_block->group);
+                    } break;
+
+                    case eDebug_Event_Close_Data_Block:
+                    {
+                        if (thread->first_open_data_block)
                         {
-                            // TODO: record span that goes to the beginning of the frame series?
+                            Open_Debug_Block *matching_block = thread->first_open_data_block;
+                            Debug_Event *opening_event = matching_block->opening_event;
+                            if (events_match(*opening_event, *event))
+                            {
+                                deallocate_open_debug_block(debug_state, &thread->first_open_data_block);
+                            }
+                            else
+                            {
+                                // TODO: record span that goes to the beginning of the frame series?
+                            }
                         }
-                    }
-                }
-                else
-                {
-                    Assert(!"Invalid event type");
+                    } break;
+
+                    case eDebug_Event_f32:
+                    {
+                        Debug_Variable *var = collate_create_grouped_variable(debug_state, thread->first_open_data_block, eDebug_Variable_Type_f32, src->block_name);
+                        var->float32 = event->vec_f32[0];
+                    } break;
+
+                    case eDebug_Event_s32:
+                    {
+                        Debug_Variable *var = collate_create_grouped_variable(debug_state, thread->first_open_data_block, eDebug_Variable_Type_s32, src->block_name);
+                        var->int32 = event->vec_s32[0];
+                    } break;
+
+                    case eDebug_Event_u32:
+                    {
+                        Debug_Variable *var = collate_create_grouped_variable(debug_state, thread->first_open_data_block, eDebug_Variable_Type_u32, src->block_name);
+                        var->uint32 = event->vec_u32[0];
+                    } break;
+
+                    case eDebug_Event_v2:
+                    {
+                        Debug_Variable *var = collate_create_grouped_variable(debug_state, thread->first_open_data_block, eDebug_Variable_Type_v2, src->block_name);
+                        var->vector2.x = event->vec_f32[0];
+                        var->vector2.y = event->vec_f32[1];
+                    } break;
+
+                    case eDebug_Event_v3:
+                    {
+                        Debug_Variable *var = collate_create_grouped_variable(debug_state, thread->first_open_data_block, eDebug_Variable_Type_v3, src->block_name);
+                        var->vector3.x = event->vec_f32[0];
+                        var->vector3.y = event->vec_f32[1];
+                        var->vector3.z = event->vec_f32[2];
+                    } break;
+
+                    case eDebug_Event_v4:
+                    {
+                        Debug_Variable *var = collate_create_grouped_variable(debug_state, thread->first_open_data_block, eDebug_Variable_Type_v4, src->block_name);
+                        var->vector4.r = event->vec_f32[0];
+                        var->vector4.g = event->vec_f32[1];
+                        var->vector4.b = event->vec_f32[2];
+                        var->vector4.a = event->vec_f32[3];
+                    } break;
+
+                    case eDebug_Event_Rect2:
+                    {
+                        // TODO: implement
+                    } break;
+
+                    case eDebug_Event_Rect3:
+                    {
+                        // TODO: implement
+                    } break;
+
+                    default :
+                    {
+                        Assert(!"Invalid event type");
+                    } break;
                 }
             }
 
@@ -1424,7 +1579,7 @@ DEBUG_FRAME_END(debug_frame_end)
 
         if (!debug_state->paused)
         {
-            if (debug_state->frame_count >= MAX_DEBUG_EVENT_ARRAY_COUNT * 4)
+            if (debug_state->frame_count >= (MAX_DEBUG_EVENT_ARRAY_COUNT * 4 - 1))
             {
                 restart_collation(debug_state, g_debug_table->current_event_array_idx);
             }

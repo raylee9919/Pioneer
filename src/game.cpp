@@ -553,6 +553,16 @@ GAME_UPDATE(game_update)
 #if DEBUG_UI_DRAW_STAR
     push_star(render_group, game_assets->star_mesh, game_state->star_count, game_state->star_world_transforms, game_state->time);
 #endif
+
+
+    DEBUG_BEGIN_DATA_BLOCK("Player Entity", player, 0);
+    DEBUG_VALUE(player->dim);
+    DEBUG_VALUE(player->world_translation);
+    DEBUG_VALUE(player->velocity);
+    DEBUG_VALUE(player->accel);
+    DEBUG_VALUE(player->u);
+    DEBUG_END_DATA_BLOCK();
+
     
     render_group_to_output_batch(render_group, &game_memory->render_batch);
     end_temporary_memory(&render_memory);

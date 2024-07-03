@@ -162,6 +162,8 @@ struct Debug_Frame
     u64 end_clock;
     f32 wall_seconds_elapsed;
 
+    Debug_Variable *root_group;
+
     u32 region_count;
     Debug_Frame_Region *regions;
 };
@@ -173,6 +175,9 @@ struct Open_Debug_Block
     Debug_Event *opening_event;
     Open_Debug_Block *parent;
 
+    // NOTE: only for data blocks? Proly!
+    Debug_Variable *group;
+
     Open_Debug_Block *next_free;
 };
 
@@ -180,7 +185,8 @@ struct Debug_Thread
 {
     u32 id;
     u32 lane_idx;
-    Open_Debug_Block *first_open_block;
+    Open_Debug_Block *first_open_code_block;
+    Open_Debug_Block *first_open_data_block;
     Debug_Thread *next;
 };
 
