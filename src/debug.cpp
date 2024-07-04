@@ -41,7 +41,7 @@ debug_get_state(void)
 }
 
 internal Debug_Tree *
-add_tree(Debug_State *debug_state, Debug_Variable *group, v2 at_p)
+add_tree(Debug_State *debug_state, Debug_Variable_Group *group, v2 at_p)
 {
     Debug_Tree *tree = push_struct(&debug_state->debug_arena, Debug_Tree);
 
@@ -66,8 +66,7 @@ debug_text_line(char *string)
 
         string_op(eString_Op_Draw, render_group,
                   _v3_(debug_state->left_edge,
-                       debug_state->at_y - line_advance,
-                       0.0f),
+                       debug_state->at_y - line_advance, 0.0f),
                   string, game_assets, _v4_(1, 1, 1, 1));
         debug_state->at_y -= game_assets->v_advance;
     }
@@ -123,9 +122,10 @@ accumulate_debug_statistic(Debug_Statistic *stat, f64 value)
 }
 
 internal size_t
-debug_variable_to_text(char *buffer, char *end, Debug_Variable *var, u32 flags)
+debug_event_to_text(char *buffer, char *end, Debug_Event *event, u32 flags)
 {
     char *at = buffer;
+    char *name = event->block_name;
 
     if (flags & eDebug_Var_To_Text_Add_Debug_UI)
     {
@@ -136,68 +136,90 @@ debug_variable_to_text(char *buffer, char *end, Debug_Variable *var, u32 flags)
     if (flags & eDebug_Var_To_Text_Add_Name)
     {
         at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                          "%s%s ", var->name, (flags & eDebug_Var_To_Text_Colon) ? ":" : "");
+                          "%s%s ", name, (flags & eDebug_Var_To_Text_Colon) ? ":" : "");
     }
 
-    switch (var->type)
+    switch (event->type)
     {
-        case eDebug_Variable_Type_b32:
+        case eDebug_Type_b32:
         {
             if (flags & eDebug_Var_To_Text_Pretty_Bools)
             {
-            at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                              "%s", var->bool32 ? "true" : "false");
+                at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                                  "%s", event->bool32 ? "true" : "false");
             }
             else
             {
                 at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                                  "%d", var->bool32);
+                                  "%d", event->bool32);
             }
         } break;
 
-        case eDebug_Variable_Type_s32:
+        case eDebug_Type_s32:
         {
             at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                              "%d", var->int32);
+                              "%d", event->int32);
         } break;
 
-        case eDebug_Variable_Type_u32:
+        case eDebug_Type_u32:
         {
             at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                              "%u", var->uint32);
+                              "%u", event->uint32);
         } break;
 
-        case eDebug_Variable_Type_f32:
+        case eDebug_Type_f32:
         {
             at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                              "%f", var->float32);
+                              "%f", event->float32);
             if (flags & eDebug_Var_To_Text_Float_Suffix)
             {
                 *at++ = 'f';
             }
         } break;
 
-        case eDebug_Variable_Type_v2:
+        case eDebug_Type_v2:
         {
             at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                              "_v2_(%f, %f)", var->vector2.x, var->vector2.y);
+                              "_v2_(%f, %f)", event->vector2.x, event->vector2.y);
         } break;
 
-        case eDebug_Variable_Type_v3:
+        case eDebug_Type_v3:
         {
             at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                              "_v3_(%f, %f, %f)", var->vector3.x, var->vector3.y, var->vector3.z);
+                              "_v3_(%f, %f, %f)", event->vector3.x, event->vector3.y, event->vector3.z);
         } break;
 
-        case eDebug_Variable_Type_v4:
+        case eDebug_Type_v4:
         {
             at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                              "_v4_(%f, %f, %f, %f)", var->vector4.r, var->vector4.g, var->vector4.b, var->vector4.a);
+                              "_v4_(%f, %f, %f, %f)", event->vector4.r, event->vector4.g, event->vector4.b, event->vector4.a);
         } break;
 
-        case eDebug_Variable_Type_Counter_Thread_List:
-        case eDebug_Variable_Type_Bitmap_Display:
-        case eDebug_Variable_Type_Var_Group:
+        case eDebug_Type_Rect2:
+        {
+            at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                              "Rect2(%f, %f -> %f, %f)",
+                              event->rect2.min.x,
+                              event->rect2.min.y,
+                              event->rect2.max.x,
+                              event->rect2.max.y);
+        } break;
+
+        case eDebug_Type_Rect3:
+        {
+            at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                              "Rect3(cen:(%f, %f, %f), dim:(%f, %f, %f))",
+                              event->rect3.cen.x,
+                              event->rect3.cen.y,
+                              event->rect3.cen.z,
+                              event->rect3.dim.x,
+                              event->rect3.dim.y,
+                              event->rect3.dim.z);
+        } break;
+
+        case eDebug_Type_Counter_Thread_List:
+        case eDebug_Type_Bitmap:
+        case eDebug_Type_Open_Data_Block:
         {
         } break;
 
@@ -226,6 +248,7 @@ struct Debug_Variable_Iterator
 internal void
 write_config(Debug_State *debug_state)
 {
+#if 0
     // TODO: need a giant buffer here.
     char tmp[4096];
     char *at = tmp;
@@ -261,19 +284,19 @@ write_config(Debug_State *debug_state)
                     *at++ = ' ';
                 }
 
-                if (var->type == eDebug_Variable_Type_Var_Group)
+                if (var->type == eDebug_Type_Var_Group)
                 {
                     at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
                                       "// ");
                 }
-                at += debug_variable_to_text(at, end, var, 
+                at += debug_event_to_text(at, end, var, 
                                              eDebug_Var_To_Text_Add_Debug_UI|
                                              eDebug_Var_To_Text_Add_Name|
                                              eDebug_Var_To_Text_Float_Suffix|
                                              eDebug_Var_To_Text_Line_Feed_End);
             }
 
-            if (var->type == eDebug_Variable_Type_Var_Group)
+            if (var->type == eDebug_Type_Var_Group)
             {
                 iter = stack + depth;
                 iter->link = var->var_group.next;
@@ -293,6 +316,7 @@ write_config(Debug_State *debug_state)
                                                                                 "c:/windows/system32/cmd.exe",
                                                                                 "/C build.bat");
     }
+#endif
 }
 
 internal void
@@ -368,14 +392,14 @@ draw_profile_in(Debug_State *debug_state, Rect2 profile_rect, v2 mouse_p)
 
             if (is_in_rect(region_rect, mouse_p))
             {
-                Debug_Record *record = region->record;
+                Debug_Event *event = region->event;
                 char text_buffer[256];
                 _snprintf_s(text_buffer, sizeof(text_buffer), 
                             "%s: %10ucy [%s(%d)]",
-                            record->block_name,
+                            event->block_name,
                             (u32)region->cycle_count,
-                            record->file_name,
-                            record->line_number);
+                            event->file_name,
+                            event->line_number);
                 string_op(eString_Op_Draw, debug_state->render_group, _v3_(mouse_p, -1.0f), text_buffer, game_assets);
 
                 // hot_record = record;
@@ -558,7 +582,7 @@ var_link_interaction(Debug_Interaction_Type type, Debug_Tree *tree, Debug_Variab
     Debug_Interaction item_interaction = {};
     item_interaction.id = debug_id_from_link(tree, link);
     item_interaction.type = type;
-    item_interaction.var = link->var;
+    item_interaction.event = link->event;
 
     return item_interaction;
 }
@@ -582,105 +606,113 @@ debug_draw_main_menu(Debug_State *debug_state, v2 menu_p, v2 mouse_p)
         int depth = 0;
         Debug_Variable_Iterator stack[DEBUG_MAX_VARIABLE_STACK_DEPTH];
 
-        Debug_Variable *group = tree->group;
+        Debug_Variable_Group *group = tree->group;
         if (debug_state->frame_count > 0)
         {
+            Debug_Variable_Group *hacky_group = debug_state->frames[0].root_group;
+            if (hacky_group)
+            {
+                group = hacky_group;
+            }
             group = debug_state->frames[0].root_group;
         }
 
-        stack[depth].link = group->var_group.next;
-        stack[depth].sentinel = &group->var_group;
-        ++depth;
-        while (depth > 0)
+        if (group)
         {
-            Debug_Variable_Iterator *iter = stack + (depth - 1);
-            if (iter->link == iter->sentinel)
+            stack[depth].link = group->sentinel.next;
+            stack[depth].sentinel = &group->sentinel;
+            ++depth;
+            while (depth > 0)
             {
-                --depth;
-            }
-            else
-            {
-                layout.depth = depth;
-
-                Debug_Variable_Link *link = iter->link;
-                Debug_Variable *var = iter->link->var;
-                iter->link = iter->link->next;
-
-                Debug_Interaction item_interaction = 
-                    var_link_interaction(eDebug_Interaction_Auto_Modify_Variable, tree, link);
-
-                b32 is_hot = interaction_is_hot(debug_state, item_interaction);
-                v4 item_color = is_hot ? _v4_(1, 1, 0, 1) : _v4_(1, 1, 1, 1);
-
-                Debug_View *view = get_or_create_debug_view_for(debug_state, debug_id_from_link(tree, link));
-                switch (var->type)
+                Debug_Variable_Iterator *iter = stack + (depth - 1);
+                if (iter->link == iter->sentinel)
                 {
-                    case eDebug_Variable_Type_Counter_Thread_List:
-                    {
-                        Layout_Element element = begin_element_rect(&layout, &view->inline_block.dim);
-                        make_element_sizeable(&element);
-                        default_interaction(&element, item_interaction);
-                        end_element(&element);
-
-                        draw_profile_in(debug_state, element.bounds, mouse_p);
-                    } break;
-
-                    case eDebug_Variable_Type_Bitmap_Display:
-                    {
-                        Bitmap *bitmap = var->bitmap_display.bitmap;
-                        f32 bitmap_scale = view->inline_block.dim.y;
-                        if (bitmap)
-                        {
-                            view->inline_block.dim.x = (bitmap_scale * bitmap->width) / bitmap->height;
-                        }
-
-                        Debug_Interaction tear_interaction = var_link_interaction(eDebug_Interaction_Tear_Value, tree, link);
-
-                        Layout_Element element = begin_element_rect(&layout, &view->inline_block.dim);
-                        make_element_sizeable(&element);
-                        default_interaction(&element, tear_interaction);
-                        end_element(&element);
-
-                        push_rect(debug_state->render_group, element.bounds, 0.0f, _v4_(0, 0, 0, 1.0f));
-                        push_bitmap(debug_state->render_group, _v3_(element.bounds.min, 0.0f), _v3_(element.bounds.max, 0.0f), bitmap);
-                    } break;
-
-                    default:
-                    {
-                        char text[256];
-                        debug_variable_to_text(text, text + sizeof(text), var, 
-                                               eDebug_Var_To_Text_Add_Name|
-                                               eDebug_Var_To_Text_Null_Terminator|
-                                               eDebug_Var_To_Text_Colon|
-                                               eDebug_Var_To_Text_Pretty_Bools);
-
-                        Rect2 text_bounds = string_op(eString_Op_Get_Rect2, debug_state->render_group, _v3_(0, 0, 0), text, game_assets);
-                        v2 dim = _v2_(get_dim(text_bounds).x, layout.line_advance);
-
-                        Layout_Element element = begin_element_rect(&layout, &dim);
-                        default_interaction(&element, item_interaction);
-                        end_element(&element);
-
-                        string_op(eString_Op_Draw,
-                                  debug_state->render_group,
-                                  _v3_(_v2_(element.bounds.min.x,
-                                            element.bounds.max.y - game_assets->v_advance),
-                                       0.0f),
-                                  text,
-                                  game_assets,
-                                  item_color);
-
-                    } break;
+                    --depth;
                 }
-
-                if ((var->type == eDebug_Variable_Type_Var_Group)
-                    // && view->collapsible.expanded_always
-                    )
+                else
                 {
-                    iter = stack + depth;
-                    iter->link = var->var_group.next;
-                    iter->sentinel = &var->var_group;
-                    ++depth;
+                    layout.depth = depth;
+
+                    Debug_Variable_Link *link = iter->link;
+                    Debug_Event *event = iter->link->event;
+                    iter->link = iter->link->next;
+
+                    Debug_Interaction item_interaction = 
+                        var_link_interaction(eDebug_Interaction_Auto_Modify_Variable, tree, link);
+
+                    b32 is_hot = interaction_is_hot(debug_state, item_interaction);
+                    v4 item_color = is_hot ? _v4_(1, 1, 0, 1) : _v4_(1, 1, 1, 1);
+
+                    Debug_View *view = get_or_create_debug_view_for(debug_state, debug_id_from_link(tree, link));
+                    switch (event->type)
+                    {
+                        case eDebug_Type_Counter_Thread_List:
+                        {
+                            Layout_Element element = begin_element_rect(&layout, &view->inline_block.dim);
+                            make_element_sizeable(&element);
+                            default_interaction(&element, item_interaction);
+                            end_element(&element);
+
+                            draw_profile_in(debug_state, element.bounds, mouse_p);
+                        } break;
+
+                        case eDebug_Type_Bitmap:
+                        {
+                            Bitmap *bitmap = event->bitmap;
+                            f32 bitmap_scale = view->inline_block.dim.y;
+                            if (bitmap)
+                            {
+                                view->inline_block.dim.x = (bitmap_scale * bitmap->width) / bitmap->height;
+                            }
+
+                            Debug_Interaction tear_interaction = var_link_interaction(eDebug_Interaction_Tear_Value, tree, link);
+
+                            Layout_Element element = begin_element_rect(&layout, &view->inline_block.dim);
+                            make_element_sizeable(&element);
+                            default_interaction(&element, tear_interaction);
+                            end_element(&element);
+
+                            push_rect(debug_state->render_group, element.bounds, 0.0f, _v4_(0, 0, 0, 1.0f));
+                            push_bitmap(debug_state->render_group, _v3_(element.bounds.min, 0.0f), _v3_(element.bounds.max, 0.0f), bitmap);
+                        } break;
+
+                        default:
+                        {
+                            char text[256];
+                            debug_event_to_text(text, text + sizeof(text), event, 
+                                                   eDebug_Var_To_Text_Add_Name|
+                                                   eDebug_Var_To_Text_Null_Terminator|
+                                                   eDebug_Var_To_Text_Colon|
+                                                   eDebug_Var_To_Text_Pretty_Bools);
+
+                            Rect2 text_bounds = string_op(eString_Op_Get_Rect2, debug_state->render_group, _v3_(0, 0, 0), text, game_assets);
+                            v2 dim = _v2_(get_dim(text_bounds).x, layout.line_advance);
+
+                            Layout_Element element = begin_element_rect(&layout, &dim);
+                            default_interaction(&element, item_interaction);
+                            end_element(&element);
+
+                            string_op(eString_Op_Draw,
+                                      debug_state->render_group,
+                                      _v3_(_v2_(element.bounds.min.x,
+                                                element.bounds.max.y - game_assets->v_advance),
+                                           0.0f),
+                                      text,
+                                      game_assets,
+                                      item_color);
+
+                        } break;
+                    }
+
+                    if (link->children
+                        // && view->collapsible.expanded_always
+                       )
+                    {
+                        iter = stack + depth;
+                        iter->link = link->children->sentinel.next;
+                        iter->sentinel = &link->children->sentinel;
+                        ++depth;
+                    }
                 }
             }
         }
@@ -755,19 +787,19 @@ debug_begin_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p, b3
     {
         if (debug_state->hot_interaction.type == eDebug_Interaction_Auto_Modify_Variable)
         {
-            switch (debug_state->hot_interaction.var->type)
+            switch (debug_state->hot_interaction.event->type)
             {
-                case eDebug_Variable_Type_b32:
+                case eDebug_Type_b32:
                 {
                     debug_state->hot_interaction.type = eDebug_Interaction_Toggle_Value;
                 } break;
 
-                case eDebug_Variable_Type_f32:
+                case eDebug_Type_f32:
                 {
                     debug_state->hot_interaction.type = eDebug_Interaction_Drag_Value;
                 } break;
 
-                case eDebug_Variable_Type_Var_Group:
+                case eDebug_Type_Open_Data_Block:
                 {
                     debug_state->hot_interaction.type = eDebug_Interaction_Toggle_Value;
                 } break;
@@ -783,12 +815,14 @@ debug_begin_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p, b3
         {
             case eDebug_Interaction_Tear_Value:
             {
+#if 0
                 Debug_Variable *root_group = debug_add_root_group(debug_state, "New_User_Group");
                 debug_add_variable_to_group(debug_state, root_group, debug_state->hot_interaction.var);
                 Debug_Tree *tree = add_tree(debug_state, root_group, _v2_(0, 0));
                 tree->ui_p = mouse_p;
                 debug_state->hot_interaction.type = eDebug_Interaction_Move;
                 debug_state->hot_interaction.p = &tree->ui_p;
+#endif
             } break;
         }
 
@@ -807,16 +841,16 @@ debug_end_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p)
     {
         case eDebug_Interaction_Toggle_Value:
         {
-            Debug_Variable *var = debug_state->interaction.var;
-            Assert(var);
-            switch (var->type)
+            Debug_Event *event = debug_state->interaction.event;
+            Assert(event);
+            switch (event->type)
             {
-                case eDebug_Variable_Type_b32:
+                case eDebug_Type_b32:
                 {
-                    var->bool32 = !var->bool32;
+                    event->bool32 = !event->bool32;
                 } break;
 
-                case eDebug_Variable_Type_Var_Group:
+                case eDebug_Type_Open_Data_Block:
                 {
                     Debug_View *view = get_or_create_debug_view_for(debug_state, debug_state->interaction.id);
                     view->collapsible.expanded_always = !view->collapsible.expanded_always;
@@ -850,7 +884,7 @@ debug_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p)
 
     if (debug_state->interaction.type)
     {
-        Debug_Variable *var = debug_state->interaction.var;
+        Debug_Event *event = debug_state->interaction.event;
         Debug_Tree *tree = debug_state->interaction.tree;
         v2 *p = debug_state->interaction.p;
 
@@ -858,11 +892,11 @@ debug_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p)
         {
             case eDebug_Interaction_Drag_Value:
             {
-                switch (var->type)
+                switch (event->type)
                 {
-                    case eDebug_Variable_Type_f32:
+                    case eDebug_Type_f32:
                     {
-                        var->float32 += 0.1f * d_mouse_p.x;
+                        event->float32 += 0.1f * d_mouse_p.x;
                     } break;
                 }
             } break;
@@ -909,7 +943,6 @@ debug_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p)
     debug_state->last_mouse_p = mouse_p;
 }
 
-#define DEBUG_RECORDS_MAIN_COUNT __COUNTER__
 global_var Debug_Table g_debug_table_;
 Debug_Table *g_debug_table = &g_debug_table_;
 
@@ -961,17 +994,8 @@ add_region(Debug_State *debug_state, Debug_Frame *current_frame)
     return result;
 }
 
-inline Debug_Record *
-get_record_from(Open_Debug_Block *block)
-{
-    Debug_Record *result = block ? block->src : 0;
-
-    return result;
-}
-
 inline Open_Debug_Block *
-alloc_open_debug_block(Debug_State *debug_state, u32 frame_idx, Debug_Event *event,
-                       Debug_Record *src, Open_Debug_Block **first_open_block)
+alloc_open_debug_block(Debug_State *debug_state, u32 frame_idx, Debug_Event *event, Open_Debug_Block **first_open_block)
 {
     Open_Debug_Block *result = debug_state->first_free_block;
     if (result)
@@ -985,7 +1009,6 @@ alloc_open_debug_block(Debug_State *debug_state, u32 frame_idx, Debug_Event *eve
 
     result->starting_frame_idx = frame_idx;
     result->opening_event = event;
-    result->src = src;
     result->next_free = 0;
 
     result->parent = *first_open_block;
@@ -1007,51 +1030,41 @@ deallocate_open_debug_block(Debug_State *debug_state, Open_Debug_Block **first_o
 inline b32
 events_match(Debug_Event a, Debug_Event b)
 {
-    b32 result = ((a.tc.thread_id == b.tc.thread_id) &&
-                  // TODO: remove this checking?
-                  // (a.debug_record_id == b.debug_record_id) &&
-                  (a.translation_unit == b.translation_unit));
+    // TODO: Have counters for blocks?
+    b32 result = (a.thread_id == b.thread_id);
     return result;
 }
 
-internal Debug_Variable *
-collate_create_variable(Debug_State *state, Debug_Variable_Type type, char *name)
+internal Debug_Event *
+collate_create_variable(Debug_State *state, Debug_Type type, char *name)
 {
-    Debug_Variable *var = push_struct(&state->collate_arena, Debug_Variable);
-    var->type = type;
-    var->name = (char *)push_copy(&state->collate_arena, name, string_length(name) + 1);
+    Debug_Event *var = push_struct(&state->collate_arena, Debug_Event);
+    zero_struct(*var);
+    var->type = (u8)type;
+    var->block_name = (char *)push_copy(&state->collate_arena, name, string_length(name) + 1);
 
     return var;
 }
 
-internal void
-collate_add_variable_group(Debug_State *state, Debug_Variable *group, Debug_Variable *add)
+internal Debug_Variable_Link *
+collate_add_variable_to_group(Debug_State *state, Debug_Variable_Group *group, Debug_Event *add)
 {
     Debug_Variable_Link *link = push_struct(&state->collate_arena, Debug_Variable_Link);
-    DLIST_INSERT(&group->var_group, link);
-    link->var = add;
+    DLIST_INSERT(&group->sentinel, link);
+    link->children = 0;
+    link->event = add;
+
+    return link;
 }
 
-internal Debug_Variable *
-collate_create_variable_group(Debug_State *debug_state, char *name)
+internal Debug_Variable_Group *
+collate_create_variable_group(Debug_State *debug_state)
 {
-    Debug_Variable *group = collate_create_variable(debug_state, eDebug_Variable_Type_Var_Group, name);
-    DLIST_INIT(&group->var_group);
+    Debug_Variable_Group *group = push_struct(&debug_state->collate_arena, Debug_Variable_Group);
+
+    DLIST_INIT(&group->sentinel);
 
     return group;
-}
-
-internal Debug_Variable *
-collate_create_grouped_variable(Debug_State *debug_state, Open_Debug_Block *block,
-                                Debug_Variable_Type type, char *name)
-{
-    Debug_Variable *result = collate_create_variable(debug_state, type, name);
-    Assert(block);
-    Assert(block->group);
-
-    collate_add_variable_group(debug_state, block->group, result);
-
-    return result;
 }
 
 internal void
@@ -1077,15 +1090,13 @@ collate_debug_records(Debug_State *debug_state, u32 invalid_event_array_idx)
              ++event_idx)
         {
             Debug_Event *event = g_debug_table->events[event_array_idx] + event_idx;
-            Debug_Record *src = (g_debug_table->records[event->translation_unit] +
-                                 event->debug_record_idx);
 
-            if (event->type == eDebug_Event_Frame_Marker)
+            if (event->type == eDebug_Type_Frame_Marker)
             {
                 if (debug_state->collation_frame)
                 {
                     debug_state->collation_frame->end_clock = event->clock;
-                    debug_state->collation_frame->wall_seconds_elapsed = event->seconds_elapsed;
+                    debug_state->collation_frame->wall_seconds_elapsed = event->float32;
                     ++debug_state->frame_count;
 
                     f32 clock_range = (f32)(debug_state->collation_frame->end_clock - debug_state->collation_frame->begin_clock);
@@ -1103,7 +1114,7 @@ collate_debug_records(Debug_State *debug_state, u32 invalid_event_array_idx)
                 }
 
                 debug_state->collation_frame = debug_state->frames + debug_state->frame_count;
-                debug_state->collation_frame->root_group = collate_create_variable_group(debug_state, "Frame");
+                debug_state->collation_frame->root_group = collate_create_variable_group(debug_state);
                 debug_state->collation_frame->begin_clock = event->clock;
                 debug_state->collation_frame->end_clock = 0;
                 debug_state->collation_frame->region_count = 0;
@@ -1113,18 +1124,18 @@ collate_debug_records(Debug_State *debug_state, u32 invalid_event_array_idx)
             else if (debug_state->collation_frame)
             {
                 u32 frame_idx = debug_state->frame_count - 1;
-                Debug_Thread *thread = get_debug_thread(debug_state, event->tc.thread_id);
+                Debug_Thread *thread = get_debug_thread(debug_state, event->thread_id);
                 u64 relative_clock = event->clock - debug_state->collation_frame->begin_clock;
 
                 switch (event->type)
                 {
-                    case eDebug_Event_Begin_Block:
+                    case eDebug_Type_Begin_Block:
                     {
                         Open_Debug_Block *debug_block =
-                            alloc_open_debug_block(debug_state, frame_idx, event, src, &thread->first_open_code_block);
+                            alloc_open_debug_block(debug_state, frame_idx, event, &thread->first_open_code_block);
                     } break;
 
-                    case eDebug_Event_End_Block:
+                    case eDebug_Type_End_Block:
                     {
                         if (thread->first_open_code_block)
                         {
@@ -1134,7 +1145,9 @@ collate_debug_records(Debug_State *debug_state, u32 invalid_event_array_idx)
                             {
                                 if (matching_block->starting_frame_idx == frame_idx)
                                 {
-                                    if (get_record_from(matching_block->parent) == debug_state->scope_to_record)
+                                    char *match_name =
+                                        matching_block->parent ? matching_block->parent->opening_event->block_name : 0;
+                                    if (match_name == debug_state->scope_to_record)
                                     {
                                         f32 min_t = (f32)(opening_event->clock - debug_state->collation_frame->begin_clock);
                                         f32 max_t = (f32)(event->clock - debug_state->collation_frame->begin_clock);
@@ -1142,12 +1155,12 @@ collate_debug_records(Debug_State *debug_state, u32 invalid_event_array_idx)
                                         if ((max_t - min_t) > threshold_t)
                                         {
                                             Debug_Frame_Region *region = add_region(debug_state, debug_state->collation_frame);
-                                            region->record = src;
+                                            region->event = opening_event;
                                             region->cycle_count = (event->clock - opening_event->clock);
                                             region->lane_idx = (u16)thread->lane_idx;
                                             region->min_t = min_t;
                                             region->max_t = max_t;
-                                            region->color_idx = (u16)opening_event->debug_record_idx;
+                                            region->color_idx = (u16)opening_event->block_name;
                                         }
                                     }
                                 }
@@ -1165,18 +1178,20 @@ collate_debug_records(Debug_State *debug_state, u32 invalid_event_array_idx)
                         }
                     } break;
 
-                    case eDebug_Event_Open_Data_Block:
+                    case eDebug_Type_Open_Data_Block:
                     {
                         Open_Debug_Block *debug_block =
-                            alloc_open_debug_block(debug_state, frame_idx, event, src, &thread->first_open_data_block);
+                            alloc_open_debug_block(debug_state, frame_idx, event, &thread->first_open_data_block);
 
-                        debug_block->group = collate_create_variable_group(debug_state, src->block_name);
-                        collate_add_variable_group(debug_state,
-                                                   debug_block->parent ? debug_block->parent->group : debug_state->collation_frame->root_group,
-                                                   debug_block->group);
+                        debug_block->group = collate_create_variable_group(debug_state);
+                        Debug_Variable_Link *link = 
+                            collate_add_variable_to_group(debug_state,
+                                                          debug_block->parent ? debug_block->parent->group : debug_state->collation_frame->root_group,
+                                                          event);
+                        link->children = debug_block->group;
                     } break;
 
-                    case eDebug_Event_Close_Data_Block:
+                    case eDebug_Type_Close_Data_Block:
                     {
                         if (thread->first_open_data_block)
                         {
@@ -1193,61 +1208,9 @@ collate_debug_records(Debug_State *debug_state, u32 invalid_event_array_idx)
                         }
                     } break;
 
-                    case eDebug_Event_f32:
+                    default:
                     {
-                        Debug_Variable *var = collate_create_grouped_variable(debug_state, thread->first_open_data_block, eDebug_Variable_Type_f32, src->block_name);
-                        var->float32 = event->vec_f32[0];
-                    } break;
-
-                    case eDebug_Event_s32:
-                    {
-                        Debug_Variable *var = collate_create_grouped_variable(debug_state, thread->first_open_data_block, eDebug_Variable_Type_s32, src->block_name);
-                        var->int32 = event->vec_s32[0];
-                    } break;
-
-                    case eDebug_Event_u32:
-                    {
-                        Debug_Variable *var = collate_create_grouped_variable(debug_state, thread->first_open_data_block, eDebug_Variable_Type_u32, src->block_name);
-                        var->uint32 = event->vec_u32[0];
-                    } break;
-
-                    case eDebug_Event_v2:
-                    {
-                        Debug_Variable *var = collate_create_grouped_variable(debug_state, thread->first_open_data_block, eDebug_Variable_Type_v2, src->block_name);
-                        var->vector2.x = event->vec_f32[0];
-                        var->vector2.y = event->vec_f32[1];
-                    } break;
-
-                    case eDebug_Event_v3:
-                    {
-                        Debug_Variable *var = collate_create_grouped_variable(debug_state, thread->first_open_data_block, eDebug_Variable_Type_v3, src->block_name);
-                        var->vector3.x = event->vec_f32[0];
-                        var->vector3.y = event->vec_f32[1];
-                        var->vector3.z = event->vec_f32[2];
-                    } break;
-
-                    case eDebug_Event_v4:
-                    {
-                        Debug_Variable *var = collate_create_grouped_variable(debug_state, thread->first_open_data_block, eDebug_Variable_Type_v4, src->block_name);
-                        var->vector4.r = event->vec_f32[0];
-                        var->vector4.g = event->vec_f32[1];
-                        var->vector4.b = event->vec_f32[2];
-                        var->vector4.a = event->vec_f32[3];
-                    } break;
-
-                    case eDebug_Event_Rect2:
-                    {
-                        // TODO: implement
-                    } break;
-
-                    case eDebug_Event_Rect3:
-                    {
-                        // TODO: implement
-                    } break;
-
-                    default :
-                    {
-                        Assert(!"Invalid event type");
+                        collate_add_variable_to_group(debug_state, thread->first_open_data_block->group, event);
                     } break;
                 }
             }
@@ -1299,6 +1262,7 @@ debug_start(Debug_State *debug_state, Game_Assets *game_assets, u32 width, u32 h
 
         debug_state->game_assets = &((Transient_State *)g_debug_memory->transient_memory)->game_assets;
 
+#if 0
         Debug_Variable_Definition_Context context = {};
         context.state = debug_state;
         context.arena = &debug_state->debug_arena;
@@ -1310,10 +1274,10 @@ debug_start(Debug_State *debug_state, Game_Assets *game_assets, u32 width, u32 h
         debug_create_variables(&context);
         debug_begin_variable_group(&context, "Profile");
         debug_begin_variable_group(&context, "By Thread");
-        debug_add_variable(&context, eDebug_Variable_Type_Counter_Thread_List, "");
+        debug_add_variable(&context, eDebug_Type_Counter_Thread_List, "");
         debug_end_variable_group(&context);
         debug_begin_variable_group(&context, "By Function");
-        debug_add_variable(&context, eDebug_Variable_Type_Counter_Thread_List, "");
+        debug_add_variable(&context, eDebug_Type_Counter_Thread_List, "");
         debug_end_variable_group(&context);
         debug_end_variable_group(&context);
 
@@ -1322,6 +1286,7 @@ debug_start(Debug_State *debug_state, Game_Assets *game_assets, u32 width, u32 h
         debug_end_variable_group(&context);
         debug_end_variable_group(&context);
         Assert(context.group_depth == 0);
+#endif
 
         Camera *debug_overlay_camera = push_camera(&debug_state->debug_arena, eCamera_Type_Orthographic, (f32)width, (f32)height);
         debug_state->render_group = alloc_render_group(&debug_state->debug_arena, MB(16),
@@ -1429,7 +1394,7 @@ debug_end(Debug_State *debug_state, Game_Input *input)
     Render_Group *render_group = debug_state->render_group;
 
     zero_struct(debug_state->next_hot_interaction);
-    Debug_Record *hot_record = 0;
+    Debug_Event *hot_event = 0;
 
     v2 mouse_p = input->mouse.P;
     debug_draw_main_menu(debug_state, debug_state->menu_p, mouse_p);
@@ -1518,9 +1483,9 @@ debug_end(Debug_State *debug_state, Game_Input *input)
     if (input->mouse.is_down[eMouse_Left] && 
         input->mouse.toggle[eMouse_Left])
     {
-        if (hot_record)
+        if (hot_event)
         {
-            debug_state->scope_to_record = hot_record;
+            debug_state->scope_to_record = hot_event->block_name;
         }
         else
         {
@@ -1551,8 +1516,6 @@ debug_get_game_assets(Game_Memory *memory)
 extern "C"
 DEBUG_FRAME_END(debug_frame_end)
 {
-    g_debug_table->record_count[0] = DEBUG_RECORDS_MAIN_COUNT;
-
     ++g_debug_table->current_event_array_idx;
     if (g_debug_table->current_event_array_idx >= array_count(g_debug_table->events))
     {
@@ -1579,7 +1542,8 @@ DEBUG_FRAME_END(debug_frame_end)
 
         if (!debug_state->paused)
         {
-            if (debug_state->frame_count >= (MAX_DEBUG_EVENT_ARRAY_COUNT * 4 - 1))
+            // TODO: Need to unify the collation paging out with the events paging out now that they are the same thing!
+            // if (debug_state->frame_count >= (MAX_DEBUG_EVENT_ARRAY_COUNT * 4 - 1))
             {
                 restart_collation(debug_state, g_debug_table->current_event_array_idx);
             }

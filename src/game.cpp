@@ -556,11 +556,11 @@ GAME_UPDATE(game_update)
 
 
     DEBUG_BEGIN_DATA_BLOCK("Player Entity", player, 0);
-    DEBUG_VALUE(player->dim);
     DEBUG_VALUE(player->world_translation);
     DEBUG_VALUE(player->velocity);
     DEBUG_VALUE(player->accel);
     DEBUG_VALUE(player->u);
+    DEBUG_VALUE(game_assets->debug_bitmap);
     DEBUG_END_DATA_BLOCK();
 
     

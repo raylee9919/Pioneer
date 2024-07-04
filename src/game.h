@@ -6,13 +6,14 @@
    $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
    ======================================================================== */
 
+#define INTROSPECT(params)
+
 #define maximum(a, b) ( (a > b) ? a : b )
 #define minimum(a, b) ( (a < b) ? a : b )
 #define array_count(array) ( sizeof(array) / sizeof(array[0]) )
 #define zero_struct(INSTANCE) zero_size(sizeof(INSTANCE), &(INSTANCE))
 #define zero_array(COUNT, POINTER) zero_size(COUNT * sizeof((POINTER)[0]), POINTER)
 
-#define INTROSPECT(params)
 
 #include "intrinsics.h"
 #include "math.h"
@@ -113,7 +114,6 @@ INTROSPECT(category:"regular butter") struct Entity
     qt                  world_rotation;
     v3                  world_scaling;
 
-    v3                  dim;
     v3                  velocity;
     v3                  accel;
     f32                 u;

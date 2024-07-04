@@ -251,6 +251,7 @@ update_entity_pos(Game_State *game_state, Entity *self, f32 dt, Chunk_Position s
     recalc_pos(&new_chunk_pos, game_state->world->chunk_dim);
 
     // NOTE: Minkowski Collision
+#if 0
     f32 t_remain = dt;
     f32 eps = 0.001f;
     v3 v_total = self->velocity;
@@ -348,6 +349,7 @@ update_entity_pos(Game_State *game_state, Entity *self, f32 dt, Chunk_Position s
             }
         }
     }
+#endif
    
     self->chunk_pos = new_chunk_pos;
     if (!is_same_chunk(old_chunk_pos, new_chunk_pos)) 

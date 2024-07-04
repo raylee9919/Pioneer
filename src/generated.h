@@ -5,7 +5,6 @@ Member_Definition Members_Of_Entity[] =
     {eMeta_Type_v3, "world_translation", (u32)&(((Entity *)0)->world_translation)},
     {eMeta_Type_qt, "world_rotation", (u32)&(((Entity *)0)->world_rotation)},
     {eMeta_Type_v3, "world_scaling", (u32)&(((Entity *)0)->world_scaling)},
-    {eMeta_Type_v3, "dim", (u32)&(((Entity *)0)->dim)},
     {eMeta_Type_v3, "velocity", (u32)&(((Entity *)0)->velocity)},
     {eMeta_Type_v3, "accel", (u32)&(((Entity *)0)->accel)},
     {eMeta_Type_f32, "u", (u32)&(((Entity *)0)->u)},

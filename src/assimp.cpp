@@ -23,6 +23,7 @@
 #define max(A, B) (A > B ? A : B)
 #define min(A, B) (A < B ? A : B)
 #define assert(EXP) if (!(EXP)) { *(volatile int *)0 = 0; }
+#define array_count(array) (sizeof(array)/sizeof(array[0]))
 
 #include "types.h"
 #include "assimp.h"
@@ -203,12 +204,28 @@ get_bone_id(aiString ai_bone_name)
     return id;
 }
 
-static void
-parse_model_file_name(char *model_file_name, const char *file_name)
+static char *
+create_output_file_name(char *out, char *in)
 {
-    const char *src_at = file_name;
-    char *dst_at = model_file_name;
-    while (*src_at != '.')
+    u32 length = 0;
+    for (char *c = in;
+         !(*c == '.' &&
+           *(c + 1) &&
+           *(c + 1) != '.' &&
+           *(c + 1) != '/');
+         ++c)
+    {
+        ++length;
+    }
+
+    char *result = (char *)malloc(length + 4);
+
+    char *dst_at = result;
+    char *src_at = in;
+
+    for (u32 count = 0;
+         count < length;
+         ++count)
     {
         *dst_at++ = *src_at++;
     }
@@ -216,38 +233,47 @@ parse_model_file_name(char *model_file_name, const char *file_name)
     *dst_at++ = '3';
     *dst_at++ = 'd';
     *dst_at++ = 0;
+
+    return result;
 }
 
 int
-main(int argc, char **argv)
+main(void)
 {
     Memory_Arena arena = init_memory_arena();
     Assimp::Importer importer;
 
-    b32 write_skeleton = 0; // (*)
+#define WRITE_SKELETON 0 // (*)
+
+    char *file_names[] = {
+        "../data/xbot.dae",
+        "../data/grass.dae",
+        "../data/octahedral.dae",
+        "../data/cube.dae",
+    };
 
     for (u32 file_idx = 0;
-         file_idx < 1;
+         file_idx < array_count(file_names);
          ++file_idx)
     {
-        const char *file_name = "../data/octahedral.dae"; // (*)
+        char *file_name = file_names[file_idx];
         const aiScene *model = importer.ReadFile(file_name, aiProcessPreset_TargetRealtime_Quality);
 
         if (model)
         {
             Asset_Model asset_model = {};
+#if 0
             print_nodes(model->mRootNode, 0);
             printf("node count: %d\n", g_node_count);
-
+#endif
             printf("success: load model '%s'.\n", file_name);
             printf("  mesh count      : %d\n", model->mNumMeshes);
             printf("  texture count   : %d\n", model->mNumTextures);
             printf("  animation count : %d\n", model->mNumAnimations);
 
 
-            char model_file_name[32];
-            parse_model_file_name(model_file_name, file_name);
-            FILE *model_out = fopen(model_file_name, "wb");
+            char *out_file_name = create_output_file_name(out_file_name, file_name);
+            FILE *model_out = fopen(out_file_name, "wb");
             if (model_out)
             {
                 std::unordered_map<s32, Asset_Bone> model_bones;
@@ -439,8 +465,6 @@ main(int argc, char **argv)
 
                             mat->Get(AI_MATKEY_COLOR_SPECULAR, c);
                             asset_mat->color_specular = _v3_(c.r, c.g, c.b);
-
-                            printf("msvc piece of shit\n");
                         }
                     }
                     else
@@ -583,23 +607,17 @@ main(int argc, char **argv)
                 build_skeleton(model->mRootNode, -1);
 
 
-                printf("success: written '%s'\n", model_file_name);
+                printf("OK: Written '%s'\n\n", out_file_name);
                 fclose(model_out);
             }
             else
             {
-                printf("error: couldn't open output file %s\n", model_file_name);
-                exit(1);
+                printf("ERROR: Couldn't open output file %s\n", out_file_name);
             }
-
-
-
-
         }
         else
         {
-            printf("error: couldn't load model %s.\n", file_name);
-            exit(1);
+            printf("ERROR: Couldn't load model %s.\n", file_name);
         }
     }
 
@@ -607,7 +625,7 @@ main(int argc, char **argv)
     //
     // Global Bone Hierarchy
     //
-    if (write_skeleton)
+    if (WRITE_SKELETON)
     {
         Asset_Bone_Hierarchy asset_bone_hierarchy = {};
         for (s32 bone_id = 0;

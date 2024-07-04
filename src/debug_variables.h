@@ -8,6 +8,8 @@
 
 #define DEBUG_MAX_VARIABLE_STACK_DEPTH 64
 
+#if 0
+
 struct Debug_Variable_Definition_Context
 {
     Debug_State *state;
@@ -139,3 +141,5 @@ debug_create_variables(Debug_Variable_Definition_Context *context)
 
 #undef DEBUG_VARIABLE_LISTING
 }
+
+#endif

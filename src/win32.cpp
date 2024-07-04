@@ -1330,15 +1330,6 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             LARGE_INTEGER end_counter = win32_get_wall_clock();
             FRAME_MARKER(win32_get_seconds_elapsed(last_counter, end_counter));
             last_counter = end_counter;
-
-#if __INTERNAL
-            if (g_debug_table)
-            {
-                // TODO: move this to a global variable so that
-                // there can be timers below this one?
-                g_debug_table->record_count[TRANSLATION_UNIT_IDX] = __COUNTER__;
-            }
-#endif
         }
     }
 
