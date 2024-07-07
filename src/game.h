@@ -22,18 +22,29 @@
 
 struct Camera;
 
-internal bool
-str_equal(char *A, char *B)
+internal b32
+strings_are_equal(u32 len1, char *str1, u32 len2, char *str2)
 {
-    while (*A && *B && (*A == *B))
+    b32 result = (len1 == len2);
+
+    if (result)
     {
-        ++A;
-        ++B;
+        result = true;
+        for (u32 idx = 0;
+             idx < len1;
+             ++idx)
+        {
+            if (str1[idx] != str2[idx])
+            {
+                result = false;
+                break;
+            }
+        }
     }
-    
-    b32 result = ((*A == 0) && (*B == 0));
+
     return result;
 }
+
 
 #define zero_struct(INSTANCE) zero_size(sizeof(INSTANCE), &(INSTANCE))
 #define zero_array(COUNT, POINTER) zero_size(COUNT * sizeof((POINTER)[0]), POINTER)

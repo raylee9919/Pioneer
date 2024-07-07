@@ -247,8 +247,11 @@ struct Timed_Block
     inline Debug_Event debug_init_value(Debug_Type type, Debug_Event *subevent, char *guid, char *name)
     {
         record_debug_event(eDebug_Type_Mark_Debug_Value, "");
+
+        event->guid = guid;
+        event->block_name = name;
         event->value_Debug_Event = subevent;
-    
+
         subevent->clock = 0;
         subevent->guid = guid;
         subevent->block_name = name;

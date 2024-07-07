@@ -86,6 +86,8 @@ struct Debug_Variable_Link
 
 struct Debug_Variable_Group
 {
+    u32 name_length;
+    char *name;
     Debug_Variable_Link sentinel;
 };
 
@@ -193,6 +195,8 @@ enum Debug_Interaction_Type
     eDebug_Interaction_Move,
 
     eDebug_Interaction_Select,
+
+    eDebug_Interaction_Toggle_Expansion,
 };
 struct Debug_Interaction
 {
@@ -231,7 +235,7 @@ struct Debug_State
 
     Debug_Element *element_hash[256];
     Debug_View *view_hash[4096];
-    Debug_Tree root_tree;
+    Debug_Variable_Group *root_group;
     Debug_Tree tree_sentinel;
 
     v2 last_mouse_p;
