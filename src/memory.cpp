@@ -6,6 +6,13 @@
    $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
    ======================================================================== */
 
+inline b32
+arena_has_room_for(Memory_Arena *arena, size_t size)
+{
+    b32 result = ((arena->used + size) <= arena->size);
+    return result;
+}
+
 internal void *
 push_size_(Memory_Arena *arena, size_t size)
 {
@@ -26,6 +33,13 @@ init_arena(Memory_Arena *arena, size_t size, void *base)
     arena->size = size;
     arena->base = base;
     arena->used = 0;
+}
+
+inline size_t
+get_arena_size_remaining(Memory_Arena *arena)
+{
+    size_t result = arena->size - arena->used;
+    return result;
 }
 
 internal void

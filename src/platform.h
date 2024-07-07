@@ -146,6 +146,8 @@ struct Game_Input
     Game_Key    A;
     Game_Key    D;
     Game_Key    alt;
+    Game_Key    shift;
+    Game_Key    control;
     Game_Key    Q;
     Game_Key    E;
     Game_Key    tilde;

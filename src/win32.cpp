@@ -1140,42 +1140,16 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                             switch (vk_code) 
                             {
                                 // TODO: compressable I guess?
-                                case 'Q': 
-                                {
-                                    win32_process_keyboard(&game_input.Q, is_down);
-                                } break;
-                                case 'E': 
-                                {
-                                    win32_process_keyboard(&game_input.E, is_down);
-                                } break;
-                                case 'W': 
-                                {
-                                    win32_process_keyboard(&game_input.W, is_down);
-                                } break;
-                                case 'A': 
-                                {
-                                    win32_process_keyboard(&game_input.A, is_down);
-                                } break;
-                                case 'S': 
-                                {
-                                    win32_process_keyboard(&game_input.S, is_down);
-                                } break;
-                                case 'D': 
-                                {
-                                    win32_process_keyboard(&game_input.D, is_down);
-                                } break;
-                                case VK_MENU: // Alt
-                                {
-                                    win32_process_keyboard(&game_input.alt, is_down);
-                                } break;
-#if __INTERNAL
-                                case VK_OEM_3: // tilde
-                                {
-                                    win32_process_keyboard(&game_input.tilde, is_down);
-                                } break;
-#endif
-
-#if __INTERNAL
+                                case 'Q': { win32_process_keyboard(&game_input.Q, is_down); } break;
+                                case 'E': { win32_process_keyboard(&game_input.E, is_down); } break;
+                                case 'W': { win32_process_keyboard(&game_input.W, is_down); } break;
+                                case 'A': { win32_process_keyboard(&game_input.A, is_down); } break;
+                                case 'S': { win32_process_keyboard(&game_input.S, is_down); } break;
+                                case 'D': { win32_process_keyboard(&game_input.D, is_down); } break;
+                                case VK_SHIFT: { win32_process_keyboard(&game_input.shift, is_down); } break; // tilde
+                                case VK_MENU: { win32_process_keyboard(&game_input.alt, is_down); } break; // alt
+                                case VK_CONTROL: { win32_process_keyboard(&game_input.control, is_down); } break;
+                                case VK_OEM_3: { win32_process_keyboard(&game_input.tilde, is_down); } break; // tilde
                                 case 'L': 
                                 {
                                     if (is_down) 
@@ -1191,7 +1165,6 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                                         }
                                     }
                                 } break;
-#endif
                             }
 
                             if (is_down) 

@@ -7,6 +7,8 @@
    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
    ======================================================================== */
 
+#define DEBUG_MAX_VARIABLE_STACK_DEPTH 64
+
 struct Debug_Tree;
 struct Debug_Variable;
 
@@ -40,11 +42,6 @@ enum Debug_View_Type
     eDebug_View_Type_Collapsible,
 };
 
-struct Debug_ID
-{
-    void *value[2];
-};
-
 struct Debug_View
 {
     Debug_ID id;
@@ -58,13 +55,33 @@ struct Debug_View
     };
 };
 
+struct Debug_Stored_Event
+{
+    union {
+        Debug_Stored_Event *next;
+        Debug_Stored_Event *next_free;
+    };
+
+    u32 frame_idx;
+    Debug_Event event;
+};
+
+struct Debug_Element
+{
+    char *guid;
+    Debug_Element *next_in_hash;
+
+    Debug_Stored_Event *oldest_event;
+    Debug_Stored_Event *most_recent_event;
+};
+
 struct Debug_Variable_Group;
 struct Debug_Variable_Link
 {
     Debug_Variable_Link *next;
     Debug_Variable_Link *prev;
     Debug_Variable_Group *children;
-    Debug_Event *event;
+    Debug_Element *element;
 };
 
 struct Debug_Variable_Group
@@ -116,18 +133,27 @@ struct Debug_Frame_Region
 #define MAX_REGIONS_PER_FRAME (2 * 4096)
 struct Debug_Frame
 {
+    union {
+        Debug_Frame *next;
+        Debug_Frame *next_free;
+    };
+
     u64 begin_clock;
     u64 end_clock;
     f32 wall_seconds_elapsed;
 
-    Debug_Variable_Group *root_group;
+    f32 frame_bar_scale;
 
-    u32 region_count;
-    Debug_Frame_Region *regions;
+    u32 frame_idx;
 };
 
 struct Open_Debug_Block
 {
+    union {
+        Open_Debug_Block *next;
+        Open_Debug_Block *next_free;
+    };
+
     u32 starting_frame_idx;
     Debug_Event *opening_event;
     Open_Debug_Block *parent;
@@ -135,16 +161,20 @@ struct Open_Debug_Block
     // NOTE: only for data blocks? Probly!
     Debug_Variable_Group *group;
 
-    Open_Debug_Block *next_free;
 };
 
 struct Debug_Thread
 {
+    union {
+        Debug_Thread *next;
+        Debug_Thread *next_free;
+    };
+
     u32 id;
     u32 lane_idx;
     Open_Debug_Block *first_open_code_block;
     Open_Debug_Block *first_open_data_block;
-    Debug_Thread *next;
+    
 };
 
 enum Debug_Interaction_Type
@@ -161,6 +191,8 @@ enum Debug_Interaction_Type
 
     eDebug_Interaction_Resize,
     eDebug_Interaction_Move,
+
+    eDebug_Interaction_Select,
 };
 struct Debug_Interaction
 {
@@ -182,6 +214,7 @@ struct Debug_State
     Platform_Work_Queue *high_priority_queue;
 
     Memory_Arena debug_arena;
+    Memory_Arena per_frame_arena;
     
     Render_Group *render_group;
 
@@ -193,14 +226,19 @@ struct Debug_State
     v2 menu_p;
     b32 menu_active;
 
-    Debug_Variable_Group *root_group;
+    u32 selected_id_count;
+    Debug_ID selected_id[64];
+
+    Debug_Element *element_hash[256];
     Debug_View *view_hash[4096];
+    Debug_Tree root_tree;
     Debug_Tree tree_sentinel;
 
     v2 last_mouse_p;
     Debug_Interaction interaction;
     Debug_Interaction hot_interaction;
     Debug_Interaction next_hot_interaction;
+    b32 paused;
 
     f32 left_edge;
     f32 right_edge;
@@ -211,19 +249,22 @@ struct Debug_State
 
     char *scope_to_record;
 
-    Memory_Arena collate_arena;
-    Temporary_Memory collate_tmp;
-
-    u32 collation_array_idx;
-    Debug_Frame *collation_frame;
-    u32 frame_bar_lane_count;
+    u32 total_frame_count;
     u32 frame_count;
-    f32 frame_bar_scale;
-    b32 paused;
+    Debug_Frame *oldest_frame;
+    Debug_Frame *most_recent_frame;
 
-    Debug_Frame *frames;
+    Debug_Frame *collation_frame;
+
+    u32 frame_bar_lane_count;
     Debug_Thread *first_thread;
+    Debug_Thread *first_free_thread;
     Open_Debug_Block *first_free_block;
+
+    // per-frame store management.
+    Debug_Stored_Event *first_free_stored_event;
+    Debug_Frame *first_free_frame;
+
 };
 
 #define DEBUG_H

@@ -555,13 +555,20 @@ GAME_UPDATE(game_update)
 #endif
 
 
-    DEBUG_BEGIN_DATA_BLOCK("Player Entity", player, 0);
-    DEBUG_VALUE(player->world_translation);
-    DEBUG_VALUE(player->velocity);
-    DEBUG_VALUE(player->accel);
-    DEBUG_VALUE(player->u);
-    DEBUG_VALUE(game_assets->debug_bitmap);
-    DEBUG_END_DATA_BLOCK();
+#if __INTERNAL
+    if (DEBUG_UI_ENABLED)
+    {
+        Debug_ID entity_debug_id = DEBUG_POINTER_ID(player);
+
+        DEBUG_BEGIN_DATA_BLOCK("player entity", entity_debug_id);
+        DEBUG_VALUE(player->world_translation);
+        DEBUG_VALUE(player->velocity);
+        DEBUG_VALUE(player->accel);
+        DEBUG_VALUE(player->u);
+        DEBUG_VALUE(game_assets->debug_bitmap);
+        DEBUG_END_DATA_BLOCK();
+    }
+#endif
 
     
     render_group_to_output_batch(render_group, &game_memory->render_batch);

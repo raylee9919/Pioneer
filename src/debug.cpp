@@ -10,7 +10,8 @@
 #include <stdio.h>
 
 #include "debug.h"
-#include "debug_variables.h"
+
+inline b32 arena_has_room_for(Memory_Arena *arena, size_t size);
 
 inline Debug_ID
 debug_id_from_link(Debug_Tree *tree, Debug_Variable_Link *link)
@@ -26,8 +27,15 @@ debug_id_from_link(Debug_Tree *tree, Debug_Variable_Link *link)
 inline Debug_State *
 debug_get_state(Game_Memory *memory)
 {
-    Debug_State *debug_state = (Debug_State *)memory->debug_storage;
-    Assert(debug_state->init);
+    Debug_State *debug_state = 0;
+    if (memory)
+    {
+        debug_state = (Debug_State *)memory->debug_storage;
+        if (!debug_state->init)
+        {
+            debug_state = 0;
+        }
+    }
 
     return debug_state;
 }
@@ -146,31 +154,31 @@ debug_event_to_text(char *buffer, char *end, Debug_Event *event, u32 flags)
             if (flags & eDebug_Var_To_Text_Pretty_Bools)
             {
                 at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                                  "%s", event->bool32 ? "true" : "false");
+                                  "%s", event->value_b32 ? "true" : "false");
             }
             else
             {
                 at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                                  "%d", event->bool32);
+                                  "%d", event->value_b32);
             }
         } break;
 
         case eDebug_Type_s32:
         {
             at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                              "%d", event->int32);
+                              "%d", event->value_s32);
         } break;
 
         case eDebug_Type_u32:
         {
             at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                              "%u", event->uint32);
+                              "%u", event->value_u32);
         } break;
 
         case eDebug_Type_f32:
         {
             at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                              "%f", event->float32);
+                              "%f", event->value_f32);
             if (flags & eDebug_Var_To_Text_Float_Suffix)
             {
                 *at++ = 'f';
@@ -180,41 +188,41 @@ debug_event_to_text(char *buffer, char *end, Debug_Event *event, u32 flags)
         case eDebug_Type_v2:
         {
             at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                              "_v2_(%f, %f)", event->vector2.x, event->vector2.y);
+                              "_v2_(%f, %f)", event->value_v2.x, event->value_v2.y);
         } break;
 
         case eDebug_Type_v3:
         {
             at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                              "_v3_(%f, %f, %f)", event->vector3.x, event->vector3.y, event->vector3.z);
+                              "_v3_(%f, %f, %f)", event->value_v3.x, event->value_v3.y, event->value_v3.z);
         } break;
 
         case eDebug_Type_v4:
         {
             at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
-                              "_v4_(%f, %f, %f, %f)", event->vector4.r, event->vector4.g, event->vector4.b, event->vector4.a);
+                              "_v4_(%f, %f, %f, %f)", event->value_v4.r, event->value_v4.g, event->value_v4.b, event->value_v4.a);
         } break;
 
         case eDebug_Type_Rect2:
         {
             at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
                               "Rect2(%f, %f -> %f, %f)",
-                              event->rect2.min.x,
-                              event->rect2.min.y,
-                              event->rect2.max.x,
-                              event->rect2.max.y);
+                              event->value_Rect2.min.x,
+                              event->value_Rect2.min.y,
+                              event->value_Rect2.max.x,
+                              event->value_Rect2.max.y);
         } break;
 
         case eDebug_Type_Rect3:
         {
             at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
                               "Rect3(cen:(%f, %f, %f), dim:(%f, %f, %f))",
-                              event->rect3.cen.x,
-                              event->rect3.cen.y,
-                              event->rect3.cen.z,
-                              event->rect3.dim.x,
-                              event->rect3.dim.y,
-                              event->rect3.dim.z);
+                              event->value_Rect3.cen.x,
+                              event->value_Rect3.cen.y,
+                              event->value_Rect3.cen.z,
+                              event->value_Rect3.dim.x,
+                              event->value_Rect3.dim.y,
+                              event->value_Rect3.dim.z);
         } break;
 
         case eDebug_Type_Counter_Thread_List:
@@ -329,6 +337,18 @@ draw_profile_in(Debug_State *debug_state, Rect2 profile_rect, v2 mouse_p)
     f32 bar_spacing = 4.0f;
     f32 lane_height = 0.0f;
     u32 lane_count = debug_state->frame_bar_lane_count;
+    f32 frame_bar_scale = F32_MAX;
+
+    u32 frame_idx = 0;
+    for (Debug_Frame *frame = debug_state->oldest_frame;
+         frame;
+         frame = frame->next, ++frame_idx)
+    {
+        if (frame_bar_scale < frame->frame_bar_scale)
+        {
+            frame_bar_scale = frame->frame_bar_scale;
+        }
+    }
 
     u32 max_frame = debug_state->frame_count;
     if (max_frame > 10)
@@ -347,7 +367,7 @@ draw_profile_in(Debug_State *debug_state, Rect2 profile_rect, v2 mouse_p)
     f32 chart_height = bars_plus_spacing * (f32)max_frame;
     f32 chart_width = get_width(profile_rect);
     f32 chart_top = profile_rect.max.y;
-    f32 scale = chart_width * debug_state->frame_bar_scale;
+    f32 scale = chart_width * frame_bar_scale;
 
     v3 colors[] =
     {
@@ -366,11 +386,12 @@ draw_profile_in(Debug_State *debug_state, Rect2 profile_rect, v2 mouse_p)
     };
 
 
-    for (u32 frame_idx = 0;
-         frame_idx < max_frame;
-         ++frame_idx)
+#if 0
+    u32 frame_idx = 0;
+    for (Debug_Frame *frame = debug_state->oldest_frame;
+         frame;
+         frame = frame->next, ++frame_idx)
     {
-        Debug_Frame *frame = debug_state->frames + debug_state->frame_count - (frame_idx + 1);
         f32 stack_x = chart_left;
         f32 stack_y = chart_top - bars_plus_spacing * (f32)frame_idx;
 
@@ -406,6 +427,7 @@ draw_profile_in(Debug_State *debug_state, Rect2 profile_rect, v2 mouse_p)
             }
         }
     }
+#endif
 }
 
 inline b32
@@ -576,15 +598,122 @@ get_or_create_debug_view_for(Debug_State *debug_state, Debug_ID id)
     return result;
 }
 
+inline Debug_Event *
+get_event_from_link(Debug_State *debug_state, Debug_Variable_Link *link)
+{
+    Debug_Event *result = 0;
+
+    if (link->element->most_recent_event)
+    {
+        result = &link->element->most_recent_event->event;
+    }
+
+    return result;
+}
+
 inline Debug_Interaction
-var_link_interaction(Debug_Interaction_Type type, Debug_Tree *tree, Debug_Variable_Link *link)
+var_link_interaction(Debug_State *debug_state, Debug_Interaction_Type type, Debug_Tree *tree, Debug_Variable_Link *link)
 {
     Debug_Interaction item_interaction = {};
     item_interaction.id = debug_id_from_link(tree, link);
     item_interaction.type = type;
-    item_interaction.event = link->event;
+    item_interaction.event = get_event_from_link(debug_state, link);
 
     return item_interaction;
+}
+
+inline Debug_Interaction
+debug_id_interaction(Debug_Interaction_Type type, Debug_ID id)
+{
+    Debug_Interaction item_interaction = {};
+    item_interaction.id = id;
+    item_interaction.type = type;
+
+    return item_interaction;
+}
+
+internal void
+DEBUG_HIT(Debug_ID id, f32 z_value)
+{
+    Debug_State *debug_state = debug_get_state();
+    if (debug_state)
+    {
+        debug_state->next_hot_interaction = debug_id_interaction(eDebug_Interaction_Select, id);
+    }
+}
+
+internal b32
+is_selected(Debug_State *debug_state, Debug_ID id)
+{
+    b32 result = false;
+
+    for (u32 idx = 0;
+         idx < debug_state->selected_id_count;
+         ++idx)
+    {
+        if (debug_ids_are_equal(id, debug_state->selected_id[idx]))
+        {
+            result = true;
+            break;
+        }
+    }
+
+    return result;
+}
+
+internal void
+clear_selection(Debug_State *debug_state)
+{
+    debug_state->selected_id_count = 0;
+}
+
+internal void
+add_to_selection(Debug_State *debug_state, Debug_ID id)
+{
+    if (debug_state->selected_id_count < array_count(debug_state->selected_id) &&
+        !is_selected(debug_state, id))
+    {
+        debug_state->selected_id[debug_state->selected_id_count++] = id;
+    }
+}
+
+internal b32
+DEBUG_HIGHLIGHTED(Debug_ID id, v4 *color)
+{
+    b32 result = false;
+
+    Debug_State *debug_state = debug_get_state();
+    if (debug_state)
+    {
+        if (is_selected(debug_state, id))
+        {
+            *color = _v4_(0, 1, 1, 1);
+            result = true;
+        }
+
+        if (debug_ids_are_equal(debug_state->hot_interaction.id, id))
+        {
+            *color = _v4_(1, 1, 0, 1);
+            result = true;
+        }
+    }
+
+    return result;
+}
+
+internal b32
+DEBUG_REQUESTED(Debug_ID id)
+{
+    b32 result = false;
+
+    Debug_State *debug_state = debug_get_state();
+    if (debug_state)
+    {
+        result = (is_selected(debug_state, id) ||
+                  debug_ids_are_equal(debug_state->hot_interaction.id, id));
+    }
+
+    return result;
 }
 
 internal void
@@ -607,16 +736,6 @@ debug_draw_main_menu(Debug_State *debug_state, v2 menu_p, v2 mouse_p)
         Debug_Variable_Iterator stack[DEBUG_MAX_VARIABLE_STACK_DEPTH];
 
         Debug_Variable_Group *group = tree->group;
-        if (debug_state->frame_count > 0)
-        {
-            Debug_Variable_Group *hacky_group = debug_state->frames[0].root_group;
-            if (hacky_group)
-            {
-                group = hacky_group;
-            }
-            group = debug_state->frames[0].root_group;
-        }
-
         if (group)
         {
             stack[depth].link = group->sentinel.next;
@@ -634,74 +753,77 @@ debug_draw_main_menu(Debug_State *debug_state, v2 menu_p, v2 mouse_p)
                     layout.depth = depth;
 
                     Debug_Variable_Link *link = iter->link;
-                    Debug_Event *event = iter->link->event;
+                    Debug_Event *event = get_event_from_link(debug_state, iter->link);
                     iter->link = iter->link->next;
 
-                    Debug_Interaction item_interaction = 
-                        var_link_interaction(eDebug_Interaction_Auto_Modify_Variable, tree, link);
-
-                    b32 is_hot = interaction_is_hot(debug_state, item_interaction);
-                    v4 item_color = is_hot ? _v4_(1, 1, 0, 1) : _v4_(1, 1, 1, 1);
-
-                    Debug_View *view = get_or_create_debug_view_for(debug_state, debug_id_from_link(tree, link));
-                    switch (event->type)
+                    if (event)
                     {
-                        case eDebug_Type_Counter_Thread_List:
-                        {
-                            Layout_Element element = begin_element_rect(&layout, &view->inline_block.dim);
-                            make_element_sizeable(&element);
-                            default_interaction(&element, item_interaction);
-                            end_element(&element);
+                        Debug_Interaction item_interaction = 
+                            var_link_interaction(debug_state, eDebug_Interaction_Auto_Modify_Variable, tree, link);
 
-                            draw_profile_in(debug_state, element.bounds, mouse_p);
-                        } break;
+                        b32 is_hot = interaction_is_hot(debug_state, item_interaction);
+                        v4 item_color = is_hot ? _v4_(1, 1, 0, 1) : _v4_(1, 1, 1, 1);
 
-                        case eDebug_Type_Bitmap:
+                        Debug_View *view = get_or_create_debug_view_for(debug_state, debug_id_from_link(tree, link));
+                        switch (event->type)
                         {
-                            Bitmap *bitmap = event->bitmap;
-                            f32 bitmap_scale = view->inline_block.dim.y;
-                            if (bitmap)
+                            case eDebug_Type_Counter_Thread_List:
                             {
-                                view->inline_block.dim.x = (bitmap_scale * bitmap->width) / bitmap->height;
-                            }
+                                Layout_Element element = begin_element_rect(&layout, &view->inline_block.dim);
+                                make_element_sizeable(&element);
+                                default_interaction(&element, item_interaction);
+                                end_element(&element);
 
-                            Debug_Interaction tear_interaction = var_link_interaction(eDebug_Interaction_Tear_Value, tree, link);
+                                draw_profile_in(debug_state, element.bounds, mouse_p);
+                            } break;
 
-                            Layout_Element element = begin_element_rect(&layout, &view->inline_block.dim);
-                            make_element_sizeable(&element);
-                            default_interaction(&element, tear_interaction);
-                            end_element(&element);
+                            case eDebug_Type_Bitmap:
+                            {
+                                Bitmap *bitmap = event->value_Bitmap;
+                                f32 bitmap_scale = view->inline_block.dim.y;
+                                if (bitmap)
+                                {
+                                    view->inline_block.dim.x = (bitmap_scale * bitmap->width) / bitmap->height;
+                                }
 
-                            push_rect(debug_state->render_group, element.bounds, 0.0f, _v4_(0, 0, 0, 1.0f));
-                            push_bitmap(debug_state->render_group, _v3_(element.bounds.min, 0.0f), _v3_(element.bounds.max, 0.0f), bitmap);
-                        } break;
+                                Debug_Interaction tear_interaction = var_link_interaction(debug_state, eDebug_Interaction_Tear_Value, tree, link);
 
-                        default:
-                        {
-                            char text[256];
-                            debug_event_to_text(text, text + sizeof(text), event, 
-                                                   eDebug_Var_To_Text_Add_Name|
-                                                   eDebug_Var_To_Text_Null_Terminator|
-                                                   eDebug_Var_To_Text_Colon|
-                                                   eDebug_Var_To_Text_Pretty_Bools);
+                                Layout_Element element = begin_element_rect(&layout, &view->inline_block.dim);
+                                make_element_sizeable(&element);
+                                default_interaction(&element, tear_interaction);
+                                end_element(&element);
 
-                            Rect2 text_bounds = string_op(eString_Op_Get_Rect2, debug_state->render_group, _v3_(0, 0, 0), text, game_assets);
-                            v2 dim = _v2_(get_dim(text_bounds).x, layout.line_advance);
+                                push_rect(debug_state->render_group, element.bounds, 0.0f, _v4_(0, 0, 0, 1.0f));
+                                push_bitmap(debug_state->render_group, _v3_(element.bounds.min, 0.0f), _v3_(element.bounds.max, 0.0f), bitmap);
+                            } break;
 
-                            Layout_Element element = begin_element_rect(&layout, &dim);
-                            default_interaction(&element, item_interaction);
-                            end_element(&element);
+                            default:
+                            {
+                                char text[256];
+                                debug_event_to_text(text, text + sizeof(text), event, 
+                                                    eDebug_Var_To_Text_Add_Name|
+                                                    eDebug_Var_To_Text_Null_Terminator|
+                                                    eDebug_Var_To_Text_Colon|
+                                                    eDebug_Var_To_Text_Pretty_Bools);
 
-                            string_op(eString_Op_Draw,
-                                      debug_state->render_group,
-                                      _v3_(_v2_(element.bounds.min.x,
-                                                element.bounds.max.y - game_assets->v_advance),
-                                           0.0f),
-                                      text,
-                                      game_assets,
-                                      item_color);
+                                Rect2 text_bounds = string_op(eString_Op_Get_Rect2, debug_state->render_group, _v3_(0, 0, 0), text, game_assets);
+                                v2 dim = _v2_(get_dim(text_bounds).x, layout.line_advance);
 
-                        } break;
+                                Layout_Element element = begin_element_rect(&layout, &dim);
+                                default_interaction(&element, item_interaction);
+                                end_element(&element);
+
+                                string_op(eString_Op_Draw,
+                                          debug_state->render_group,
+                                          _v3_(_v2_(element.bounds.min.x,
+                                                    element.bounds.max.y - game_assets->v_advance),
+                                               0.0f),
+                                          text,
+                                          game_assets,
+                                          item_color);
+
+                            } break;
+                        }
                     }
 
                     if (link->children
@@ -824,6 +946,15 @@ debug_begin_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p, b3
                 debug_state->hot_interaction.p = &tree->ui_p;
 #endif
             } break;
+
+            case eDebug_Interaction_Select:
+            {
+                if (!input->shift.is_set)
+                {
+                    clear_selection(debug_state);
+                }
+                add_to_selection(debug_state, debug_state->hot_interaction.id);
+            } break;
         }
 
         debug_state->interaction = debug_state->hot_interaction;
@@ -847,7 +978,7 @@ debug_end_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p)
             {
                 case eDebug_Type_b32:
                 {
-                    event->bool32 = !event->bool32;
+                    event->value_b32 = !event->value_b32;
                 } break;
 
                 case eDebug_Type_Open_Data_Block:
@@ -896,7 +1027,7 @@ debug_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p)
                 {
                     case eDebug_Type_f32:
                     {
-                        event->float32 += 0.1f * d_mouse_p.x;
+                        event->value_f32 += 0.1f * d_mouse_p.x;
                     } break;
                 }
             } break;
@@ -973,7 +1104,8 @@ get_debug_thread(Debug_State *debug_state, u32 thread_id)
 
     if (!result)
     {
-        result = push_struct(&debug_state->collate_arena, Debug_Thread);
+        FREELIST_ALLOC(result, debug_state->first_free_thread, push_struct(&debug_state->debug_arena, Debug_Thread););
+
         result->id = thread_id;
         result->lane_idx = debug_state->frame_bar_lane_count++;
         result->first_open_code_block = 0;
@@ -985,6 +1117,7 @@ get_debug_thread(Debug_State *debug_state, u32 thread_id)
     return result;
 }
 
+#if 0
 internal Debug_Frame_Region *
 add_region(Debug_State *debug_state, Debug_Frame *current_frame)
 {
@@ -993,19 +1126,13 @@ add_region(Debug_State *debug_state, Debug_Frame *current_frame)
 
     return result;
 }
+#endif
 
 inline Open_Debug_Block *
 alloc_open_debug_block(Debug_State *debug_state, u32 frame_idx, Debug_Event *event, Open_Debug_Block **first_open_block)
 {
-    Open_Debug_Block *result = debug_state->first_free_block;
-    if (result)
-    {
-        debug_state->first_free_block = result->next_free;
-    }
-    else
-    {
-        result = push_struct(&debug_state->collate_arena, Open_Debug_Block);
-    }
+    Open_Debug_Block *result = 0;
+    FREELIST_ALLOC(result, debug_state->first_free_block, push_struct(&debug_state->debug_arena, Open_Debug_Block));
 
     result->starting_frame_idx = frame_idx;
     result->opening_event = event;
@@ -1035,213 +1162,370 @@ events_match(Debug_Event a, Debug_Event b)
     return result;
 }
 
+#if 0
 internal Debug_Event *
-collate_create_variable(Debug_State *state, Debug_Type type, char *name)
+create_variable(Debug_State *state, Debug_Type type, char *name)
 {
-    Debug_Event *var = push_struct(&state->collate_arena, Debug_Event);
+    Debug_Event *var = push_struct(&state->debug_arena, Debug_Event);
     zero_struct(*var);
     var->type = (u8)type;
-    var->block_name = (char *)push_copy(&state->collate_arena, name, string_length(name) + 1);
+    var->block_name = (char *)push_copy(&state->debug_arena, name, string_length(name) + 1);
 
     return var;
 }
 
 internal Debug_Variable_Link *
-collate_add_variable_to_group(Debug_State *state, Debug_Variable_Group *group, Debug_Event *add)
+add_variable_to_group(Debug_State *debug_state, Debug_Variable_Group *group, Debug_Event *add)
 {
-    Debug_Variable_Link *link = push_struct(&state->collate_arena, Debug_Variable_Link);
+    Debug_Variable_Link *link = push_struct(&debug_state->debug_arena, Debug_Variable_Link);
+
     DLIST_INSERT(&group->sentinel, link);
     link->children = 0;
     link->event = add;
 
+    Assert(link->event->type != eDebug_Type_Begin_Block);
     return link;
 }
 
 internal Debug_Variable_Group *
-collate_create_variable_group(Debug_State *debug_state)
+create_variable_group(Debug_State *debug_state)
 {
-    Debug_Variable_Group *group = push_struct(&debug_state->collate_arena, Debug_Variable_Group);
-
+    Debug_Variable_Group *group = push_struct(&debug_state->debug_arena, Debug_Variable_Group);
     DLIST_INIT(&group->sentinel);
 
     return group;
 }
 
 internal void
-collate_debug_records(Debug_State *debug_state, u32 invalid_event_array_idx)
+free_variable_group(Debug_State *debug_state, Debug_Variable_Group *group)
 {
-    for (;
-         ;
-         ++debug_state->collation_array_idx)
-    {
-        if (debug_state->collation_array_idx == MAX_DEBUG_EVENT_ARRAY_COUNT)
-        {
-            debug_state->collation_array_idx = 0;
-        }
+    Assert(0);
+}
 
-        u32 event_array_idx = debug_state->collation_array_idx;
-        if (event_array_idx == invalid_event_array_idx)
-        {
-            break;
-        }
-
-        for (u32 event_idx = 0;
-             event_idx < g_debug_table->event_count[event_array_idx];
-             ++event_idx)
-        {
-            Debug_Event *event = g_debug_table->events[event_array_idx] + event_idx;
-
-            if (event->type == eDebug_Type_Frame_Marker)
-            {
-                if (debug_state->collation_frame)
-                {
-                    debug_state->collation_frame->end_clock = event->clock;
-                    debug_state->collation_frame->wall_seconds_elapsed = event->float32;
-                    ++debug_state->frame_count;
-
-                    f32 clock_range = (f32)(debug_state->collation_frame->end_clock - debug_state->collation_frame->begin_clock);
-
-#if 0
-                    if (clock_range > 0.0f)
-                    {
-                        f32 frame_bar_scale = 1.0f / clock_range;
-                        if (debug_state->frame_bar_scale > frame_bar_scale)
-                        {
-                            debug_state->frame_bar_scale = frame_bar_scale;
-                        }
-                    }
+internal Debug_Variable_Group *
+get_group_for_hierarchical_name(Debug_State *debug_state, char *name)
+{
+    Debug_Variable_Group *result = debug_state->values_group;
+    return result;
+}
 #endif
-                }
 
-                debug_state->collation_frame = debug_state->frames + debug_state->frame_count;
-                debug_state->collation_frame->root_group = collate_create_variable_group(debug_state);
-                debug_state->collation_frame->begin_clock = event->clock;
-                debug_state->collation_frame->end_clock = 0;
-                debug_state->collation_frame->region_count = 0;
-                debug_state->collation_frame->regions = push_array(&debug_state->collate_arena, Debug_Frame_Region, MAX_REGIONS_PER_FRAME);
-                debug_state->collation_frame->wall_seconds_elapsed = 0;
-            }
-            else if (debug_state->collation_frame)
+internal void
+free_frame(Debug_State *debug_state, Debug_Frame *frame)
+{
+    for (u32 element_hash_idx = 0;
+         element_hash_idx < array_count(debug_state->element_hash);
+         ++element_hash_idx)
+    {
+        for (Debug_Element *element = debug_state->element_hash[element_hash_idx];
+             element;
+             element = element->next_in_hash)
+        {
+            while (element->oldest_event &&
+                   element->oldest_event->frame_idx <= frame->frame_idx)
             {
-                u32 frame_idx = debug_state->frame_count - 1;
-                Debug_Thread *thread = get_debug_thread(debug_state, event->thread_id);
-                u64 relative_clock = event->clock - debug_state->collation_frame->begin_clock;
-
-                switch (event->type)
+                Debug_Stored_Event *free_event = element->oldest_event;
+                element->oldest_event = free_event->next;
+                if (element->most_recent_event == free_event)
                 {
-                    case eDebug_Type_Begin_Block:
-                    {
-                        Open_Debug_Block *debug_block =
-                            alloc_open_debug_block(debug_state, frame_idx, event, &thread->first_open_code_block);
-                    } break;
-
-                    case eDebug_Type_End_Block:
-                    {
-                        if (thread->first_open_code_block)
-                        {
-                            Open_Debug_Block *matching_block = thread->first_open_code_block;
-                            Debug_Event *opening_event = matching_block->opening_event;
-                            if (events_match(*opening_event, *event))
-                            {
-                                if (matching_block->starting_frame_idx == frame_idx)
-                                {
-                                    char *match_name =
-                                        matching_block->parent ? matching_block->parent->opening_event->block_name : 0;
-                                    if (match_name == debug_state->scope_to_record)
-                                    {
-                                        f32 min_t = (f32)(opening_event->clock - debug_state->collation_frame->begin_clock);
-                                        f32 max_t = (f32)(event->clock - debug_state->collation_frame->begin_clock);
-                                        f32 threshold_t = 0.01f;
-                                        if ((max_t - min_t) > threshold_t)
-                                        {
-                                            Debug_Frame_Region *region = add_region(debug_state, debug_state->collation_frame);
-                                            region->event = opening_event;
-                                            region->cycle_count = (event->clock - opening_event->clock);
-                                            region->lane_idx = (u16)thread->lane_idx;
-                                            region->min_t = min_t;
-                                            region->max_t = max_t;
-                                            region->color_idx = (u16)opening_event->block_name;
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    // TODO: record all frames in between and begin/end spans!
-                                }
-
-                                deallocate_open_debug_block(debug_state, &thread->first_open_code_block);
-                            }
-                            else
-                            {
-                                // TODO: record span that goes to the beginning of the frame series?
-                            }
-                        }
-                    } break;
-
-                    case eDebug_Type_Open_Data_Block:
-                    {
-                        Open_Debug_Block *debug_block =
-                            alloc_open_debug_block(debug_state, frame_idx, event, &thread->first_open_data_block);
-
-                        debug_block->group = collate_create_variable_group(debug_state);
-                        Debug_Variable_Link *link = 
-                            collate_add_variable_to_group(debug_state,
-                                                          debug_block->parent ? debug_block->parent->group : debug_state->collation_frame->root_group,
-                                                          event);
-                        link->children = debug_block->group;
-                    } break;
-
-                    case eDebug_Type_Close_Data_Block:
-                    {
-                        if (thread->first_open_data_block)
-                        {
-                            Open_Debug_Block *matching_block = thread->first_open_data_block;
-                            Debug_Event *opening_event = matching_block->opening_event;
-                            if (events_match(*opening_event, *event))
-                            {
-                                deallocate_open_debug_block(debug_state, &thread->first_open_data_block);
-                            }
-                            else
-                            {
-                                // TODO: record span that goes to the beginning of the frame series?
-                            }
-                        }
-                    } break;
-
-                    default:
-                    {
-                        collate_add_variable_to_group(debug_state, thread->first_open_data_block->group, event);
-                    } break;
+                    Assert(free_event->next == 0);
+                    element->most_recent_event = 0;
                 }
-            }
 
+                FREELIST_DEALLOC(free_event, debug_state->first_free_stored_event);
+            }
         }
+    }
+
+    FREELIST_DEALLOC(frame, debug_state->first_free_frame);
+}
+
+internal void
+free_oldest_frame(Debug_State *debug_state)
+{
+    if (debug_state->oldest_frame)
+    {
+        Debug_Frame *frame = debug_state->oldest_frame;
+        debug_state->oldest_frame = frame->next;
+        if (debug_state->most_recent_frame)
+        {
+            Assert(frame->next == 0);
+            debug_state->most_recent_frame = 0;
+        }
+
+        free_frame(debug_state, frame);
     }
 }
 
-internal void
-restart_collation(Debug_State *debug_state, u32 invalid_event_array_idx)
+
+internal Debug_Frame *
+new_frame(Debug_State *debug_state, u64 begin_clock)
 {
-    end_temporary_memory(&debug_state->collate_tmp);
-    debug_state->collate_tmp = begin_temporary_memory(&debug_state->collate_arena);
+    Debug_Frame *result = 0;
+    while (!result)
+    {
+        result = debug_state->first_free_frame;
+        if (result)
+        {
+            debug_state->first_free_frame = result->next_free;
+        }
+        else
+        {
+            if (arena_has_room_for(&debug_state->per_frame_arena, sizeof(Debug_Frame)))
+            {
+                result = push_struct(&debug_state->per_frame_arena, Debug_Frame);
+            }
+            else
+            {
+                Assert(debug_state->oldest_frame);
+                free_oldest_frame(debug_state);
+            }
+        }
+    }
 
-    debug_state->first_thread = 0;
-    debug_state->first_free_block = 0;
+    zero_struct(*result);
+    result->frame_idx = debug_state->total_frame_count++;
+    result->frame_bar_scale = 1.0f;
+    result->begin_clock = begin_clock;
 
-    debug_state->frames = push_array(&debug_state->collate_arena, Debug_Frame, MAX_DEBUG_EVENT_ARRAY_COUNT * 4);
-    debug_state->frame_bar_lane_count = 0;
-    debug_state->frame_count = 0;
-    debug_state->frame_bar_scale = 1.0f / 60000000.0f;
+    return result;
+}
 
-    debug_state->collation_array_idx = invalid_event_array_idx + 1;
-    debug_state->collation_frame = 0;
+
+internal Debug_Stored_Event *
+store_event(Debug_State *debug_state, Debug_Element *element, Debug_Event *event)
+{
+    Debug_Stored_Event *result = 0;
+    while (!result)
+    {
+        result = debug_state->first_free_stored_event;
+        if (result)
+        {
+            debug_state->first_free_stored_event = result->next_free;
+        }
+        else
+        {
+            if (arena_has_room_for(&debug_state->per_frame_arena, sizeof(Debug_Stored_Event)))
+            {
+                result = push_struct(&debug_state->per_frame_arena, Debug_Stored_Event);
+            }
+            else
+            {
+                Assert(debug_state->oldest_frame);
+                free_oldest_frame(debug_state);
+            }
+        }
+    }
+
+    result->next = 0;
+    result->frame_idx = debug_state->collation_frame->frame_idx;
+    result->event = *event;
+
+    if (element->most_recent_event)
+    {
+        element->most_recent_event = element->most_recent_event->next = result;
+    }
+    else 
+    {
+        element->oldest_event = element->most_recent_event = result;
+    }
+
+    return result;
+}
+
+internal Debug_Element *
+get_element_from_event(Debug_State *debug_state, Debug_Event *event)
+{
+    Assert(event->guid);
+
+    size_t hash_value = (u32)((size_t)event->guid >> 2);
+    // TODO: verify this turns into an and (not a mod)
+    u32 idx = (hash_value % array_count(debug_state->element_hash));
+
+    Debug_Element *result = 0;
+
+    for (Debug_Element *chain = debug_state->element_hash[idx];
+         chain;
+         chain = chain->next_in_hash)
+    {
+        if (chain->guid == event->guid)
+        {
+            result = chain;
+            break;
+        }
+    }
+
+    if (!result)
+    {
+        result = push_struct(&debug_state->debug_arena, Debug_Element);
+
+        result->guid = event->guid;
+        result->next_in_hash = debug_state->element_hash[idx];
+        debug_state->element_hash[idx] = result;
+
+        result->oldest_event = result->most_recent_event = 0;
+    }
+
+    return result;
 }
 
 internal void
-refresh_collation(Debug_State *debug_state)
+collate_debug_records(Debug_State *debug_state, u32 event_count, Debug_Event *event_array)
 {
-    restart_collation(debug_state, g_debug_table->current_event_array_idx);
-    collate_debug_records(debug_state, g_debug_table->current_event_array_idx);
+    for (u32 event_idx = 0;
+         event_idx < event_count;
+         ++event_idx)
+    {
+        Debug_Event *event = event_array + event_idx;
+        Debug_Element *element = get_element_from_event(debug_state, event);
+
+        if (!debug_state->collation_frame)
+        {
+            debug_state->collation_frame = new_frame(debug_state, event->clock);
+        }
+
+        if (event->type == eDebug_Type_Mark_Debug_Value)
+        {
+            store_event(debug_state, element, event);
+        }
+        else if (event->type == eDebug_Type_Frame_Marker)
+        {
+            Assert(debug_state->collation_frame);
+
+            debug_state->collation_frame->end_clock = event->clock;
+            debug_state->collation_frame->wall_seconds_elapsed = event->value_f32;
+
+            f32 clock_range = (f32)(debug_state->collation_frame->end_clock - debug_state->collation_frame->begin_clock);
+#if 0
+            if (clock_range > 0.0f)
+            {
+                f32 frame_bar_scale = 1.0f / clock_range;
+                if (debug_state->frame_bar_scale > frame_bar_scale)
+                {
+                    debug_state->frame_bar_scale = frame_bar_scale;
+                }
+            }
+#endif
+
+            if (debug_state->paused)
+            {
+                free_frame(debug_state, debug_state->collation_frame);
+            }
+            else
+            {
+                if (debug_state->most_recent_frame)
+                {
+                    debug_state->most_recent_frame = debug_state->most_recent_frame->next = debug_state->collation_frame;
+                }
+                else
+                {
+                    debug_state->oldest_frame = debug_state->most_recent_frame = debug_state->collation_frame;
+                }
+                ++debug_state->frame_count;
+            }
+
+            debug_state->collation_frame = new_frame(debug_state, event->clock);
+        }
+        else
+        {
+            Assert(debug_state->collation_frame);
+
+            u32 frame_idx = debug_state->frame_count - 1;
+            Debug_Thread *thread = get_debug_thread(debug_state, event->thread_id);
+            u64 relative_clock = event->clock - debug_state->collation_frame->begin_clock;
+
+            switch (event->type)
+            {
+                case eDebug_Type_Begin_Block:
+                {
+                    Open_Debug_Block *debug_block =
+                        alloc_open_debug_block(debug_state, frame_idx, event, &thread->first_open_code_block);
+                } break;
+
+                case eDebug_Type_End_Block:
+                {
+                    if (thread->first_open_code_block)
+                    {
+                        Open_Debug_Block *matching_block = thread->first_open_code_block;
+                        Debug_Event *opening_event = matching_block->opening_event;
+                        if (events_match(*opening_event, *event))
+                        {
+                            if (matching_block->starting_frame_idx == frame_idx)
+                            {
+                                char *match_name =
+                                    matching_block->parent ? matching_block->parent->opening_event->block_name : 0;
+                                if (match_name == debug_state->scope_to_record)
+                                {
+#if 0
+                                    f32 min_t = (f32)(opening_event->clock - debug_state->collation_frame->begin_clock);
+                                    f32 max_t = (f32)(event->clock - debug_state->collation_frame->begin_clock);
+                                    f32 threshold_t = 0.01f;
+                                    if ((max_t - min_t) > threshold_t)
+                                    {
+                                        Debug_Frame_Region *region = add_region(debug_state, debug_state->collation_frame);
+                                        region->event = opening_event;
+                                        region->cycle_count = (event->clock - opening_event->clock);
+                                        region->lane_idx = (u16)thread->lane_idx;
+                                        region->min_t = min_t;
+                                        region->max_t = max_t;
+                                        region->color_idx = (u16)opening_event->block_name;
+                                    }
+#endif
+                                }
+                            }
+                            else
+                            {
+                                // TODO: record all frames in between and begin/end spans!
+                            }
+
+                            deallocate_open_debug_block(debug_state, &thread->first_open_code_block);
+                        }
+                        else
+                        {
+                            // TODO: record span that goes to the beginning of the frame series?
+                        }
+                    }
+                } break;
+
+                case eDebug_Type_Open_Data_Block:
+                {
+                    Open_Debug_Block *debug_block =
+                        alloc_open_debug_block(debug_state, frame_idx, event, &thread->first_open_data_block);
+
+#if 0
+                    debug_block->group = create_variable_group(debug_state);
+                    Debug_Variable_Link *link = 
+                        add_variable_to_group(debug_state,
+                                              debug_block->parent ? debug_block->parent->group : debug_state->collation_frame->root_group,
+                                              event);
+                    link->children = debug_block->group;
+#endif
+                } break;
+
+                case eDebug_Type_Close_Data_Block:
+                {
+                    if (thread->first_open_data_block)
+                    {
+                        Open_Debug_Block *matching_block = thread->first_open_data_block;
+                        Debug_Event *opening_event = matching_block->opening_event;
+                        if (events_match(*opening_event, *event))
+                        {
+                            deallocate_open_debug_block(debug_state, &thread->first_open_data_block);
+                        }
+                        else
+                        {
+                            // TODO: record span that goes to the beginning of the frame series?
+                        }
+                    }
+                } break;
+
+                default:
+                {
+                    store_event(debug_state, element, event);
+                } break;
+            }
+        }
+    }
 }
 
 internal void
@@ -1251,14 +1535,32 @@ debug_start(Debug_State *debug_state, Game_Assets *game_assets, u32 width, u32 h
 
     if (!debug_state->init)
     {
+        debug_state->frame_bar_lane_count = 0;
+        debug_state->first_thread = 0;
+        debug_state->first_free_thread = 0;
+        debug_state->first_free_block = 0;
+
+        debug_state->frame_count = 0;
+
+        debug_state->oldest_frame = debug_state->most_recent_frame = debug_state->first_free_frame = 0;
+        debug_state->collation_frame = 0;
+
         debug_state->high_priority_queue = g_debug_memory->high_priority_queue;
         debug_state->tree_sentinel.next = &debug_state->tree_sentinel;
         debug_state->tree_sentinel.prev = &debug_state->tree_sentinel;
         debug_state->tree_sentinel.group = 0;
 
+        size_t total_memory_size = g_debug_memory->debug_storage_size - sizeof(Debug_State);
         init_arena(&debug_state->debug_arena,
-                   g_debug_memory->debug_storage_size - sizeof(Debug_State),
+                   total_memory_size,
                    debug_state + 1);
+#if 1
+        init_sub_arena(&debug_state->per_frame_arena, &debug_state->debug_arena, (total_memory_size / 2));
+#else
+        // this is the stress-testing case to make sure the memory recycling works.
+        init_sub_arena(&debug_state->per_frame_arena, &debug_state->debug_arena, 128 * 1024);
+#endif
+
 
         debug_state->game_assets = &((Transient_State *)g_debug_memory->transient_memory)->game_assets;
 
@@ -1297,12 +1599,7 @@ debug_start(Debug_State *debug_state, Game_Assets *game_assets, u32 width, u32 h
 
         debug_state->init = true;
 
-        init_sub_arena(&debug_state->collate_arena, &debug_state->debug_arena, MB(32));
-        debug_state->collate_tmp = begin_temporary_memory(&debug_state->collate_arena);
-
-        restart_collation(debug_state, 0);
-
-        add_tree(debug_state, debug_state->root_group, _v2_(0.0f, (f32)height));
+//        add_tree(debug_state, debug_state->root_group, _v2_(0.0f, (f32)height));
     }
 
     begin_render(debug_state->render_group);
@@ -1393,7 +1690,6 @@ debug_end(Debug_State *debug_state, Game_Input *input)
 
     Render_Group *render_group = debug_state->render_group;
 
-    zero_struct(debug_state->next_hot_interaction);
     Debug_Event *hot_event = 0;
 
     v2 mouse_p = input->mouse.P;
@@ -1468,12 +1764,17 @@ debug_end(Debug_State *debug_state, Game_Input *input)
     }
 #endif
 
-    if (debug_state->frame_count)
+    if (debug_state->most_recent_frame)
     {
         char text_buffer[256];
         _snprintf_s(text_buffer, sizeof(text_buffer), 
                     "last frame time: %.02fms",
-                    debug_state->frames[debug_state->frame_count - 1].wall_seconds_elapsed * 1000.0f);
+                    debug_state->most_recent_frame->wall_seconds_elapsed * 1000.0f);
+        debug_text_line(text_buffer);
+
+        _snprintf_s(text_buffer, sizeof(text_buffer), 
+                    "per-frame arena used: %ukb",
+                    (u32)(get_arena_size_remaining(&debug_state->per_frame_arena) / 1024));
         debug_text_line(text_buffer);
     }
 
@@ -1491,12 +1792,13 @@ debug_end(Debug_State *debug_state, Game_Input *input)
         {
             debug_state->scope_to_record = 0;
         }
-        refresh_collation(debug_state);
     }
 
     render_group_to_output_batch(debug_state->render_group, &g_debug_memory->render_batch);
     end_render(debug_state->render_group);
 
+    // clear the UI state for the next frame.
+    zero_struct(debug_state->next_hot_interaction);
 }
 
 internal Game_Assets *
@@ -1516,17 +1818,13 @@ debug_get_game_assets(Game_Memory *memory)
 extern "C"
 DEBUG_FRAME_END(debug_frame_end)
 {
-    ++g_debug_table->current_event_array_idx;
-    if (g_debug_table->current_event_array_idx >= array_count(g_debug_table->events))
-    {
-        g_debug_table->current_event_array_idx = 0;
-    }
+    g_debug_table->current_event_array_idx = !g_debug_table->current_event_array_idx;
     u64 event_array_idx_event_idx = atomic_exchange_u64(&g_debug_table->event_array_idx_event_idx,
                                                         (u64)g_debug_table->current_event_array_idx << 32);
 
     u32 event_array_idx = (event_array_idx_event_idx >> 32);
-    u32 event_count     = (event_array_idx_event_idx & 0xffffffff);
-    g_debug_table->event_count[event_array_idx] = event_count;
+    Assert(event_array_idx <= 1);
+    u32 event_count = (event_array_idx_event_idx & 0xffffffff);
 
     Debug_State *debug_state = (Debug_State *)memory->debug_storage;
     if (debug_state)
@@ -1534,21 +1832,7 @@ DEBUG_FRAME_END(debug_frame_end)
         Game_Assets *game_assets = debug_get_game_assets(memory);
 
         debug_start(debug_state, game_assets, game_screen_buffer->width, game_screen_buffer->height);
-
-        if (memory->executable_reloaded)
-        {
-            restart_collation(debug_state, g_debug_table->current_event_array_idx);
-        }
-
-        if (!debug_state->paused)
-        {
-            // TODO: Need to unify the collation paging out with the events paging out now that they are the same thing!
-            // if (debug_state->frame_count >= (MAX_DEBUG_EVENT_ARRAY_COUNT * 4 - 1))
-            {
-                restart_collation(debug_state, g_debug_table->current_event_array_idx);
-            }
-            collate_debug_records(debug_state, g_debug_table->current_event_array_idx);
-        }
+        collate_debug_records(debug_state, event_count, g_debug_table->events[event_array_idx]);
 
         debug_end(debug_state, game_input);
     }

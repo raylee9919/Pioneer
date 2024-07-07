@@ -11,8 +11,6 @@
 #define maximum(a, b) ( (a > b) ? a : b )
 #define minimum(a, b) ( (a < b) ? a : b )
 #define array_count(array) ( sizeof(array) / sizeof(array[0]) )
-#define zero_struct(INSTANCE) zero_size(sizeof(INSTANCE), &(INSTANCE))
-#define zero_array(COUNT, POINTER) zero_size(COUNT * sizeof((POINTER)[0]), POINTER)
 
 
 #include "intrinsics.h"
@@ -37,6 +35,8 @@ str_equal(char *A, char *B)
     return result;
 }
 
+#define zero_struct(INSTANCE) zero_size(sizeof(INSTANCE), &(INSTANCE))
+#define zero_array(COUNT, POINTER) zero_size(COUNT * sizeof((POINTER)[0]), POINTER)
 internal void
 zero_size(size_t size, void *data) 
 {
@@ -45,6 +45,15 @@ zero_size(size_t size, void *data)
     {
         *at++ = 0;
     }
+}
+
+inline void *
+copy(size_t size, void *src_init, void *dst_init)
+{
+    u8 *src = (u8 *)src_init;
+    u8 *dst = (u8 *)dst_init;
+    while (size--) { *dst++ = *src++; }
+    return dst_init;
 }
 
 #define DLIST_INSERT(sentinel, element) \
@@ -56,6 +65,12 @@ zero_size(size_t size, void *data)
 #define DLIST_INIT(sentinel) \
     (sentinel)->next = (sentinel); \
     (sentinel)->prev = (sentinel);
+
+#define FREELIST_ALLOC(result, free_list_ptr, allocation_code)\
+    result = free_list_ptr;\
+    if (result) { free_list_ptr = result->next_free; } else { result = allocation_code; }
+#define FREELIST_DEALLOC(ptr, free_list_ptr) \
+    if (ptr) {ptr->next_free = free_list_ptr; (free_list_ptr) = ptr;}
 
 struct Memory_Arena 
 {
