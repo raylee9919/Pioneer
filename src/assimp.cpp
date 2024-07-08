@@ -6,6 +6,7 @@
    $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
    ======================================================================== */
 
+#include "stdio.h"
 #include <vector>
 #include <unordered_map>
 #include <string>
@@ -16,16 +17,6 @@
 #include "third_party/assimp/include/assimp/postprocess.h"
 
 
-#define KB(X) (   X *  1024ll)
-#define MB(X) (KB(X) * 1024ll)
-#define GB(X) (MB(X) * 1024ll)
-#define TB(X) (GB(X) * 1024ll)
-#define max(A, B) (A > B ? A : B)
-#define min(A, B) (A < B ? A : B)
-#define assert(EXP) if (!(EXP)) { *(volatile int *)0 = 0; }
-#define array_count(array) (sizeof(array)/sizeof(array[0]))
-
-#include "types.h"
 #include "assimp.h"
 #include "asset_model.h"
 
@@ -33,19 +24,6 @@ static std::unordered_map<std::string, s32> g_bone_map;
 static u32 g_bone_map_used;
 static std::vector<s32> g_bone_hierarchy[MAX_BONE_PER_MESH];
 static std::unordered_map<s32, u8> g_bone_visited;
-
-static Memory_Arena
-init_memory_arena()
-{
-    size_t total_memory_size = GB(2);
-    Memory_Arena arena = {};
-    arena.size = total_memory_size;
-    arena.used = 0;
-    arena.base = malloc(total_memory_size);
-    memset(arena.base, 0, total_memory_size);
-
-    return arena;
-}
 
 static v3
 aiv3_to_v3(aiVector3D ai_v)
@@ -132,7 +110,7 @@ print_indent(u32 depth)
 
 static s32 g_node_count;
 static void
-print_nodes(aiNode *node, u32 depth)
+debug_print_nodes(aiNode *node, u32 depth)
 {
     g_node_count++;
     m4x4 transform = ai_m4x4_to_m4x4(node->mTransformation);
@@ -154,7 +132,7 @@ print_nodes(aiNode *node, u32 depth)
          i < node->mNumChildren;
          ++i)
     {
-        print_nodes(node->mChildren[i], depth + 1);
+        debug_print_nodes(node->mChildren[i], depth + 1);
     }
 }
 
@@ -205,75 +183,73 @@ get_bone_id(aiString ai_bone_name)
 }
 
 static char *
-create_output_file_name(char *out, char *in)
+create_out_file_name(char *in_file_name)
 {
-    u32 length = 0;
-    for (char *c = in;
-         !(*c == '.' &&
-           *(c + 1) &&
-           *(c + 1) != '.' &&
-           *(c + 1) != '/');
-         ++c)
+    char *result = 0;
+    u8 length_before_period = 0;
+    for (char *c = in_file_name;
+         c;
+         ++c, ++length_before_period)
     {
-        ++length;
+        if (*c == '.')
+        {
+            char next = *(c + 1);
+            if (next != '.' && next != '/')
+            {
+                break;
+            }
+        }
     }
 
-    char *result = (char *)malloc(length + 4);
-
-    char *dst_at = result;
-    char *src_at = in;
-
-    for (u32 count = 0;
-         count < length;
-         ++count)
+    result = (char *)malloc(length_before_period + 3);
+    for (u8 idx = 0;
+         idx < length_before_period;
+         ++idx)
     {
-        *dst_at++ = *src_at++;
+        result[idx] = in_file_name[idx];
     }
-    *dst_at++ = '.';
-    *dst_at++ = '3';
-    *dst_at++ = 'd';
-    *dst_at++ = 0;
+    result[length_before_period] = '.';
+    result[length_before_period + 1] = '3';
+    result[length_before_period + 2] = 'd';
+    result[length_before_period + 3] = 0;
 
     return result;
 }
 
 int
-main(void)
+main(int argc, char **argv)
 {
-    Memory_Arena arena = init_memory_arena();
     Assimp::Importer importer;
 
-#define WRITE_SKELETON 0 // (*)
+    b32 write_skeleton = 1; // (*)
 
-    char *file_names[] = {
-        "../data/xbot.dae",
-        "../data/grass.dae",
+    char *input_file_names[] = {
+        "../data/xbot.fbx",
         "../data/octahedral.dae",
-        "../data/cube.dae",
     };
 
     for (u32 file_idx = 0;
-         file_idx < array_count(file_names);
+         file_idx < array_count(input_file_names);
          ++file_idx)
     {
-        char *file_name = file_names[file_idx];
-        const aiScene *model = importer.ReadFile(file_name, aiProcessPreset_TargetRealtime_Quality);
+        char *in_file_name = input_file_names[file_idx];
 
+        const aiScene *model = importer.ReadFile(in_file_name, aiProcessPreset_TargetRealtime_Quality);
         if (model)
         {
             Asset_Model asset_model = {};
 #if 0
-            print_nodes(model->mRootNode, 0);
+            debug_print_nodes(model->mRootNode, 0);
             printf("node count: %d\n", g_node_count);
 #endif
-            printf("success: load model '%s'.\n", file_name);
+            printf("ok: load model '%s'.\n", in_file_name);
             printf("  mesh count      : %d\n", model->mNumMeshes);
             printf("  texture count   : %d\n", model->mNumTextures);
             printf("  animation count : %d\n", model->mNumAnimations);
 
-
-            char *out_file_name = create_output_file_name(out_file_name, file_name);
+            char *out_file_name = create_out_file_name(in_file_name);
             FILE *model_out = fopen(out_file_name, "wb");
+
             if (model_out)
             {
                 std::unordered_map<s32, Asset_Bone> model_bones;
@@ -284,7 +260,7 @@ main(void)
                     aiMesh **meshes = model->mMeshes;
 
                     asset_model.mesh_count    = mesh_count;
-                    asset_model.meshes        = push_array(&arena, Asset_Mesh, asset_model.mesh_count);
+                    asset_model.meshes        = (Asset_Mesh *)malloc(sizeof(Asset_Mesh) * asset_model.mesh_count);
 
                     for (u32 mesh_idx = 0;
                          mesh_idx < mesh_count;
@@ -295,7 +271,7 @@ main(void)
 
                         u32 vertex_count                = mesh->mNumVertices;
                         asset_mesh->vertex_count        = vertex_count;
-                        asset_mesh->vertices            = push_array(&arena, Asset_Vertex, asset_mesh->vertex_count);
+                        asset_mesh->vertices            = (Asset_Vertex *)malloc(sizeof(Asset_Vertex) * asset_mesh->vertex_count);
 
                         b32 mesh_has_normals = mesh->HasNormals();
                         b32 mesh_has_uvs     = mesh->HasTextureCoords(0);
@@ -426,7 +402,7 @@ main(void)
                         u32 triangle_count              = mesh->mNumFaces;
                         u32 index_count                 = triangle_count * 3;
                         asset_mesh->index_count         = index_count;
-                        asset_mesh->indices             = push_array(&arena, u32, asset_mesh->index_count);
+                        asset_mesh->indices             = (u32 *)malloc(sizeof(u32) * asset_mesh->index_count);
 
                         for (u32 triangle_idx = 0;
                              triangle_idx < triangle_count;
@@ -448,7 +424,7 @@ main(void)
                     Asset_Material *asset_materials = 0;
                     if (model->HasMaterials())
                     {
-                        asset_materials = push_array(&arena, Asset_Material, 2);
+                        asset_materials = (Asset_Material *)malloc(sizeof(Asset_Material) * 2);
                         for (u32 mat_idx = 0;
                              mat_idx < model->mNumMaterials;
                              ++mat_idx)
@@ -607,17 +583,23 @@ main(void)
                 build_skeleton(model->mRootNode, -1);
 
 
-                printf("OK: Written '%s'\n\n", out_file_name);
+                printf("ok: written '%s'\n\n", out_file_name);
                 fclose(model_out);
             }
             else
             {
-                printf("ERROR: Couldn't open output file %s\n", out_file_name);
+                printf("error: Couldn't open output file %s\n", out_file_name);
+                exit(1);
             }
+
+
+
+
         }
         else
         {
-            printf("ERROR: Couldn't load model %s.\n", file_name);
+            printf("error: Couldn't load file %s.\n", in_file_name);
+            return -1;
         }
     }
 
@@ -625,7 +607,7 @@ main(void)
     //
     // Global Bone Hierarchy
     //
-    if (WRITE_SKELETON)
+    if (write_skeleton)
     {
         Asset_Bone_Hierarchy asset_bone_hierarchy = {};
         for (s32 bone_id = 0;
@@ -636,7 +618,7 @@ main(void)
             u32 child_count             = (u32)bone_info.size();
             Asset_Bone_Info *asset_bone = &asset_bone_hierarchy.bone_infos[bone_id];
             asset_bone->child_count     = child_count;
-            asset_bone->child_ids       = push_array(&arena, s32, child_count);
+            asset_bone->child_ids       = (s32 *)malloc(sizeof(s32) * child_count);
             for (u32 child_id = 0;
                  child_id < child_count;
                  ++child_id)
@@ -659,7 +641,7 @@ main(void)
             }
 
             fclose(bones_out);
-            printf("success: written '%s'.\n", bones_file_name);
+            printf("ok: written '%s'.\n", bones_file_name);
         }
         else
         {

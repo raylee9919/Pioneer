@@ -6,6 +6,17 @@
    $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
    ======================================================================== */
 
+#include "types.h"
+
+#define KB(X) (   X *  1024ll)
+#define MB(X) (KB(X) * 1024ll)
+#define GB(X) (MB(X) * 1024ll)
+#define TB(X) (GB(X) * 1024ll)
+#define max(A, B) (A > B ? A : B)
+#define min(A, B) (A < B ? A : B)
+#define assert(EXP) if (!(EXP)) { *(volatile int *)0 = 0; }
+#define array_count(ARRAY) (sizeof(ARRAY) / sizeof(ARRAY[0]))
+
 union v2
 {
     struct
@@ -64,6 +75,7 @@ _v4_(f32 r, f32 g, f32 b, f32 a)
     result.g = g;
     result.b = b;
     result.a = a;
+
     return result;
 }
 
@@ -72,23 +84,7 @@ struct m4x4
     f32 e[4][4];
 };
 
-struct Memory_Arena
-{
-    size_t  size;
-    size_t  used;
-    void    *base;
-};
 
-#define push_struct(arena, type)         (type *)push_size(arena, sizeof(type))
-#define push_array(arena, type, count)   (type *)push_size(arena, count * sizeof(type))
-static void *
-push_size(Memory_Arena *arena, size_t size)
-{
-    assert((arena->used + size) <= arena->size);
-    void *result = (u8 *)arena->base + arena->used;
-    arena->used += size;
-    return result;
-}
-
-    
-
+//
+//
+//

@@ -152,13 +152,13 @@ struct Debug_Frame
 struct Open_Debug_Block
 {
     union {
-        Open_Debug_Block *next;
+        Open_Debug_Block *parent;
         Open_Debug_Block *next_free;
     };
 
     u32 starting_frame_idx;
     Debug_Event *opening_event;
-    Open_Debug_Block *parent;
+    Debug_Element *element;
 
     // NOTE: only for data blocks? Probly!
     Debug_Variable_Group *group;

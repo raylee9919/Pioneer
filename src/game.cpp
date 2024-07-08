@@ -291,7 +291,8 @@ GAME_UPDATE(game_update)
     f32 dt = game_input->dt_per_frame;
     game_state->time += dt;
 
-    game_state->player->u = DEBUG_UI_XBOT_ACCEL_CONSTANT;
+    DEBUG_VARIABLE(f32, Xbot, Accel_Constant);
+    game_state->player->u = Accel_Constant;
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -377,61 +378,67 @@ GAME_UPDATE(game_update)
     Entity *player = game_state->player;
     player->accel = _v3_(0, 0, 0);
 
-#if !DEBUG_UI_USE_DEBUG_CAMERA
-    Camera *main_camera = game_state->main_camera;
-    Render_Group *render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
-                                                    game_state->main_camera);
+    Render_Group *render_group = 0;
+    DEBUG_IF(Render_Use_Debug_Camera)
+    {
+        render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
+                                                        game_state->debug_camera);
+        Camera *debug_camera = game_state->debug_camera;
+        f32 C = dt * 3.0f;
+        if (game_input->W.is_set)
+        {
+            m4x4 rotation = to_m4x4(debug_camera->world_rotation);
+            debug_camera->world_translation += rotation * _v3_(0, 0, -C);
+        }
+        if (game_input->S.is_set)
+        {
+            m4x4 rotation = to_m4x4(debug_camera->world_rotation);
+            debug_camera->world_translation += rotation * _v3_(0, 0, C);
+        }
+        if (game_input->D.is_set)
+        {
+            m4x4 rotation = to_m4x4(debug_camera->world_rotation);
+            debug_camera->world_translation += rotation * _v3_(C, 0, 0);
+        }
+        if (game_input->A.is_set)
+        {
+            m4x4 rotation = to_m4x4(debug_camera->world_rotation);
+            debug_camera->world_translation += rotation * _v3_(-C, 0, 0);
+        }
 
-    if (game_input->W.is_set)
-    {
-        m4x4 rotation = to_m4x4(player->world_rotation);
-        player->accel = rotation * _v3_(0, 0, 1);
+        if (game_input->Q.is_set)
+        {
+            m4x4 rotation = to_m4x4(debug_camera->world_rotation);
+            debug_camera->world_translation += rotation * _v3_(0, -C, 0);
+        }
+        if (game_input->E.is_set)
+        {
+            m4x4 rotation = to_m4x4(debug_camera->world_rotation);
+            debug_camera->world_translation += rotation * _v3_(0, C, 0);
+        }
     }
-    if (game_input->D.is_set)
+    else
     {
-        player->world_rotation = _qt_(cos(dt), 0, -sin(dt), 0) * player->world_rotation;
-    }
-    if (game_input->A.is_set)
-    {
-        player->world_rotation = _qt_(cos(dt), 0, sin(dt), 0) * player->world_rotation;
-    }
-#else
-    Render_Group *render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
-                                                    game_state->debug_camera);
-    Camera *debug_camera = game_state->debug_camera;
-    f32 C = dt * 3.0f;
-    if (game_input->W.is_set)
-    {
-        m4x4 rotation = to_m4x4(debug_camera->world_rotation);
-        debug_camera->world_translation += rotation * _v3_(0, 0, -C);
-    }
-    if (game_input->S.is_set)
-    {
-        m4x4 rotation = to_m4x4(debug_camera->world_rotation);
-        debug_camera->world_translation += rotation * _v3_(0, 0, C);
-    }
-    if (game_input->D.is_set)
-    {
-        m4x4 rotation = to_m4x4(debug_camera->world_rotation);
-        debug_camera->world_translation += rotation * _v3_(C, 0, 0);
-    }
-    if (game_input->A.is_set)
-    {
-        m4x4 rotation = to_m4x4(debug_camera->world_rotation);
-        debug_camera->world_translation += rotation * _v3_(-C, 0, 0);
-    }
+        Camera *main_camera = game_state->main_camera;
+        render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
+                                                        game_state->main_camera);
 
-    if (game_input->Q.is_set)
-    {
-        m4x4 rotation = to_m4x4(debug_camera->world_rotation);
-        debug_camera->world_translation += rotation * _v3_(0, -C, 0);
+        if (game_input->W.is_set)
+        {
+            m4x4 rotation = to_m4x4(player->world_rotation);
+            player->accel = rotation * _v3_(0, 0, 1);
+        }
+        if (game_input->D.is_set)
+        {
+            player->world_rotation = _qt_(cos(dt), 0, -sin(dt), 0) * player->world_rotation;
+        }
+        if (game_input->A.is_set)
+        {
+            player->world_rotation = _qt_(cos(dt), 0, sin(dt), 0) * player->world_rotation;
+        }
     }
-    if (game_input->E.is_set)
-    {
-        m4x4 rotation = to_m4x4(debug_camera->world_rotation);
-        debug_camera->world_translation += rotation * _v3_(0, C, 0);
-    }
-#endif
+    Assert(render_group);
+
 
     Chunk_Position camPos = Chunk_Position{};
     v3 camDim       = v3{100.0f, 5.0f, 50.0f};
@@ -497,7 +504,8 @@ GAME_UPDATE(game_update)
                                                               &game_assets->bone_hierarchy,
                                                               final_transforms,
                                                               model->root_transform);
-                                    entity->anim_dt += dt * DEBUG_UI_XBOT_ANIMATION_SPEED;
+                                    DEBUG_VARIABLE(f32, Xbot, Animation_Speed);
+                                    entity->anim_dt += dt * Animation_Speed;
                                     if (entity->anim_dt > entity->cur_anim->duration)
                                     {
                                         entity->anim_dt = 0.0f;
@@ -546,16 +554,18 @@ GAME_UPDATE(game_update)
     }
 #endif
 
-#if DEBUG_UI_DRAW_GRASS
-    push_grass(render_group, &game_assets->grass_model->meshes[0], game_state->grass_count, game_state->grass_world_transforms, game_state->time, game_assets->grass_max_vertex_y, game_assets->turbulence_map);
-#endif
+    DEBUG_IF(Render_DrawGrass)
+    {
+        push_grass(render_group, &game_assets->grass_model->meshes[0], game_state->grass_count, game_state->grass_world_transforms, game_state->time, game_assets->grass_max_vertex_y, game_assets->turbulence_map);
+    }
 
-#if DEBUG_UI_DRAW_STAR
-    push_star(render_group, game_assets->star_mesh, game_state->star_count, game_state->star_world_transforms, game_state->time);
-#endif
+    DEBUG_IF(Render_DrawStar)
+    {
+        push_star(render_group, game_assets->star_mesh, game_state->star_count, game_state->star_world_transforms, game_state->time);
+    }
 
 
-#if __INTERNAL
+#if __INTERNAL && 0
     if (DEBUG_UI_ENABLED)
     {
         Debug_ID entity_debug_id = DEBUG_POINTER_ID(player);

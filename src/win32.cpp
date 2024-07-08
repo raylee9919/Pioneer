@@ -1249,17 +1249,6 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             }
             END_BLOCK(win32_game_update);
 
-            BEGIN_BLOCK(win32_render);
-            HDC dc = GetDC(hwnd);
-            gl_render_batch(&game_memory.render_batch, wd.width, wd.height);
-            SwapBuffers(dc);
-            // win32_update_screen(dc, wd.width, wd.height);
-            ReleaseDC(hwnd, dc);
-            END_BLOCK(win32_render);
-
-            f32 actual_mspf = win32_get_elapsed_ms(last_counter, win32_get_wall_clock());
-            game_input.dt_per_frame = (actual_mspf / 1000.0f);
-
             //
             //
             //
@@ -1273,6 +1262,18 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             g_debug_table_.event_array_idx_event_idx = 0;
             END_BLOCK(win32_debug_collation);
 #endif
+
+            BEGIN_BLOCK(win32_render);
+            HDC dc = GetDC(hwnd);
+            gl_render_batch(&game_memory.render_batch, wd.width, wd.height);
+            SwapBuffers(dc);
+            // win32_update_screen(dc, wd.width, wd.height);
+            ReleaseDC(hwnd, dc);
+            END_BLOCK(win32_render);
+
+            f32 actual_mspf = win32_get_elapsed_ms(last_counter, win32_get_wall_clock());
+            game_input.dt_per_frame = (actual_mspf / 1000.0f);
+
 
             //
             //

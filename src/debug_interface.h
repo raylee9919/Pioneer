@@ -264,12 +264,12 @@ struct Timed_Block
     
     #define DEBUG_IF__(path) \
         local_persist Debug_Event debug_value_##path = \
-        debug_init_value((debug_value_##path.value_b32 = global_constants_##path, eDebug_Type_b32), \
+        debug_init_value((debug_value_##path.value_b32 = GlobalConstants_##path, eDebug_Type_b32), \
                          &debug_value_##path, unique_file_counter_string(), #path); \
         if (debug_value_##path.value_b32)
     
     #define DEBUG_VARIABLE__(type, path, variable) \
-        local_persist Debug_Event debug_value_##variable = debug_init_value((debug_value_##variable.value_##type = global_constants_##path##_##variable, eDebug_Type_##type), \
+        local_persist Debug_Event debug_value_##variable = debug_init_value((debug_value_##variable.value_##type = GlobalConstants_##path##_##variable, eDebug_Type_##type), \
                                                                             &debug_value_##variable, unique_file_counter_string(), #path "_" #variable); \
         type variable = debug_value_##variable.value_##type;
 
