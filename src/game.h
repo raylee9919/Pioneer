@@ -15,8 +15,9 @@
 
 #include "intrinsics.h"
 #include "math.h"
+#include "model.h"
+#include "animation.h"
 #include "platform.h"
-#include "asset_model.h"
 #include "asset.h"
 #include "random.h"
 
@@ -109,10 +110,8 @@ struct Work_Memory_Arena
 
 struct Chunk_Position 
 {
-    union
-    {
-        struct 
-        {
+    union {
+        struct  {
             s32 x;
             s32 y;
             s32 z;
@@ -145,7 +144,7 @@ INTROSPECT(category:"regular butter") struct Entity
     f32                 u;
     u32                 flags;
 
-    Asset_Animation     *cur_anim;
+    Animation           *cur_anim;
     f32                 anim_dt;
 
     Entity              *next;
@@ -262,18 +261,17 @@ struct Game_Assets
     Kerning_Hashmap     kern_hashmap;
     Asset_Glyph         *glyphs[256];
 
-    Asset_Model         *xbot_model;
-    Asset_Model         *cube_model;
-    Asset_Model         *octahedral_model;
+    Model               *xbot_model;
+    Model               *cube_model;
+    Model               *octahedral_model;
 
-    Asset_Model         *grass_model;
+    Model               *grass_model;
     f32                 grass_max_vertex_y;
     Bitmap              *turbulence_map;
 
-    Asset_Mesh          *star_mesh;
+    Mesh                *star_mesh;
 
-    Asset_Bone_Hierarchy bone_hierarchy;
-
+    Animation           *debug_xbot_anim;
 
     Read_Entire_File    *read_entire_file;
 };

@@ -168,7 +168,7 @@ struct Platform_API
     Platform_Complete_All_Work  *platform_complete_all_work;
 
     Read_Entire_File            *debug_platform_read_file;
-#if __INTERNAL
+#if __DEVELOPER
     DEBUG_PLATFORM_WRITE_FILE_  *debug_platform_write_file;
     DEBUG_PLATFORM_FREE_MEMORY_ *debug_platform_free_memory;
     Debug_Platform_Execute_System_Command *debug_platform_execute_system_command;

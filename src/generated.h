@@ -9,7 +9,7 @@ Member_Definition Members_Of_Entity[] =
     {eMeta_Type_v3, "accel", (u32)&(((Entity *)0)->accel)},
     {eMeta_Type_f32, "u", (u32)&(((Entity *)0)->u)},
     {eMeta_Type_u32, "flags", (u32)&(((Entity *)0)->flags)},
-    {eMeta_Type_Asset_Animation, "cur_anim", (u32)&(((Entity *)0)->cur_anim)},
+    {eMeta_Type_Animation, "cur_anim", (u32)&(((Entity *)0)->cur_anim)},
     {eMeta_Type_f32, "anim_dt", (u32)&(((Entity *)0)->anim_dt)},
     {eMeta_Type_Entity, "next", (u32)&(((Entity *)0)->next)},
 };

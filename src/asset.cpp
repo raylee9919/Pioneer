@@ -8,175 +8,133 @@
 
 
 
+#define READ(to, type)\
+    to = *(type *)at; \
+    at += sizeof(to);
+#define READ_COUNT(to, type, count) \
+    to = push_array(arena, type, count); \
+    copy(to, at, sizeof(type)*count); \
+    at += (sizeof(type)*count);
+
+//
+// In order to achieve animation hot-reloading, we need to pass the pointer of
+// the asset, not returning it.
+//
 internal void
-load_model(Asset_Model **asset_model, const char *file_name,
-           Memory_Arena *arena, Read_Entire_File *read_entire_file)
+load_model(Model *model, char *file_name, Memory_Arena *arena, Read_Entire_File *read_entire_file)
 {
-    *asset_model = push_struct(arena, Asset_Model);
+    Assert(model);
+
     Entire_File entire_file = read_entire_file(file_name);
-    u8 *at                  = (u8 *)entire_file.contents;
-    u8 *end                 = at + entire_file.content_size;
+    Assert(entire_file.content_size);
+    u8 *at  = (u8 *)entire_file.contents;
+    u8 *end = at + entire_file.content_size;
 
-    Asset_Model *model = *asset_model;
+    READ(model->mesh_count, u32);
 
-    model->mesh_count = *(u32 *)at;
-    at += sizeof(model->mesh_count);
-
-    model->meshes = push_array(arena, Asset_Mesh, model->mesh_count);
-    Asset_Mesh *mesh = model->meshes;
-    size_t tmp_size;
+    model->meshes = push_array(arena, Mesh, model->mesh_count);
     for (u32 mesh_idx = 0;
          mesh_idx < model->mesh_count;
          ++mesh_idx)
     {
-        mesh->vertex_count = *(u32 *)at;
-        at += sizeof(u32);
+        Mesh *mesh = model->meshes + mesh_idx;
 
-        tmp_size = sizeof(Asset_Vertex) * mesh->vertex_count;
-        mesh->vertices = (Asset_Vertex *)push_size(arena, tmp_size);
-        copy(mesh->vertices, at, tmp_size);
-        at += tmp_size;
-
-        mesh->index_count = *(u32 *)at;
-        at += sizeof(u32);
-
-        tmp_size = sizeof(u32) * mesh->index_count;
-        mesh->indices = (u32 *)push_size(arena, tmp_size);
-        copy(mesh->indices, at, tmp_size);
-        at += tmp_size;
-
-        mesh->material_idx = *(u32 *)at;
-        at += sizeof(u32);
-
-        ++mesh;
-    }
-
-    // MATERIAL
-    model->material_count = *(u32 *)at;
-    at += sizeof(u32);
-
-    tmp_size = sizeof(Asset_Material) * model->material_count;
-    model->materials = (Asset_Material *)push_size(arena, tmp_size);
-    copy(model->materials, at, tmp_size);
-    at += tmp_size;
-
-
-    // SKELETAL
-    model->bone_count = *(u32 *)at;
-    at += sizeof(u32);
-
-    if (model->bone_count)
-    {
-        model->root_bone_id = *(s32 *)at;
-        at += sizeof(s32);
-
-        model->root_transform = *(m4x4 *)at;
-        at += sizeof(m4x4);
-
-        tmp_size = sizeof(Asset_Bone) * model->bone_count;
-        model->bones = (Asset_Bone *)push_size(arena, tmp_size);
-        copy(model->bones, at, tmp_size);
-        at += tmp_size;
-    }
-
-    // ANIMATION
-    model->anim_count = *(u32 *)at;
-    at += sizeof(u32);
-
-    if (model->anim_count)
-    {
-        model->anims = push_array(arena, Asset_Animation, model->anim_count);
-        for (u32 anim_idx = 0;
-             anim_idx < model->anim_count;
-             ++anim_idx)
+        READ(mesh->vertex_count, u32);
+        mesh->vertices = push_array(arena, Vertex, mesh->vertex_count);
+        for (u32 vertex_idx = 0;
+             vertex_idx < mesh->vertex_count;
+             ++vertex_idx)
         {
-            Asset_Animation *anim = model->anims + anim_idx;
-            
-            anim->id = *(s32 *)at;
-            at += sizeof(s32);
+            Vertex *vertex = mesh->vertices + vertex_idx;
+            READ(vertex->pos, v3);
+            READ(vertex->normal, v3);
+            READ(vertex->uv, v2);
+            READ(vertex->color, v4);
 
-            anim->duration = *(f32 *)at;
-            at += sizeof(f32);
-
-            anim->bone_count = *(u32 *)at;
-            at += sizeof(u32);
-
-            if (anim->bone_count)
-            {
-                anim->bones = push_array(arena, Asset_Animation_Bone, anim->bone_count);
-            }
-
-            for (u32 bone_idx = 0;
-                 bone_idx < anim->bone_count;
-                 ++bone_idx)
-            {
-                Asset_Animation_Bone *anim_bone = anim->bones + bone_idx;
-
-                anim_bone->bone_id = *(s32 *)at;
-                at += sizeof(s32);
-
-                anim_bone->translation_count = *(u32 *)at;
-                at += sizeof(u32);
-
-                anim_bone->rotation_count = *(u32 *)at;
-                at += sizeof(u32);
-
-                anim_bone->scaling_count = *(u32 *)at;
-                at += sizeof(u32);
-
-                tmp_size = sizeof(dt_v3_Pair) * anim_bone->translation_count;
-                anim_bone->translations = (dt_v3_Pair *)push_size(arena, tmp_size);
-                copy(anim_bone->translations, at, tmp_size);
-                at += tmp_size;
-
-                tmp_size = sizeof(dt_qt_Pair) * anim_bone->rotation_count;
-                anim_bone->rotations = (dt_qt_Pair *)push_size(arena, tmp_size);
-                copy(anim_bone->rotations, at, tmp_size);
-                at += tmp_size;
-
-                tmp_size = sizeof(dt_v3_Pair) * anim_bone->scaling_count;
-                anim_bone->scalings = (dt_v3_Pair *)push_size(arena, tmp_size);
-                copy(anim_bone->scalings, at, tmp_size);
-                at += tmp_size;
-            }
+            for (u32 i = 0; i < MAX_BONE_PER_VERTEX; ++i) { READ(vertex->node_ids[i], s32); }
+            for (u32 i = 0; i < MAX_BONE_PER_VERTEX; ++i) { READ(vertex->node_weights[i], f32); }
         }
 
+        READ(mesh->index_count, u32);
+        READ_COUNT(mesh->indices, u32, mesh->index_count);
 
+        READ(mesh->material_idx, u32);
+    }
+
+    //
+    // Material
+    //
+    READ(model->material_count, u32);
+    READ_COUNT(model->materials, Material, model->material_count);
+
+    //
+    // Nodes
+    //
+    READ(model->node_count, u32);
+    if (model->node_count)
+    {
+        READ(model->root_bone_node_id, s32);
+        model->nodes = push_array(arena, Node, model->node_count);
+
+        for (u32 node_idx = 0;
+             node_idx < model->node_count;
+             ++node_idx)
+        {
+            Node *node = model->nodes + node_idx;
+
+            READ(node->id, s32);
+            READ(node->offset, m4x4);
+            READ(node->transform, m4x4);
+            READ(node->child_count, u32);
+            READ_COUNT(node->child_ids, s32, node->child_count);
+        }
     }
 
     Assert(at == end);
 }
 
 internal void
-load_bone_hierarchy(Memory_Arena *arena, Game_Assets *game_assets)
+load_animation(Animation *anim, char *file_name, Memory_Arena *arena,
+               Read_Entire_File *read_entire_file)
 {
-    Entire_File entire_file = game_assets->read_entire_file("bones.pack");
-    u8 *at                  = (u8 *)entire_file.contents;
-    u8 *end                 = at + entire_file.content_size;
+    Assert(anim);
 
-    for (u32 id = 0;
-         id < MAX_BONE_PER_MESH;
-         ++id)
+    Entire_File entire_file = read_entire_file(file_name);
+    Assert(entire_file.content_size);
+    u8 *at  = (u8 *)entire_file.contents;
+    u8 *end = at + entire_file.content_size;
+
+    READ_COUNT(anim->name, char, string_length((char *)at) + 1);
+
+    READ(anim->duration, f32);
+    READ(anim->node_count, u32);
+
+    anim->nodes = push_array(arena, Animation_Node, anim->node_count);
+    for (u32 node_idx = 0;
+         node_idx < anim->node_count;
+         ++node_idx)
     {
-        Asset_Bone_Info *bone = &game_assets->bone_hierarchy.bone_infos[id];
+        Animation_Node *node = anim->nodes + node_idx;
 
-        bone->child_count = *(u32 *)at;
-        at += sizeof(u32);
+        READ(node->id, s32);
 
-        if (bone->child_count)
-        {
-            size_t tmp_size = sizeof(s32) * bone->child_count;
-            bone->child_ids = (s32 *)push_size(arena, tmp_size);
-            copy(bone->child_ids, at, tmp_size);
-            at += tmp_size;
-        }
+        READ(node->translation_count, u32);
+        READ(node->rotation_count, u32);
+        READ(node->scaling_count, u32);
+
+        READ_COUNT(node->translations, dt_v3_Pair, node->translation_count);
+        READ_COUNT(node->rotations, dt_qt_Pair, node->rotation_count);
+        READ_COUNT(node->scalings, dt_v3_Pair, node->scaling_count);
     }
 
     Assert(at == end);
 }
-    
+#undef READ
+#undef READ_COUNT
 
-
+//
+// Font
+//
 internal void
 load_font(Memory_Arena *arena, Read_Entire_File *read_file, Game_Assets *game_assets)
 {
@@ -372,4 +330,3 @@ GetBitmap(Transient_State *trans_state, Asset_ID assetID,
     }
 }
 #endif
-

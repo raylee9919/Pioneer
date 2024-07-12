@@ -15,130 +15,7 @@
 #include "render_group.cpp"
 #include "sim.cpp"
 #include "asset.cpp"
-
-internal void
-build_animation_transform(Asset_Model *model, s32 bone_id,
-                          Asset_Animation *anim, f32 dt,
-                          Asset_Bone_Hierarchy *bone_hierarchy,
-                          m4x4 *final_transforms,
-                          m4x4 parent_transform)
-{
-    TIMED_FUNCTION();
-    Assert(dt >= 0.0f);
-
-    Asset_Bone *bone = 0;
-    // TODO: this is stupid.
-    for (u32 bone_idx = 0;
-         bone_idx < model->bone_count;
-         ++bone_idx)
-    {
-        Asset_Bone *at = model->bones + bone_idx;
-        if (at->bone_id == bone_id)
-        {
-            bone = at;
-            break;
-        }
-    }
-    Assert(bone);
-
-    m4x4 node_transform = bone->transform;
-
-    // TODO: this is stupid.
-    for (u32 bone_idx = 0;
-         bone_idx < anim->bone_count;
-         ++bone_idx)
-    {
-        Asset_Animation_Bone *anim_bone = (anim->bones + bone_idx);
-        if (bone_id == anim_bone->bone_id)
-        {
-            // lerp translation.
-            v3 lerped_translation = (anim_bone->translations + (anim_bone->translation_count - 1))->vec;
-            for (u32 translation_idx = 0;
-                 translation_idx < anim_bone->translation_count;
-                 ++translation_idx)
-            {
-                dt_v3_Pair *hi_key = anim_bone->translations + translation_idx;
-                if (hi_key->dt > dt)
-                {
-                    dt_v3_Pair *lo_key = (hi_key - 1);
-                    f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
-                    lerped_translation = lerp(lo_key->vec, t, hi_key->vec);
-                    break;
-                }
-                else if (hi_key->dt == dt)
-                {
-                    lerped_translation = hi_key->vec;
-                    break;
-                }
-            }
-
-            // slerp rotation.
-            qt slerped_rotation = (anim_bone->rotations + (anim_bone->rotation_count - 1))->q;
-            for (u32 rotation_idx = 0;
-                 rotation_idx < anim_bone->rotation_count;
-                 ++rotation_idx)
-            {
-                dt_qt_Pair *hi_key = anim_bone->rotations + rotation_idx;
-                if (hi_key->dt > dt)
-                {
-                    dt_qt_Pair *lo_key = (hi_key - 1);
-                    f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
-                    slerped_rotation = slerp(lo_key->q, t, hi_key->q);
-                    break;
-                }
-                else if (hi_key->dt == dt)
-                {
-                    slerped_rotation = hi_key->q;
-                    break;
-                }
-            }
-
-            // lerp scaling.
-            v3 lerped_scaling = (anim_bone->scalings + (anim_bone->scaling_count - 1))->vec;
-            for (u32 scaling_idx = 0;
-                 scaling_idx < anim_bone->scaling_count;
-                 ++scaling_idx)
-            {
-                dt_v3_Pair *hi_key = anim_bone->scalings + scaling_idx;
-                if (hi_key->dt > dt)
-                {
-                    dt_v3_Pair *lo_key = (hi_key - 1);
-                    f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
-                    lerped_scaling = lerp(lo_key->vec, t, hi_key->vec);
-                    break;
-                }
-                else if (hi_key->dt == dt)
-                {
-                    lerped_scaling = hi_key->vec;
-                    break;
-                }
-            }
-
-            node_transform = trs_to_transform(lerped_translation, slerped_rotation, lerped_scaling);
-
-            break;
-        }
-    }
-
-    m4x4 global_transform = parent_transform * node_transform;
-    m4x4 final_transform  = global_transform * bone->offset;
-    final_transforms[bone->bone_id] = final_transform;
-
-    Asset_Bone_Info *bone_info = bone_hierarchy->bone_infos + bone_id;
-    u32 child_count = bone_info->child_count;
-    for (u32 child_idx = 0;
-         child_idx < child_count;
-         ++child_idx)
-    {
-        s32 child_bone_id = bone_info->child_ids[child_idx];
-        build_animation_transform(model, child_bone_id,
-                                  anim, dt,
-                                  bone_hierarchy,
-                                  final_transforms,
-                                  global_transform);
-    }
-}
-
+#include "animation_player.cpp"
 
 #define GRASS_COUNT_MAX 100'000
 #define GRASS_DENSITY 10
@@ -146,6 +23,7 @@ build_animation_transform(Asset_Model *model, s32 bone_id,
 #define TURBULENCE_MAP_SIDE 256 
 
 #define STAR_COUNT_MAX 100'000
+
 
 internal Bitmap *
 gen_turbulence_map(Memory_Arena *arena, Random_Series *series, u32 side)
@@ -169,7 +47,7 @@ gen_turbulence_map(Memory_Arena *arena, Random_Series *series, u32 side)
     return result;
 }
 
-#if __INTERNAL
+#if __DEVELOPER
 global_var Game_Memory *g_debug_memory;
 #endif
 
@@ -177,7 +55,7 @@ extern "C"
 GAME_UPDATE(game_update)
 {
 
-#if __INTERNAL
+#if __DEVELOPER
     g_debug_memory = game_memory;
 #endif
 
@@ -319,7 +197,7 @@ GAME_UPDATE(game_update)
         }
 
         // asset arena.
-        init_arena(&transient_state->asset_arena, MB(20),
+        init_arena(&transient_state->asset_arena, MB(200),
                    (u8 *)transient_memory + sizeof(Transient_State) + transient_state->transient_arena.size);
 
         transient_state->high_priority_queue    = game_memory->high_priority_queue;
@@ -327,19 +205,26 @@ GAME_UPDATE(game_update)
         Game_Assets *game_assets            = &transient_state->game_assets; // TODO: Ain't thrilled about it.
         game_assets->read_entire_file       = game_memory->platform.debug_platform_read_file;
 
-        load_model(&game_assets->xbot_model, "xbot.3d", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
-        load_model(&game_assets->cube_model, "cube.3d", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
-        load_model(&game_assets->octahedral_model, "octahedral.3d", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+#if __DEVELOPER
+        game_assets->xbot_model = push_struct(&transient_state->asset_arena, Model);
+        game_assets->cube_model = push_struct(&transient_state->asset_arena, Model);
+        game_assets->octahedral_model = push_struct(&transient_state->asset_arena, Model);
+        game_assets->grass_model = push_struct(&transient_state->asset_arena, Model);
 
-        load_model(&game_assets->grass_model, "grass.3d", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        game_assets->debug_xbot_anim = push_struct(&transient_state->asset_arena, Animation);
+        load_animation(game_assets->debug_xbot_anim, "xbot_mixamo.com.sanm", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+#endif
+        load_model(game_assets->xbot_model, "xbot.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        load_model(game_assets->cube_model, "cube.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        load_model(game_assets->octahedral_model, "octahedral.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        load_model(game_assets->grass_model, "grass.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
         for (u32 vertex_idx = 0;
              vertex_idx < game_assets->grass_model->meshes[0].vertex_count;
              ++vertex_idx)
         {
-            Asset_Vertex *vertex = game_assets->grass_model->meshes[0].vertices + vertex_idx;
+            Vertex *vertex = game_assets->grass_model->meshes[0].vertices + vertex_idx;
             game_assets->grass_max_vertex_y = maximum(game_assets->grass_max_vertex_y, vertex->pos.y);
         }
-        load_bone_hierarchy(&transient_state->asset_arena, game_assets);
 
 
 
@@ -348,7 +233,7 @@ GAME_UPDATE(game_update)
         load_font(&transient_state->asset_arena, game_memory->platform.debug_platform_read_file, &transient_state->game_assets);
 
         //
-        // NOISE MAP
+        // Noise Map
         //
 #if 0
         turbulence_map = gen_turbulence_map(&game_state->world_arena, &game_state->random_series, TURBULENCE_MAP_SIDE);
@@ -356,7 +241,7 @@ GAME_UPDATE(game_update)
         game_assets->turbulence_map = load_bmp(&transient_state->asset_arena, game_memory->platform.debug_platform_read_file, "turbulence.bmp");
 #endif
 
-#if __INTERNAL
+#if __DEVELOPER
         game_assets->debug_bitmap = load_bmp(&transient_state->asset_arena, game_memory->platform.debug_platform_read_file, "doggo.bmp");
 #endif
 
@@ -384,7 +269,7 @@ GAME_UPDATE(game_update)
         render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
                                                         game_state->debug_camera);
         Camera *debug_camera = game_state->debug_camera;
-        f32 C = dt * 3.0f;
+        f32 C = dt * 30.0f;
         if (game_input->W.is_set)
         {
             m4x4 rotation = to_m4x4(debug_camera->world_rotation);
@@ -493,53 +378,54 @@ GAME_UPDATE(game_update)
                     {
                         case eEntity_XBot: 
                         {
-                            Asset_Model *model = game_assets->xbot_model;
+#if 1
+                            Model *model = game_assets->xbot_model;
                             if (model)
                             {
                                 if (entity->cur_anim)
                                 {
-                                    m4x4 *final_transforms = push_array(&transient_state->transient_arena, m4x4, MAX_BONE_PER_MESH);
-                                    build_animation_transform(model, model->root_bone_id,
-                                                              entity->cur_anim, entity->anim_dt,
-                                                              &game_assets->bone_hierarchy,
-                                                              final_transforms,
-                                                              model->root_transform);
+                                    m4x4 *final_transforms = push_array(&transient_state->transient_arena, m4x4, model->node_count);
+#if 1
+                                    eval(model, entity->cur_anim, entity->anim_dt, final_transforms);
+#else
+                                    for (u32 i = 0; i < model->node_count; ++i)
+                                        final_transforms[i] = identity();
+#endif
+
                                     DEBUG_VARIABLE(f32, Xbot, Animation_Speed);
                                     entity->anim_dt += dt * Animation_Speed;
                                     if (entity->anim_dt > entity->cur_anim->duration)
-                                    {
                                         entity->anim_dt = 0.0f;
-                                    }
 
                                     for (u32 mesh_idx = 0;
                                          mesh_idx < model->mesh_count;
                                          ++mesh_idx)
                                     {
-                                        Asset_Mesh *mesh    = model->meshes + mesh_idx;
-                                        Asset_Material *mat = model->materials + mesh->material_idx;
+                                        Mesh *mesh = model->meshes + mesh_idx;
+                                        Material *mat = model->materials + mesh->material_idx;
                                         push_mesh(render_group, mesh, mat, world_transform, final_transforms);
                                     }
                                 }
                                 else
                                 {
                                     // TODO: for now.
-                                    entity->cur_anim = model->anims;
+                                    entity->cur_anim = game_assets->debug_xbot_anim;
                                 }
-
                             }
+#endif
                         } break;
 
                         case eEntity_Tile: 
                         {
-                            Asset_Model *model = game_assets->cube_model;
+                            Model *model = game_assets->cube_model;
                             if (model)
                             {
                                 for (u32 mesh_idx = 0;
                                      mesh_idx < model->mesh_count;
                                      ++mesh_idx)
                                 {
-                                    Asset_Mesh *mesh = model->meshes + mesh_idx;
-                                    Asset_Material *mat = model->materials + mesh->material_idx;
+                                    Mesh *mesh = model->meshes + mesh_idx;
+                                    Material *mat = model->materials + mesh->material_idx;
                                     push_mesh(render_group, mesh, mat, world_transform);
                                 }
                             }
@@ -565,7 +451,7 @@ GAME_UPDATE(game_update)
     }
 
 
-#if __INTERNAL && 0
+#if __DEVELOPER && 0
     if (DEBUG_UI_ENABLED)
     {
         Debug_ID entity_debug_id = DEBUG_POINTER_ID(player);
@@ -586,7 +472,7 @@ GAME_UPDATE(game_update)
 }
 
 
-#if __INTERNAL
+#if __DEVELOPER
 #include "debug.cpp"
 #else
 

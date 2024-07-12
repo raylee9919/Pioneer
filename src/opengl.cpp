@@ -448,8 +448,8 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                 {
                     Render_Mesh *piece = (Render_Mesh *)entity;
 
-                    Asset_Mesh *mesh            = piece->mesh;
-                    Asset_Material *mat         = piece->material;
+                    Mesh *mesh            = piece->mesh;
+                    Material *mat         = piece->material;
 
                     glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
 
@@ -472,16 +472,16 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     glEnableVertexAttribArray(4);
                     glEnableVertexAttribArray(5);
 
-                    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, pos)));
-                    glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, normal)));
-                    glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, uv)));
-                    glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, color)));
-                    glVertexAttribIPointer(4, MAX_BONE_PER_VERTEX, GL_INT, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, bone_ids)));
-                    glVertexAttribPointer(5, MAX_BONE_PER_VERTEX, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, bone_weights)));
+                    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, pos)));
+                    glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, normal)));
+                    glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, uv)));
+                    glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Vertex), (GLvoid *)(offset_of(Vertex, color)));
+                    glVertexAttribIPointer(4, MAX_BONE_PER_VERTEX, GL_INT, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_ids)));
+                    glVertexAttribPointer(5, MAX_BONE_PER_VERTEX, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_weights)));
 
 
                     glBufferData(GL_ARRAY_BUFFER,
-                                 mesh->vertex_count * sizeof(Asset_Vertex),
+                                 mesh->vertex_count * sizeof(Vertex),
                                  mesh->vertices,
                                  GL_DYNAMIC_DRAW);
 
@@ -528,16 +528,16 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     glEnableVertexAttribArray(1);
                     glEnableVertexAttribArray(2);
                     glEnableVertexAttribArray(3);
-                    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, pos)));
-                    glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, normal)));
-                    glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, uv)));
-                    glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, color)));
+                    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, pos)));
+                    glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, normal)));
+                    glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, uv)));
+                    glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Vertex), (GLvoid *)(offset_of(Vertex, color)));
 
                     glUniform1f(program->time, piece->time);
                     glUniform1f(program->grass_max_vertex_y, piece->grass_max_vertex_y);
-                    Asset_Mesh *mesh    = piece->mesh;
+                    Mesh *mesh    = piece->mesh;
                     glBufferData(GL_ARRAY_BUFFER,
-                                 mesh->vertex_count * sizeof(Asset_Vertex),
+                                 mesh->vertex_count * sizeof(Vertex),
                                  mesh->vertices,
                                  GL_DYNAMIC_DRAW);
                     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
@@ -592,7 +592,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                 {
                     Render_Star *piece = (Render_Star *)entity;
 
-                    Asset_Mesh *mesh = piece->mesh;
+                    Mesh *mesh = piece->mesh;
 
                     glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
 
@@ -607,13 +607,13 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     glEnableVertexAttribArray(1);
                     glEnableVertexAttribArray(2);
                     glEnableVertexAttribArray(3);
-                    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, pos)));
-                    glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, normal)));
-                    glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, uv)));
-                    glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Asset_Vertex), (GLvoid *)(offset_of(Asset_Vertex, color)));
+                    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, pos)));
+                    glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, normal)));
+                    glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, uv)));
+                    glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Vertex), (GLvoid *)(offset_of(Vertex, color)));
 
                     glBufferData(GL_ARRAY_BUFFER,
-                                 mesh->vertex_count * sizeof(Asset_Vertex),
+                                 mesh->vertex_count * sizeof(Vertex),
                                  mesh->vertices,
                                  GL_DYNAMIC_DRAW);
                     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
@@ -709,7 +709,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 internal void
 gl_init()
 {
-#if __INTERNAL
+#if __DEVELOPER
     if (glDebugMessageCallbackARB) 
     {
         glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);

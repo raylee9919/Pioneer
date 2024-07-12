@@ -7,11 +7,11 @@
    ======================================================================== */
 
 #define pi32                3.14159265359f
-#define epsilon_f32         1.19209e-07
+#define epsilon_f32         1.19209e-07f
 
 
 //
-// @misc
+// misc
 //
 inline f32
 square(f32 val) 
@@ -76,7 +76,7 @@ safe_ratio(f32 a, f32 b)
 }
 
 //
-// @v2
+// v2
 //
 union v2
 {
@@ -209,7 +209,7 @@ arm2(f32 T)
 }
 
 //
-// @v3
+// v3
 //
 union v3 
 {
@@ -378,16 +378,33 @@ lerp(v3 a, f32 t, v3 b)
 }
 
 //
-// @v4
+// v3i
 //
+struct v3i
+{
+    s32 x, y, z;
+};
+
+inline v3i
+_v3i_(s32 x, s32 y, s32 z)
+{
+    v3i v;
+    v.x = x;
+    v.y = y;
+    v.z = z;
+    return v;
+}
+
+
+//
+// v4
+//
+
 union v4
 {
-    struct 
-    {
-        union 
-        {
-            struct 
-            {
+    struct {
+        union {
+            struct {
                 f32 r, g, b;
             };
             v3 rgb;
@@ -419,18 +436,11 @@ _v4_(v3 rgb, f32 a)
 }
 
 //
-// @quaternion
+// quaternion
 //
-union qt
+struct qt
 {
-    struct
-    {
-        f32 w, x, y, z;
-    };
-    struct
-    {
-        f32 r, i, j, k;
-    };
+    f32 w, x, y, z;
 };
 
 static qt
@@ -463,6 +473,7 @@ operator + (qt a, qt b)
     q.x = a.x + b.x;
     q.y = a.y + b.y;
     q.z = a.z + b.z;
+
     return q;
 }
 
@@ -474,6 +485,7 @@ operator * (qt a, qt b)
     q.x = (a.w * b.x) + (a.x * b.w) + (a.y * b.z) - (a.z * b.y); 
     q.y = (a.w * b.y) + (a.y * b.w) + (a.z * b.x) - (a.x * b.z); 
     q.z = (a.w * b.z) + (a.z * b.w) + (a.x * b.y) - (a.y * b.x); 
+
     return q;
 }
 
@@ -485,6 +497,7 @@ operator * (qt a, f32 b)
     q.x = a.x * b;
     q.y = a.y * b;
     q.z = a.z * b;
+
     return q;
 }
 
@@ -496,6 +509,7 @@ operator * (f32 b, qt a)
     q.x = a.x * b;
     q.y = a.y * b;
     q.z = a.z * b;
+
     return q;
 }
 
@@ -507,6 +521,7 @@ operator - (qt in)
     q.x = -in.x;
     q.y = -in.y;
     q.z = -in.z;
+
     return q;
 }
 
@@ -537,7 +552,7 @@ slerp(qt q1, f32 t, qt q2)
     }
 
     f32 sclp, sclq;
-#if 0
+#if 1
     f32 threshold = epsilon_f32;
 #else
     f32 threshold = 0.8f;
@@ -566,10 +581,10 @@ slerp(qt q1, f32 t, qt q2)
 }
 
 //
-// @m4x4
+// m4x4
 //
 
-// IMPORTANT: row-major!
+// @Important: row-major!
 struct m4x4 
 {
     f32 e[4][4];
@@ -596,20 +611,20 @@ transform(m4x4 M, v3 P, f32 Pw = 1.0f)
 {
     v3 R;
 
-    R.x = M.e[0][0] * P.x +
-          M.e[0][1] * P.y +
-          M.e[0][2] * P.z +
-          M.e[0][3] * Pw;
+    R.x = (M.e[0][0] * P.x +
+           M.e[0][1] * P.y +
+           M.e[0][2] * P.z +
+           M.e[0][3] * Pw);
 
-    R.y = M.e[1][0] * P.x +
-          M.e[1][1] * P.y +
-          M.e[1][2] * P.z +
-          M.e[1][3] * Pw;
+    R.y = (M.e[1][0] * P.x +
+           M.e[1][1] * P.y +
+           M.e[1][2] * P.z +
+           M.e[1][3] * Pw);
 
-    R.z = M.e[2][0] * P.x +
-          M.e[2][1] * P.y +
-          M.e[2][2] * P.z +
-          M.e[2][3] * Pw;
+    R.z = (M.e[2][0] * P.x +
+           M.e[2][1] * P.y +
+           M.e[2][2] * P.z +
+           M.e[2][3] * Pw);
 
     return R;
 }
@@ -682,8 +697,10 @@ inline m4x4
 transpose(m4x4 m) 
 {
     m4x4 r = {};
-    for (int i = 0; i < 4; ++i) {
-        for (int j = 0; j < 4; ++j) {
+    for (int i = 0; i < 4; ++i) 
+    {
+        for (int j = 0; j < 4; ++j) 
+        {
             r.e[j][i] = m.e[i][j];
         }
     }
@@ -721,6 +738,7 @@ translate(m4x4 m, v3 t)
     result.e[0][3] += t.x;
     result.e[1][3] += t.y;
     result.e[2][3] += t.z;
+
     return result;
 }
 
@@ -755,6 +773,7 @@ scale(m4x4 m, v3 s)
     r.e[0][0] *= s.x;
     r.e[1][1] *= s.y;
     r.e[2][2] *= s.z;
+
     return r;
 }
 
@@ -790,7 +809,7 @@ get_column(m4x4 M, u32 C)
 }
 
 //
-// @Rect
+// Rect
 //
 INTROSPECT(category:"math") struct Rect2 
 {
@@ -914,24 +933,4 @@ rotate(qt q, v3 axis, f32 t)
     qt result = _qt_(c, n.x, n.y, n.z) * q;
     return result;
 }
-
-struct v3i
-{
-    s32 x, y, z;
-};
-
-inline v3i
-_v3i_(s32 x, s32 y, s32 z)
-{
-    v3i v;
-    v.x = x;
-    v.y = y;
-    v.z = z;
-    return v;
-}
-
-//
-//
-//
-
 

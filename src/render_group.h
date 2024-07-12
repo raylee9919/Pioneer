@@ -33,8 +33,8 @@ struct Render_Quad
 struct Render_Mesh
 {
     Render_Entity_Header    header;
-    Asset_Mesh              *mesh;
-    Asset_Material          *material;
+    Mesh              *mesh;
+    Material          *material;
     m4x4                    world_transform;
     m4x4                    *animation_transforms;
 };
@@ -42,7 +42,7 @@ struct Render_Mesh
 struct Render_Grass
 {
     Render_Entity_Header    header;
-    Asset_Mesh              *mesh;
+    Mesh              *mesh;
     u32                     count;
     m4x4                    *world_transforms;
     f32                     time;
@@ -53,7 +53,7 @@ struct Render_Grass
 struct Render_Star
 {
     Render_Entity_Header    header;
-    Asset_Mesh              *mesh;
+    Mesh              *mesh;
     u32                     count;
     m4x4                    *world_transforms;
     f32                     time;

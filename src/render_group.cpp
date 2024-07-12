@@ -41,7 +41,7 @@ end_render(Render_Group *render_group)
 }
 
 internal void
-push_mesh(Render_Group *group, Asset_Mesh *mesh, Asset_Material *material,
+push_mesh(Render_Group *group, Mesh *mesh, Material *material,
           m4x4 world_transform, m4x4 *animation_transforms = 0)
 {
     Render_Mesh *piece          = push_render_entity(group, Render_Mesh);
@@ -51,10 +51,9 @@ push_mesh(Render_Group *group, Asset_Mesh *mesh, Asset_Material *material,
     piece->animation_transforms = animation_transforms;
 }
 
-
 internal void
 push_grass(Render_Group *group,
-           Asset_Mesh *mesh,
+           Mesh *mesh,
            u32 count,
            m4x4 *world_transforms,
            f32 time,
@@ -72,7 +71,7 @@ push_grass(Render_Group *group,
 
 internal void
 push_star(Render_Group *group,
-           Asset_Mesh *mesh,
+           Mesh *mesh,
            u32 count,
            m4x4 *world_transforms,
            f32 time)

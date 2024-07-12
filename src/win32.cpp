@@ -293,7 +293,7 @@ const int context_attrib_list[] =
     WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
     WGL_CONTEXT_MINOR_VERSION_ARB, 3,
     WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
-#if __INTERNAL
+#if __DEVELOPER
         | WGL_CONTEXT_DEBUG_BIT_ARB
 #endif
         ,
@@ -479,8 +479,8 @@ win32_concat_str(char *dst,
                  const char *src2, size_t len2) 
 {
     char *at = dst;
-    for (int i = 0; i < len1; i++) { *at++ = src1[i]; }
-    for (int i = 0; i < len2; i++) { *at++ = src2[i]; }
+    for (int i = 0; i < len1; i++) *at++ = src1[i]; 
+    for (int i = 0; i < len2; i++) *at++ = src2[i];
     *at = '\0';
 }
 
@@ -491,13 +491,16 @@ win32_xinput_handle_deadzone(XINPUT_STATE *state)
 #define XINPUT_DEAD_ZONE 2500
     f32 lx = state->Gamepad.sThumbLX;
     f32 ly = state->Gamepad.sThumbLY;
-    if (sqrt(lx * lx + ly * ly) < XINPUT_DEAD_ZONE) {
+    
+    if (sqrt(lx * lx + ly * ly) < XINPUT_DEAD_ZONE) 
+    {
         state->Gamepad.sThumbLX = 0;
         state->Gamepad.sThumbLY = 0;
     }
     f32 rx = state->Gamepad.sThumbRX;
     f32 ry = state->Gamepad.sThumbRY;
-    if (sqrt(rx * rx + ry * ry) < XINPUT_DEAD_ZONE) {
+    if (sqrt(rx * rx + ry * ry) < XINPUT_DEAD_ZONE) 
+    {
         state->Gamepad.sThumbRX = 0;
         state->Gamepad.sThumbRY = 0;
     }
@@ -557,20 +560,26 @@ PLATFORM_READ_ENTIRE_FILE(DebugPlatformReadEntireFile)
 
 DEBUG_PLATFORM_WRITE_FILE(DebugPlatformWriteEntireFile) 
 {
-    bool32 result = false;
+    b32 result = false;
 
     HANDLE file = CreateFileA(filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
-    if(file != INVALID_HANDLE_VALUE) {
+    if(file != INVALID_HANDLE_VALUE) 
+    {
         DWORD bytes_written;
         if(WriteFile(file, contents, size, &bytes_written, 0) &&
-           bytes_written == size) {
+           bytes_written == size) 
+        {
             result = 1;
-        } else {
+        } 
+        else 
+        {
 
         }
 
         CloseHandle(file);
-    } else {
+    } 
+    else 
+    {
 
     }
 
@@ -578,7 +587,7 @@ DEBUG_PLATFORM_WRITE_FILE(DebugPlatformWriteEntireFile)
 }
 
 internal void
-Win32BeginRecordingInput(Win32State *win32_state) 
+win32_begin_recording_input(Win32_State *win32_state) 
 {
     win32_state->is_recording = 1;
     const char *filename = "inputNstate.rec";
@@ -592,7 +601,7 @@ Win32BeginRecordingInput(Win32State *win32_state)
 }
 
 internal void
-Win32RecordInput(Win32State *win32_state, Game_Input *game_input) 
+win32_record_input(Win32_State *win32_state, Game_Input *game_input) 
 {
     DWORD bytes_written;
     WriteFile(win32_state->record_file, game_input, sizeof(*game_input),
@@ -600,14 +609,14 @@ Win32RecordInput(Win32State *win32_state, Game_Input *game_input)
 }
 
 internal void
-Win32EndInputRecording(Win32State *win32_state) 
+win32_end_input_recording(Win32_State *win32_state) 
 {
     CloseHandle(win32_state->record_file);
     win32_state->is_recording = 0;
 }
 
 internal void
-Win32BeginInputPlayback(Win32State *win32_state) 
+win32_begin_input_playback(Win32_State *win32_state) 
 {
     win32_state->is_playing = 1;
 
@@ -621,21 +630,23 @@ Win32BeginInputPlayback(Win32State *win32_state)
 }
 
 internal void
-Win32EndInputPlayback(Win32State *win32_state) 
+win32_end_input_playback(Win32_State *win32_state) 
 {
     CloseHandle(win32_state->record_file);
     win32_state->is_playing = 0;
 }
 
 internal void
-Win32PlaybackInput(Win32State *win32_state, Game_Input *game_input) 
+win32_playback_input(Win32_State *win32_state, Game_Input *game_input) 
 {
     DWORD bytes_read;
     if (ReadFile(win32_state->record_file, game_input,
-                 sizeof(*game_input), &bytes_read, 0)) {
-        if (bytes_read == 0) {
-            Win32EndInputPlayback(win32_state);
-            Win32BeginInputPlayback(win32_state);
+                 sizeof(*game_input), &bytes_read, 0)) 
+    {
+        if (bytes_read == 0) 
+        {
+            win32_end_input_playback(win32_state);
+            win32_begin_input_playback(win32_state);
         }
     }
 }
@@ -643,8 +654,8 @@ Win32PlaybackInput(Win32State *win32_state, Game_Input *game_input)
 internal void
 win32_process_keyboard(Game_Key *game_key, b32 is_down) 
 {
-    if (is_down) { game_key->is_set = true; } 
-    else { game_key->is_set = false; }
+    if (is_down) game_key->is_set = true; 
+    else game_key->is_set = false;
 }
 
 internal void
@@ -668,31 +679,44 @@ win32_process_mouse_click(s32 vk, Mouse_Input *mouse)
     b32 is_down = GetKeyState(vk) & (1 << 15);
     u32 E = 0;
 
-    switch(vk) {
-        case VK_LBUTTON: {
+    switch(vk) 
+    {
+        case VK_LBUTTON: 
+        {
             E = eMouse_Left;
         } break;
-        case VK_MBUTTON: {
+        case VK_MBUTTON: 
+        {
             E = eMouse_Middle;
         } break;
-        case VK_RBUTTON: {
+        case VK_RBUTTON: 
+        {
             E = eMouse_Right;
         } break;
 
         INVALID_DEFAULT_CASE
     }
 
-    if (is_down) {
-        if (!mouse->is_down[E]) {
+    if (is_down) 
+    {
+        if (!mouse->is_down[E]) 
+        {
             mouse->toggle[E] = true;
             mouse->click_p[E] = mouse->P;
-        } else {
+        } 
+        else 
+        {
             mouse->toggle[E] = false;
         }
-    } else {
-        if (mouse->is_down[E]) {
+    } 
+    else 
+    {
+        if (mouse->is_down[E]) 
+        {
             mouse->toggle[E] = true;
-        } else {
+        } 
+        else 
+        {
             mouse->toggle[E] = false;
         }
     }
@@ -936,7 +960,7 @@ DEBUG_PLATFORM_GET_PROCESS_STATE(win32_get_process_state)
     return result;
 }
 
-#if __INTERNAL
+#if __DEVELOPER
 global_var Debug_Table g_debug_table_;
 Debug_Table *g_debug_table = &g_debug_table_;
 #endif
@@ -958,7 +982,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     g_counter_hz = (f64)g_counter_hz_large_integer.QuadPart;
     timeBeginPeriod(1);
 
-#if __INTERNAL
+#if __DEVELOPER
     g_show_cursor = true;
 #endif
 
@@ -994,13 +1018,14 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     f32 desired_mspf = 1000.0f / (f32)desired_hz;
 
 
-#if __INTERNAL
+    // @TEMPORARY
+#if 1
     LPVOID base_address = (LPVOID)TB(2);
 #else
     LPVOID base_address = 0;
 #endif
     Game_Memory game_memory = {};
-    Win32State win32_state = {};
+    Win32_State win32_state = {};
     game_memory.permanent_memory_size   = MB(256);
     game_memory.transient_memory_size   = GB(1);
     game_memory.debug_storage_size      = MB(64);
@@ -1020,7 +1045,8 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     game_memory.platform.platform_add_entry = Win32AddEntry;
     game_memory.platform.platform_complete_all_work = win32_complete_all_work;
     game_memory.platform.debug_platform_read_file = DebugPlatformReadEntireFile;
-#if __INTERNAL
+
+#if __DEVELOPER
     game_memory.platform.debug_platform_write_file = DebugPlatformWriteEntireFile;
     game_memory.platform.debug_platform_free_memory = DebugPlatformFreeMemory;
     game_memory.platform.debug_platform_execute_system_command = win32_execute_system_command;
@@ -1084,7 +1110,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                 win32_complete_all_work(&high_priority_queue);
                 win32_complete_all_work(&low_priority_queue);
 
-#if __INTERNAL
+#if __DEVELOPER
                 g_debug_table = &g_debug_table_;
 #endif
 
@@ -1156,12 +1182,12 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                                     {
                                         if (!win32_state.is_recording) 
                                         {
-                                            Win32BeginRecordingInput(&win32_state);
+                                            win32_begin_recording_input(&win32_state);
                                         } 
                                         else 
                                         {
-                                            Win32EndInputRecording(&win32_state);
-                                            Win32BeginInputPlayback(&win32_state);
+                                            win32_end_input_recording(&win32_state);
+                                            win32_begin_input_playback(&win32_state);
                                         }
                                     }
                                 } break;
@@ -1230,11 +1256,11 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             BEGIN_BLOCK(win32_record_input);
             if (win32_state.is_recording) 
             {
-                Win32RecordInput(&win32_state, &game_input);
+                win32_record_input(&win32_state, &game_input);
             }
             if (win32_state.is_playing) 
             {
-                Win32PlaybackInput(&win32_state, &game_input);
+                win32_playback_input(&win32_state, &game_input);
             }
             END_BLOCK(win32_record_input);
 
@@ -1253,7 +1279,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             //
             //
 
-#if __INTERNAL
+#if __DEVELOPER
             BEGIN_BLOCK(win32_debug_collation);
             if (game.debug_frame_end)
             {

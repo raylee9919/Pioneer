@@ -17,7 +17,7 @@ enum Meta_Type
     eMeta_Type_qt,
     eMeta_Type_f32,
     eMeta_Type_u32,
-    eMeta_Type_Asset_Animation,
+    eMeta_Type_Animation,
     eMeta_Type_Entity,
 };
 

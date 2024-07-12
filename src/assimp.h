@@ -84,6 +84,24 @@ struct m4x4
     f32 e[4][4];
 };
 
+inline m4x4
+identity() 
+{
+    m4x4 r = {
+       {{ 1,  0,  0,  0 },
+        { 0,  1,  0,  0 },
+        { 0,  0,  1,  0 },
+        { 0,  0,  0,  1 }},
+    };
+    return r;
+}
+
+#define malloc_type(type) (type *)malloc(sizeof(type))
+#define malloc_array(type, count) (type *)malloc(sizeof(type)*count)
+
+#define fwrite_item(item, file) fwrite(&item, sizeof(item), 1, file)
+#define fwrite_array(ptr, count, file) fwrite(ptr, sizeof(ptr[0]) * count, 1, file)
+
 
 //
 //

@@ -45,7 +45,7 @@ struct Debug_Event
 {
     u64 clock;
     char *guid;
-    char *block_name; // TODO: should we remove block name altogether?
+    char *block_name; // @TODO: should we remove block name altogether?
     u16 thread_id;
     u16 core_idx;
     u8 type;
@@ -75,7 +75,7 @@ struct Debug_Table
     Debug_Event     events[2][16*65536];
 };
 
-#if __INTERNAL
+#if __DEVELOPER
 extern Debug_Table *g_debug_table;
 #endif
 
@@ -86,7 +86,7 @@ typedef DEBUG_FRAME_END(Debug_Frame_End);
 #define unique_file_counter_string_(a, b, c) unique_file_counter_string__(a, b, c)
 #define unique_file_counter_string() unique_file_counter_string_(__FILE__, __LINE__, __COUNTER__)
 
-#if __INTERNAL
+#if __DEVELOPER
 #define record_debug_event(event_type, block) \
     u64 array_idx_event_idx = atomic_add_u64(&g_debug_table->event_array_idx_event_idx, 1); \
     u32 event_idx       = (u32)(array_idx_event_idx & 0xffffffff); \
@@ -150,7 +150,7 @@ struct Timed_Block
 #define FRAME_MARKER(...)
 #endif
 
-#if defined(__cplusplus) && __INTERNAL
+#if defined(__cplusplus) && __DEVELOPER
 
     inline void
     debug_value_set_event_data(Debug_Event *event, f32 value)

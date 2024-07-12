@@ -21,7 +21,7 @@ struct Win32_Window_Dimension
     int height;
 };
 
-struct Win32State 
+struct Win32_State 
 {
     HANDLE record_file;
     b32 is_recording;
