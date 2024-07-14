@@ -139,7 +139,7 @@ struct Mouse_Input
 
 struct Game_Input 
 {
-    f32         dt_per_frame;
+    f32         dt;
 
     Game_Key    W;
     Game_Key    S;

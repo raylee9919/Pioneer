@@ -1298,7 +1298,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             END_BLOCK(win32_render);
 
             f32 actual_mspf = win32_get_elapsed_ms(last_counter, win32_get_wall_clock());
-            game_input.dt_per_frame = (actual_mspf / 1000.0f);
+            game_input.dt = (actual_mspf / 1000.0f);
 
 
             //

@@ -6,6 +6,17 @@
    $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
    ======================================================================== */
 
+/*
+ * @TODO:
+ * - load animation -> build a hash table to get an index to an animation node
+ *   given node id as a key.
+ *
+ *
+ *
+ *
+ *
+ */
+
 #define INTROSPECT(params)
 
 #define maximum(a, b) ( (a > b) ? a : b )
@@ -22,6 +33,7 @@
 #include "random.h"
 
 struct Camera;
+struct Asset_Font;
 
 internal b32
 strings_are_equal(u32 len1, char *str1, u32 len2, char *str2)
@@ -121,6 +133,12 @@ struct Chunk_Position
     v3 offset;
 };
 
+struct Animation_Channel
+{
+    Animation *animation;
+    f32 dt;
+};
+
 enum Entity_Type 
 {
     eEntity_XBot,
@@ -130,7 +148,7 @@ enum Entity_Flag
 {
     eEntity_Flag_Collides = 1
 };
-INTROSPECT(category:"regular butter") struct Entity 
+struct Entity 
 {
     Entity_Type         type;
     Chunk_Position      chunk_pos;
@@ -144,24 +162,26 @@ INTROSPECT(category:"regular butter") struct Entity
     f32                 u;
     u32                 flags;
 
-    Animation           *cur_anim;
-    f32                 anim_dt;
+#define IDLE_CHANNEL 0
+#define RUN_CHANNEL  1
+    Animation_Channel   animation_channels[2];
+    m4x4                *animation_transform;
 
     Entity              *next;
 };
 
-struct EntityList 
+struct Entity_List 
 {
     Entity  *head;
 };
 
 struct Chunk 
 {
-    s32         x;
-    s32         y;
-    s32         z;
-    EntityList  entities;
-    Chunk       *next;
+    s32             x;
+    s32             y;
+    s32             z;
+    Entity_List     entities;
+    Chunk           *next;
 };
 
 struct Chunk_List 
@@ -271,7 +291,8 @@ struct Game_Assets
 
     Mesh                *star_mesh;
 
-    Animation           *debug_xbot_anim;
+    Animation           *xbot_idle;
+    Animation           *xbot_run;
 
     Read_Entire_File    *read_entire_file;
 };
@@ -283,6 +304,21 @@ struct Load_Asset_Work_Data
     Asset_ID            assetID;
     const char          *fileName;
     Work_Memory_Arena   *workSlot;
+};
+
+// @Temporary
+struct Console_State
+{
+#define CONSOLE_REMAIN_TIME_INIT 0.2f
+#define CONSOLE_COOLTIME 0.1f
+    f32         remain_t;
+    f32         cooltime;
+    f32         current_y;
+    b32         is_down;
+    v2          half_dim;
+    v4          color;
+
+    Asset_Font  *font;
 };
 
 struct Game_State 
@@ -304,7 +340,11 @@ struct Game_State
     m4x4                *star_world_transforms;
     s32                 star_count;
 
-    Camera              *debug_camera;
+    Camera              *free_camera;
+    Camera              *orthographic_camera;
+
+    // @Temporary: this is meant to be in dev-engine memory.
+    Console_State       console_state;
 };
 
 struct Transient_State 

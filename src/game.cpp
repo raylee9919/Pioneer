@@ -25,6 +25,7 @@
 #define STAR_COUNT_MAX 100'000
 
 
+
 internal Bitmap *
 gen_turbulence_map(Memory_Arena *arena, Random_Series *series, u32 side)
 {
@@ -51,6 +52,16 @@ gen_turbulence_map(Memory_Arena *arena, Random_Series *series, u32 side)
 global_var Game_Memory *g_debug_memory;
 #endif
 
+internal void
+init_console_state(Console_State *console_state, f32 screen_height, f32 screen_width)
+{
+    console_state->half_dim = v2{600.f, 250.0f};
+    console_state->remain_t = 0.0f;
+    console_state->is_down = false;
+    console_state->current_y = screen_height + console_state->half_dim.y;
+    console_state->color = v4{0.02f, 0.16f, 0.16f, 0.9f};
+}
+
 extern "C"
 GAME_UPDATE(game_update)
 {
@@ -67,11 +78,11 @@ GAME_UPDATE(game_update)
 
         game_state->world               = push_struct(&game_state->world_arena, World);
         World *world                    = game_state->world;
-        world->chunk_dim                = _v3_(10.0f, 3.0f, 10.0f);
+        world->chunk_dim                = v3{10.0f, 3.0f, 10.0f};
         Memory_Arena *world_arena       = &game_state->world_arena;
         Chunk_Hashmap *chunk_hashmap    = &game_state->world->chunkHashmap;
 
-        game_state->random_series = seed(6974);
+        game_state->random_series = seed(1219);
 
         Chunk *chunk = get_chunk(&game_state->world_arena, chunk_hashmap, Chunk_Position{0, 0, 0});
         v3 dim = _v3_(1.0f, 1.0f, 1.0f);
@@ -121,9 +132,10 @@ GAME_UPDATE(game_update)
         Entity *xbot = push_entity(world_arena, chunk_hashmap, eEntity_XBot, Chunk_Position{0, 0, 0}, world->chunk_dim);
         game_state->player = xbot;
 
-        f32 T = pi32 * 0.1;
+        f32 T = pi32 * 0.1f;
         f32 D = 5;
-        game_state->debug_camera = push_camera( &game_state->world_arena,
+        // @TODO: is it too janky?
+        game_state->free_camera = push_camera( &game_state->world_arena,
                                                 eCamera_Type_Perspective,
                                                 (f32)game_screen_buffer->width, (f32)game_screen_buffer->height,
                                                 0.5f,
@@ -137,10 +149,14 @@ GAME_UPDATE(game_update)
                                                 _v3_(0, D * sin(T * 2.0f), D * cos(T * 2.0f)),
                                                 _qt_(cos(T), -sin(T), 0, 0) );
 
+        game_state->orthographic_camera = push_camera( &game_state->world_arena,
+                                                       eCamera_Type_Orthographic,
+                                                       (f32)game_screen_buffer->width, (f32)game_screen_buffer->height);
 
 
 
-        // STAR
+
+        // Star
         game_state->star_world_transforms = push_array(&game_state->world_arena, m4x4, STAR_COUNT_MAX);
 #define STAR_COUNT 10'000
 #define STAR_SCALE 0.2f
@@ -161,16 +177,22 @@ GAME_UPDATE(game_update)
             game_state->star_world_transforms[game_state->star_count++] = transpose(trs_to_transform(translation, rotation, scaling));
         }
 
+        // @Temporary
+        init_console_state(&game_state->console_state, (f32)game_screen_buffer->width, (f32)game_screen_buffer->height);
 
         game_state->init = true;
     }
-
-    // @dt
-    f32 dt = game_input->dt_per_frame;
+    f32 dt = game_input->dt;
     game_state->time += dt;
 
+    f32 height = (f32)game_screen_buffer->height;
+    f32 width = (f32)game_screen_buffer->width;
+
+    Entity *player = game_state->player;
+
     DEBUG_VARIABLE(f32, Xbot, Accel_Constant);
-    game_state->player->u = Accel_Constant;
+    player->u = Accel_Constant;
+
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -211,10 +233,23 @@ GAME_UPDATE(game_update)
         game_assets->octahedral_model = push_struct(&transient_state->asset_arena, Model);
         game_assets->grass_model = push_struct(&transient_state->asset_arena, Model);
 
-        game_assets->debug_xbot_anim = push_struct(&transient_state->asset_arena, Animation);
-        load_animation(game_assets->debug_xbot_anim, "xbot_mixamo.com.sanm", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        game_assets->xbot_idle = push_struct(&transient_state->asset_arena, Animation);
+        load_animation(game_assets->xbot_idle, "animation/xbot_idle.sanm", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+
+        game_assets->xbot_run = push_struct(&transient_state->asset_arena, Animation);
+        load_animation(game_assets->xbot_run, "animation/xbot_run.sanm", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
 #endif
-        load_model(game_assets->xbot_model, "xbot.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        // @Temporary
+        // @Temporary
+        // @Temporary
+        load_model(game_assets->xbot_model, "mesh/xbot.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        player->animation_transform = push_array(&transient_state->transient_arena, m4x4, game_assets->xbot_model->node_count);
+        f32 xbot_scale = 0.01f;
+        game_assets->xbot_model->nodes[0].transform =
+            scale(game_assets->xbot_model->nodes[0].transform, xbot_scale * v3{1, 1, 1});
+        player->animation_channels[IDLE_CHANNEL].animation = game_assets->xbot_idle;
+        player->animation_channels[RUN_CHANNEL].animation = game_assets->xbot_run;
+
         load_model(game_assets->cube_model, "cube.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
         load_model(game_assets->octahedral_model, "octahedral.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
         load_model(game_assets->grass_model, "grass.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
@@ -260,46 +295,43 @@ GAME_UPDATE(game_update)
     //
     // Process Input
     //
-    Entity *player = game_state->player;
-    player->accel = _v3_(0, 0, 0);
-
     Render_Group *render_group = 0;
     DEBUG_IF(Render_Use_Debug_Camera)
     {
         render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
-                                                        game_state->debug_camera);
-        Camera *debug_camera = game_state->debug_camera;
-        f32 C = dt * 30.0f;
+                                                        game_state->free_camera);
+        Camera *free_camera = game_state->free_camera;
+        f32 C = dt * 3.0f;
         if (game_input->W.is_set)
         {
-            m4x4 rotation = to_m4x4(debug_camera->world_rotation);
-            debug_camera->world_translation += rotation * _v3_(0, 0, -C);
+            m4x4 rotation = to_m4x4(free_camera->world_rotation);
+            free_camera->world_translation += rotation * _v3_(0, 0, -C);
         }
         if (game_input->S.is_set)
         {
-            m4x4 rotation = to_m4x4(debug_camera->world_rotation);
-            debug_camera->world_translation += rotation * _v3_(0, 0, C);
+            m4x4 rotation = to_m4x4(free_camera->world_rotation);
+            free_camera->world_translation += rotation * _v3_(0, 0, C);
         }
         if (game_input->D.is_set)
         {
-            m4x4 rotation = to_m4x4(debug_camera->world_rotation);
-            debug_camera->world_translation += rotation * _v3_(C, 0, 0);
+            m4x4 rotation = to_m4x4(free_camera->world_rotation);
+            free_camera->world_translation += rotation * _v3_(C, 0, 0);
         }
         if (game_input->A.is_set)
         {
-            m4x4 rotation = to_m4x4(debug_camera->world_rotation);
-            debug_camera->world_translation += rotation * _v3_(-C, 0, 0);
+            m4x4 rotation = to_m4x4(free_camera->world_rotation);
+            free_camera->world_translation += rotation * _v3_(-C, 0, 0);
         }
 
         if (game_input->Q.is_set)
         {
-            m4x4 rotation = to_m4x4(debug_camera->world_rotation);
-            debug_camera->world_translation += rotation * _v3_(0, -C, 0);
+            m4x4 rotation = to_m4x4(free_camera->world_rotation);
+            free_camera->world_translation += rotation * _v3_(0, -C, 0);
         }
         if (game_input->E.is_set)
         {
-            m4x4 rotation = to_m4x4(debug_camera->world_rotation);
-            debug_camera->world_translation += rotation * _v3_(0, C, 0);
+            m4x4 rotation = to_m4x4(free_camera->world_rotation);
+            free_camera->world_translation += rotation * _v3_(0, C, 0);
         }
     }
     else
@@ -324,9 +356,61 @@ GAME_UPDATE(game_update)
     }
     Assert(render_group);
 
+    Render_Group *orthographic_group = alloc_render_group(&transient_state->transient_arena, MB(16),
+                                                          game_state->orthographic_camera);
 
-    Chunk_Position camPos = Chunk_Position{};
-    v3 camDim       = v3{100.0f, 5.0f, 50.0f};
+    // @Developer
+    // Drop-down console.
+    Console_State *console_state = &game_state->console_state;
+    if (console_state->cooltime > 0.0f)
+        console_state->cooltime -= dt;
+
+    if (game_input->tilde.is_set &&
+        console_state->cooltime <= 0.0f)
+    {
+        console_state->is_down = !console_state->is_down;
+        console_state->remain_t = CONSOLE_REMAIN_TIME_INIT;
+        console_state->cooltime = CONSOLE_COOLTIME;
+    }
+
+    if (console_state->remain_t > 0.0f)
+    {
+        console_state->remain_t -= dt;
+        if (console_state->remain_t < 0.0f)
+            console_state->remain_t = 0.0f;
+        f32 t = (CONSOLE_REMAIN_TIME_INIT - console_state->remain_t) / CONSOLE_REMAIN_TIME_INIT;
+
+        Rect2 console_rect;
+        f32 next_y;
+
+        if (console_state->is_down)
+        {
+            next_y = lerp(console_state->current_y, t, height - console_state->half_dim.y);
+            console_rect = rect2_cen_half_dim(v2{width * 0.5f, next_y}, console_state->half_dim);
+        }
+        else
+        {
+            next_y = lerp(console_state->current_y, t, height + console_state->half_dim.y);
+            console_rect = rect2_cen_half_dim(v2{width * 0.5f, next_y}, console_state->half_dim);
+        }
+
+        console_state->current_y = next_y;
+        push_rect(orthographic_group, console_rect, 0.0f, console_state->color);
+    }
+    else
+    {
+        f32 console_y = height + (console_state->is_down ? -1 : 1) * console_state->half_dim.y;
+        Rect2 console_rect = rect2_cen_half_dim(v2{width * 0.5f, console_y}, console_state->half_dim);
+        push_rect(orthographic_group, console_rect, 0.0f, console_state->color);
+    }
+
+    //
+    //
+    //
+
+
+    Chunk_Position camPos = {};
+    v3 camDim = v3{100.0f, 5.0f, 50.0f};
     Chunk_Position min_pos = camPos;
     Chunk_Position max_pos = camPos;
     min_pos.offset -= 0.5f * camDim;
@@ -342,13 +426,8 @@ GAME_UPDATE(game_update)
 
 
     //
-    // Render entities
+    // Draw
     //
-
-    //
-    // @draw
-    //
-
 #if 1
     for (s32 Z = min_pos.z;
          Z <= max_pos.z;
@@ -378,41 +457,43 @@ GAME_UPDATE(game_update)
                     {
                         case eEntity_XBot: 
                         {
-#if 1
                             Model *model = game_assets->xbot_model;
                             if (model)
                             {
-                                if (entity->cur_anim)
+                                f32 V = len(entity->velocity);
+                                f32 lo = 0.2f;
+                                f32 hi = 1.0f;
+
+                                if (V < lo)
                                 {
-                                    m4x4 *final_transforms = push_array(&transient_state->transient_arena, m4x4, model->node_count);
-#if 1
-                                    eval(model, entity->cur_anim, entity->anim_dt, final_transforms);
-#else
-                                    for (u32 i = 0; i < model->node_count; ++i)
-                                        final_transforms[i] = identity();
-#endif
-
-                                    DEBUG_VARIABLE(f32, Xbot, Animation_Speed);
-                                    entity->anim_dt += dt * Animation_Speed;
-                                    if (entity->anim_dt > entity->cur_anim->duration)
-                                        entity->anim_dt = 0.0f;
-
-                                    for (u32 mesh_idx = 0;
-                                         mesh_idx < model->mesh_count;
-                                         ++mesh_idx)
-                                    {
-                                        Mesh *mesh = model->meshes + mesh_idx;
-                                        Material *mat = model->materials + mesh->material_idx;
-                                        push_mesh(render_group, mesh, mat, world_transform, final_transforms);
-                                    }
+                                    Animation_Channel *channel = &entity->animation_channels[IDLE_CHANNEL];
+                                    accumulate(channel, dt);
+                                    eval(model, channel->animation, channel->dt, entity->animation_transform);
+                                }
+                                else if (V > hi)
+                                {
+                                    Animation_Channel *channel = &entity->animation_channels[RUN_CHANNEL];
+                                    accumulate(channel, dt);
+                                    eval(model, channel->animation, channel->dt, entity->animation_transform);
                                 }
                                 else
                                 {
-                                    // TODO: for now.
-                                    entity->cur_anim = game_assets->debug_xbot_anim;
+                                    f32 T = (V - lo) / (hi - lo);
+
+                                    Animation_Channel *channel = &entity->animation_channels[RUN_CHANNEL];
+                                    accumulate(channel, dt * T);
+                                    eval(model, channel->animation, channel->dt, entity->animation_transform);
+                                }
+
+                                for (u32 mesh_idx = 0;
+                                     mesh_idx < model->mesh_count;
+                                     ++mesh_idx)
+                                {
+                                    Mesh *mesh = model->meshes + mesh_idx;
+                                    Material *mat = model->materials + mesh->material_idx;
+                                    push_mesh(render_group, mesh, mat, world_transform, entity->animation_transform);
                                 }
                             }
-#endif
                         } break;
 
                         case eEntity_Tile: 
@@ -439,6 +520,7 @@ GAME_UPDATE(game_update)
         }
     }
 #endif
+
 
     DEBUG_IF(Render_DrawGrass)
     {
@@ -468,6 +550,7 @@ GAME_UPDATE(game_update)
 
     
     render_group_to_output_batch(render_group, &game_memory->render_batch);
+    render_group_to_output_batch(orthographic_group, &game_memory->render_batch);
     end_temporary_memory(&render_memory);
 }
 

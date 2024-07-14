@@ -7,6 +7,26 @@
    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
    ======================================================================== */
 
+struct Animation_Hash_Slot
+{
+    u32 id;
+    u32 idx;
+    Animation_Hash_Slot *next;
+};
+struct Animation_Hash_Entry
+{
+    Animation_Hash_Slot *first;
+};
+struct Animation_Hash_Table
+{
+    u32 entry_count;
+    Animation_Hash_Entry *entries;
+};
+
+//
+//
+//
+
 struct dt_v3_Pair
 {
     f32     dt;
@@ -17,7 +37,7 @@ struct dt_qt_Pair
     f32     dt;
     qt      q;
 };
-struct Animation_Node
+struct Sample
 {
     s32         id;
 
@@ -31,12 +51,16 @@ struct Animation_Node
 };
 struct Animation
 {
-    char           *name;
+    char        *name;
 
-    f32            duration;
-    u32            node_count;
+    f32         duration;
 
-    Animation_Node  *nodes;
+    u32         sample_count;
+    Sample      *samples;
+
+    //
+
+    Animation_Hash_Table hash_table;
 };
 
     

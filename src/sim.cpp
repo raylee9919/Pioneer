@@ -117,7 +117,7 @@ push_entity(Memory_Arena *arena, Chunk_Hashmap *hashmap,
     }
 
     Chunk *chunk = get_chunk(arena, hashmap, chunk_pos);
-    EntityList *entities = &chunk->entities;
+    Entity_List *entities = &chunk->entities;
     if (!entities->head) 
     {
         entities->head = entity;
@@ -190,8 +190,8 @@ MapEntityToChunk(Memory_Arena *arena, Chunk_Hashmap *hashmap, Entity *entity,
     TIMED_FUNCTION();
     Chunk *oldChunk = get_chunk(arena, hashmap, oldPos);
     Chunk *newChunk = get_chunk(arena, hashmap, newPos);
-    EntityList *oldEntities = &oldChunk->entities;
-    EntityList *newEntities = &newChunk->entities;
+    Entity_List *oldEntities = &oldChunk->entities;
+    Entity_List *newEntities = &newChunk->entities;
 
     for (Entity *E = oldEntities->head;
          E != 0;
@@ -244,112 +244,11 @@ update_entity_pos(Game_State *game_state, Entity *self, f32 dt, Chunk_Position s
     self->accel             *= dt * self->u;
     self->accel             -= dt * 150.0f * self->velocity;
     self->velocity          += dt * self->accel;
-
     self->world_translation += dt * self->velocity;
+    self->accel             = {};
 
     new_chunk_pos.offset    += dt * self->velocity;
     recalc_pos(&new_chunk_pos, game_state->world->chunk_dim);
-
-    // NOTE: Minkowski Collision
-#if 0
-    f32 t_remain = dt;
-    f32 eps = 0.001f;
-    v3 v_total = self->velocity;
-    for (s32 count = 0;
-         count < 4 && t_remain > 0.0f;
-         ++count) 
-    {
-        for (s32 Z = sim_min.z;
-             Z <= simMax.z;
-             ++Z) 
-        {
-            for (s32 Y = sim_min.y;
-                 Y <= simMax.y;
-                 ++Y) 
-            {
-                for (s32 X = sim_min.x;
-                     X <= simMax.x;
-                     ++X) 
-                {
-                    Chunk *chunk = get_chunk(&game_state->world_arena,
-                                             &game_state->world->chunkHashmap, {X, Y, Z});
-                    for (Entity *other = chunk->entities.head;
-                            other != 0;
-                            other = other->next) 
-                    {
-                        if (self != other && 
-                            is_set(self, eEntity_Flag_Collides) && 
-                            is_set(other, eEntity_Flag_Collides)) 
-                        {
-                            // NOTE: For now, we will test entities on same level.
-                            if (self->chunk_pos.z == other->chunk_pos.z) 
-                            {
-                                v3 boxDim = self->dim + other->dim;
-                                Rect3 box = {v3{0, 0, 0}, boxDim};
-                                v3 min = -0.5f * boxDim;
-                                v3 max = 0.5f * boxDim;
-                                v3 oldRelP = subtract(old_chunk_pos, other->chunk_pos, game_state->world->chunk_dim);
-                                v3 newRelP = subtract(new_chunk_pos, other->chunk_pos, game_state->world->chunk_dim);
-                                f32 t_used = 0.0f;
-                                u32 axis = 0;
-                                if (in_rect(newRelP, box)) 
-                                {
-                                    if (v_total.x != 0) 
-                                    {
-                                        f32 t = (min.x - oldRelP.x) / v_total.x;
-                                        if (t >= 0 && t <= t_remain) 
-                                        {
-                                            t_used = t;
-                                            axis = 0;
-                                        }
-                                        t = (max.x - oldRelP.x) / v_total.x;
-                                        if (t >= 0 && t <= t_remain) 
-                                        {
-                                            t_used = t;
-                                            axis = 0;
-                                        }
-                                    }
-                                    if (v_total.y != 0) 
-                                    {
-                                        f32 t = (min.y - oldRelP.y) / v_total.y;
-                                        if (t >= 0 && t <= t_remain) 
-                                        {
-                                            t_used = t;
-                                            axis = 1;
-                                        }
-                                        t = (max.y - oldRelP.y) / v_total.y;
-                                        if (t >= 0 && t <= t_remain) 
-                                        {
-                                            t_used = t;
-                                            axis = 1;
-                                        }
-                                    }
-
-                                    t_used -= eps;
-                                    v3 vUsed = t_used * v_total;
-                                    t_remain -= t_used;
-                                    v3 vRemain = t_remain * v_total;
-                                    if (axis == 0) 
-                                    {
-                                        vRemain.x *= -1;
-                                    } 
-                                    else 
-                                    {
-                                        vRemain.y *= -1;
-                                    }
-                                    new_chunk_pos = old_chunk_pos;
-                                    new_chunk_pos.offset += (vUsed + vRemain);
-                                    recalc_pos(&new_chunk_pos, game_state->world->chunk_dim);
-                                    self->velocity = vRemain;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-#endif
    
     self->chunk_pos = new_chunk_pos;
     if (!is_same_chunk(old_chunk_pos, new_chunk_pos)) 

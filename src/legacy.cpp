@@ -405,3 +405,105 @@ draw_text(Bitmap *buffer, Render_Text *info)
     cen_y += info->game_assets->v_advance;
 }
 #endif
+
+
+#if 0
+    // NOTE: Minkowski Collision
+    f32 t_remain = dt;
+    f32 eps = 0.001f;
+    v3 v_total = self->velocity;
+    for (s32 count = 0;
+         count < 4 && t_remain > 0.0f;
+         ++count) 
+    {
+        for (s32 Z = sim_min.z;
+             Z <= simMax.z;
+             ++Z) 
+        {
+            for (s32 Y = sim_min.y;
+                 Y <= simMax.y;
+                 ++Y) 
+            {
+                for (s32 X = sim_min.x;
+                     X <= simMax.x;
+                     ++X) 
+                {
+                    Chunk *chunk = get_chunk(&game_state->world_arena,
+                                             &game_state->world->chunkHashmap, {X, Y, Z});
+                    for (Entity *other = chunk->entities.head;
+                            other != 0;
+                            other = other->next) 
+                    {
+                        if (self != other && 
+                            is_set(self, eEntity_Flag_Collides) && 
+                            is_set(other, eEntity_Flag_Collides)) 
+                        {
+                            // NOTE: For now, we will test entities on same level.
+                            if (self->chunk_pos.z == other->chunk_pos.z) 
+                            {
+                                v3 boxDim = self->dim + other->dim;
+                                Rect3 box = {v3{0, 0, 0}, boxDim};
+                                v3 min = -0.5f * boxDim;
+                                v3 max = 0.5f * boxDim;
+                                v3 oldRelP = subtract(old_chunk_pos, other->chunk_pos, game_state->world->chunk_dim);
+                                v3 newRelP = subtract(new_chunk_pos, other->chunk_pos, game_state->world->chunk_dim);
+                                f32 t_used = 0.0f;
+                                u32 axis = 0;
+                                if (in_rect(newRelP, box)) 
+                                {
+                                    if (v_total.x != 0) 
+                                    {
+                                        f32 t = (min.x - oldRelP.x) / v_total.x;
+                                        if (t >= 0 && t <= t_remain) 
+                                        {
+                                            t_used = t;
+                                            axis = 0;
+                                        }
+                                        t = (max.x - oldRelP.x) / v_total.x;
+                                        if (t >= 0 && t <= t_remain) 
+                                        {
+                                            t_used = t;
+                                            axis = 0;
+                                        }
+                                    }
+                                    if (v_total.y != 0) 
+                                    {
+                                        f32 t = (min.y - oldRelP.y) / v_total.y;
+                                        if (t >= 0 && t <= t_remain) 
+                                        {
+                                            t_used = t;
+                                            axis = 1;
+                                        }
+                                        t = (max.y - oldRelP.y) / v_total.y;
+                                        if (t >= 0 && t <= t_remain) 
+                                        {
+                                            t_used = t;
+                                            axis = 1;
+                                        }
+                                    }
+
+                                    t_used -= eps;
+                                    v3 vUsed = t_used * v_total;
+                                    t_remain -= t_used;
+                                    v3 vRemain = t_remain * v_total;
+                                    if (axis == 0) 
+                                    {
+                                        vRemain.x *= -1;
+                                    } 
+                                    else 
+                                    {
+                                        vRemain.y *= -1;
+                                    }
+                                    new_chunk_pos = old_chunk_pos;
+                                    new_chunk_pos.offset += (vUsed + vRemain);
+                                    recalc_pos(&new_chunk_pos, game_state->world->chunk_dim);
+                                    self->velocity = vRemain;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+#endif

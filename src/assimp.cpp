@@ -875,11 +875,10 @@ create_anim_out_file_name(char *in_file_name, char *anim_name)
 int main(void)
 {
     char *input_file_names[] = {
-        "../data/xbot.fbx",
+        "../data/xbot_run.fbx",
         "../data/grass.dae",
         "../data/cube.dae",
         "../data/octahedral.dae",
-        "../data/mouse.fbx",
     };
 
     Assimp::Importer importer;

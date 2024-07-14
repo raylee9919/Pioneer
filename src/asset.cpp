@@ -93,6 +93,13 @@ load_model(Model *model, char *file_name, Memory_Arena *arena, Read_Entire_File 
     Assert(at == end);
 }
 
+internal u32
+animation_hash(u32 id, u32 length)
+{
+    // @TODO: Better hash function!
+    u32 slot = ((id * 23 + id * 8) % length);
+    return slot;
+}
 internal void
 load_animation(Animation *anim, char *file_name, Memory_Arena *arena,
                Read_Entire_File *read_entire_file)
@@ -107,27 +114,64 @@ load_animation(Animation *anim, char *file_name, Memory_Arena *arena,
     READ_COUNT(anim->name, char, string_length((char *)at) + 1);
 
     READ(anim->duration, f32);
-    READ(anim->node_count, u32);
+    READ(anim->sample_count, u32);
 
-    anim->nodes = push_array(arena, Animation_Node, anim->node_count);
-    for (u32 node_idx = 0;
-         node_idx < anim->node_count;
-         ++node_idx)
+    anim->samples = push_array(arena, Sample, anim->sample_count);
+    for (u32 sample_idx = 0;
+         sample_idx < anim->sample_count;
+         ++sample_idx)
     {
-        Animation_Node *node = anim->nodes + node_idx;
+        Sample *sample = anim->samples + sample_idx;
 
-        READ(node->id, s32);
+        READ(sample->id, s32);
 
-        READ(node->translation_count, u32);
-        READ(node->rotation_count, u32);
-        READ(node->scaling_count, u32);
+        READ(sample->translation_count, u32);
+        READ(sample->rotation_count, u32);
+        READ(sample->scaling_count, u32);
 
-        READ_COUNT(node->translations, dt_v3_Pair, node->translation_count);
-        READ_COUNT(node->rotations, dt_qt_Pair, node->rotation_count);
-        READ_COUNT(node->scalings, dt_v3_Pair, node->scaling_count);
+        READ_COUNT(sample->translations, dt_v3_Pair, sample->translation_count);
+        READ_COUNT(sample->rotations, dt_qt_Pair, sample->rotation_count);
+        READ_COUNT(sample->scalings, dt_v3_Pair, sample->scaling_count);
     }
 
     Assert(at == end);
+
+    //
+    // Build hash-table (key: node_id, value: node_idx in Animation->nodes)
+    //
+    Animation_Hash_Table *ht = &anim->hash_table;
+    ht->entry_count = anim->sample_count;
+    ht->entries = push_array(arena, Animation_Hash_Entry, ht->entry_count);
+    for (u32 sample_idx = 0;
+         sample_idx < anim->sample_count;
+         ++sample_idx)
+    {
+        Sample *sample = anim->samples + sample_idx;
+        u32 entry_idx = animation_hash(sample->id, ht->entry_count);
+        Animation_Hash_Entry *entry = ht->entries + entry_idx;
+        Animation_Hash_Slot *slot = entry->first;
+        if (slot)
+        {
+            while (slot->next)
+            {
+                slot = slot->next;
+            }
+            slot->next = push_struct(arena, Animation_Hash_Slot);
+            Animation_Hash_Slot *new_slot = slot->next;
+            new_slot->id = sample->id;
+            new_slot->idx = sample_idx;
+            new_slot->next = 0;
+        }
+        else
+        {
+            slot = push_struct(arena, Animation_Hash_Slot);
+            slot->id = sample->id;
+            slot->idx = sample_idx;
+            slot->next = 0;
+
+            entry->first = slot;
+        }
+    }
 }
 #undef READ
 #undef READ_COUNT

@@ -6,84 +6,123 @@
    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
    ======================================================================== */
 
+struct Node_Hash_Result
+{
+    b32 found;
+    u32 idx;
+};
+internal Node_Hash_Result
+get_sample_index(Animation *anim, u32 id) 
+{
+    Node_Hash_Result result = {};
+
+    Animation_Hash_Table *ht = &anim->hash_table;
+    u32 entry_idx = animation_hash(id, ht->entry_count);
+    Animation_Hash_Entry *entry = ht->entries + entry_idx;
+    for (Animation_Hash_Slot *slot = entry->first;
+         slot;
+        slot = slot->next)
+    {
+        if (slot->id == id)
+        {
+            result.found = true;
+            result.idx = slot->idx;
+            break;
+        }
+    }
+
+    return result;
+}
+
+internal void
+accumulate(Animation_Channel *channel, f32 dt)
+{
+    if (channel->animation)
+    {
+        channel->dt += dt;
+        if (channel->dt > channel->animation->duration)
+            channel->dt = 0.0f;
+    }
+}
+
+
 internal m4x4
 eval_node(Animation *anim, f32 dt, Node *node)
 {
-    m4x4 result = node->transform;
+    m4x4 result = {};
 
-    for (u32 node_idx = 0;
-         node_idx < anim->node_count;
-         ++node_idx)
+    Node_Hash_Result hash_result = get_sample_index(anim, node->id);
+    if (hash_result.found)
     {
-        Animation_Node *anim_node = (anim->nodes + node_idx);
-        if (node->id == anim_node->id)
+        Sample *sample = (anim->samples + hash_result.idx);
+        // lerp translation.
+        v3 lerped_translation = (sample->translations + (sample->translation_count - 1))->vec;
+        for (u32 translation_idx = 0;
+             translation_idx < sample->translation_count;
+             ++translation_idx)
         {
-            // lerp translation.
-            v3 lerped_translation = (anim_node->translations + (anim_node->translation_count - 1))->vec;
-            for (u32 translation_idx = 0;
-                 translation_idx < anim_node->translation_count;
-                 ++translation_idx)
+            dt_v3_Pair *hi_key = sample->translations + translation_idx;
+            if (hi_key->dt > dt)
             {
-                dt_v3_Pair *hi_key = anim_node->translations + translation_idx;
-                if (hi_key->dt > dt)
-                {
-                    dt_v3_Pair *lo_key = (hi_key - 1);
-                    f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
-                    lerped_translation = lerp(lo_key->vec, t, hi_key->vec);
-                    break;
-                }
-                else if (hi_key->dt == dt)
-                {
-                    lerped_translation = hi_key->vec;
-                    break;
-                }
+                dt_v3_Pair *lo_key = (hi_key - 1);
+                f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
+                lerped_translation = lerp(lo_key->vec, t, hi_key->vec);
+                break;
             }
-
-            // slerp rotation.
-            qt slerped_rotation = (anim_node->rotations + (anim_node->rotation_count - 1))->q;
-            for (u32 rotation_idx = 0;
-                 rotation_idx < anim_node->rotation_count;
-                 ++rotation_idx)
+            else if (hi_key->dt == dt)
             {
-                dt_qt_Pair *hi_key = anim_node->rotations + rotation_idx;
-                if (hi_key->dt > dt)
-                {
-                    dt_qt_Pair *lo_key = (hi_key - 1);
-                    f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
-                    slerped_rotation = slerp(lo_key->q, t, hi_key->q);
-                    break;
-                }
-                else if (hi_key->dt == dt)
-                {
-                    slerped_rotation = hi_key->q;
-                    break;
-                }
+                lerped_translation = hi_key->vec;
+                break;
             }
-
-            // lerp scaling.
-            v3 lerped_scaling = (anim_node->scalings + (anim_node->scaling_count - 1))->vec;
-            for (u32 scaling_idx = 0;
-                 scaling_idx < anim_node->scaling_count;
-                 ++scaling_idx)
-            {
-                dt_v3_Pair *hi_key = anim_node->scalings + scaling_idx;
-                if (hi_key->dt > dt)
-                {
-                    dt_v3_Pair *lo_key = (hi_key - 1);
-                    f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
-                    lerped_scaling = lerp(lo_key->vec, t, hi_key->vec);
-                    break;
-                }
-                else if (hi_key->dt == dt)
-                {
-                    lerped_scaling = hi_key->vec;
-                    break;
-                }
-            }
-
-            result = trs_to_transform(lerped_translation, slerped_rotation, lerped_scaling);
-            break;
         }
+
+        // slerp rotation.
+        qt slerped_rotation = (sample->rotations + (sample->rotation_count - 1))->q;
+        for (u32 rotation_idx = 0;
+             rotation_idx < sample->rotation_count;
+             ++rotation_idx)
+        {
+            dt_qt_Pair *hi_key = sample->rotations + rotation_idx;
+            if (hi_key->dt > dt)
+            {
+                dt_qt_Pair *lo_key = (hi_key - 1);
+                f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
+                slerped_rotation = slerp(lo_key->q, t, hi_key->q);
+                break;
+            }
+            else if (hi_key->dt == dt)
+            {
+                slerped_rotation = hi_key->q;
+                break;
+            }
+        }
+
+        // lerp scaling.
+        v3 lerped_scaling = (sample->scalings + (sample->scaling_count - 1))->vec;
+        for (u32 scaling_idx = 0;
+             scaling_idx < sample->scaling_count;
+             ++scaling_idx)
+        {
+            dt_v3_Pair *hi_key = sample->scalings + scaling_idx;
+            if (hi_key->dt > dt)
+            {
+                dt_v3_Pair *lo_key = (hi_key - 1);
+                f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
+                lerped_scaling = lerp(lo_key->vec, t, hi_key->vec);
+                break;
+            }
+            else if (hi_key->dt == dt)
+            {
+                lerped_scaling = hi_key->vec;
+                break;
+            }
+        }
+
+        result = trs_to_transform(lerped_translation, slerped_rotation, lerped_scaling);
+    }
+    else
+    {
+        result = node->transform;
     }
 
     return result;
