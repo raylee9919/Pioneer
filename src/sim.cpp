@@ -235,17 +235,18 @@ subtract(Chunk_Position A, Chunk_Position B, v3 chunk_dim)
 }
 
 internal void
-update_entity_pos(Game_State *game_state, Entity *self, f32 dt, Chunk_Position sim_min, Chunk_Position simMax)
+update_entity_position(Game_State *game_state, Entity *self, f32 dt)
 {
     TIMED_FUNCTION();
     Chunk_Position old_chunk_pos = self->chunk_pos;
     Chunk_Position new_chunk_pos = self->chunk_pos;
 
     self->accel             *= dt * self->u;
-    self->accel             -= dt * 150.0f * self->velocity;
+    self->accel             += self->velocity;
+    self->accel             -= dt * 650.0f * self->velocity;
     self->velocity          += dt * self->accel;
     self->world_translation += dt * self->velocity;
-    self->accel             = {};
+    self->accel             = v3{};
 
     new_chunk_pos.offset    += dt * self->velocity;
     recalc_pos(&new_chunk_pos, game_state->world->chunk_dim);
@@ -288,7 +289,7 @@ update_entities(Game_State *game_state, f32 dt,
                     {
                         case eEntity_XBot: 
                         {
-                            update_entity_pos(game_state, entity, dt, sim_min, sim_max);
+                            update_entity_position(game_state, entity, dt);
                         } break;
 
                         case eEntity_Tile: 

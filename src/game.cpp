@@ -26,28 +26,6 @@
 
 
 
-internal Bitmap *
-gen_turbulence_map(Memory_Arena *arena, Random_Series *series, u32 side)
-{
-    Bitmap *result  = 0;
-    result          = push_struct(arena, Bitmap);
-    result->width   = side;
-    result->height  = side;
-    result->pitch   = sizeof(u32) * side;
-    result->size    = sizeof(u32) * side * side;
-    result->memory  = push_array(arena, u32, side * side);
-    for (u32 y = 0; y < side; ++y)
-    {
-        for (u32 x = 0; x < side; ++x)
-        {
-            u32 *at = (u32 *)result->memory + (y * side + x);
-            u8 gray = u8(rand_range(series, 0.0f, 255.0f) + 0.5f);
-            *at = (0xff << 24 | gray << 16 | gray << 8 | gray);
-        }
-    }
-    return result;
-}
-
 #if __DEVELOPER
 global_var Game_Memory *g_debug_memory;
 #endif
@@ -60,6 +38,36 @@ init_console_state(Console_State *console_state, f32 screen_height, f32 screen_w
     console_state->is_down = false;
     console_state->current_y = screen_height + console_state->half_dim.y;
     console_state->color = v4{0.02f, 0.16f, 0.16f, 0.9f};
+}
+
+internal void
+interpolate(Model *model, Animation *anim1, f32 dt1, f32 t, Animation *anim2, f32 dt2)
+{
+    for (s32 id = 0;
+         id < (s32)model->node_count;
+         ++id)
+    {
+        Node *node = model->nodes + id;
+        Node_Hash_Result res1 = get_sample_index(anim1, id);
+        Node_Hash_Result res2 = get_sample_index(anim2, id);
+
+        if (res1.found && res2.found)
+        {
+            Sample *sample1 = anim1->samples + res1.idx;
+            Sample *sample2 = anim2->samples + res2.idx;
+            Assert(sample1->id == id && sample1->id == sample2->id);
+
+            TRS trs1 = interpolate_sample(sample1, dt1);
+            TRS trs2 = interpolate_sample(sample2, dt2);
+            TRS r = interpolate_trs(trs1, t, trs2);
+            m4x4 transform = trs_to_transform(r.translation, r.rotation, r.scaling);
+            node->current_transform = transform;
+        }
+        else
+        {
+            node->current_transform = node->base_transform;
+        }
+    }
 }
 
 extern "C"
@@ -245,10 +253,9 @@ GAME_UPDATE(game_update)
         load_model(game_assets->xbot_model, "mesh/xbot.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
         player->animation_transform = push_array(&transient_state->transient_arena, m4x4, game_assets->xbot_model->node_count);
         f32 xbot_scale = 0.01f;
-        game_assets->xbot_model->nodes[0].transform =
-            scale(game_assets->xbot_model->nodes[0].transform, xbot_scale * v3{1, 1, 1});
-        player->animation_channels[IDLE_CHANNEL].animation = game_assets->xbot_idle;
-        player->animation_channels[RUN_CHANNEL].animation = game_assets->xbot_run;
+        game_assets->xbot_model->nodes[0].base_transform =
+            scale(game_assets->xbot_model->nodes[0].base_transform, xbot_scale * v3{1, 1, 1});
+        player->animation_channels[0].animation = game_assets->xbot_idle;
 
         load_model(game_assets->cube_model, "cube.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
         load_model(game_assets->octahedral_model, "octahedral.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
@@ -270,11 +277,7 @@ GAME_UPDATE(game_update)
         //
         // Noise Map
         //
-#if 0
-        turbulence_map = gen_turbulence_map(&game_state->world_arena, &game_state->random_series, TURBULENCE_MAP_SIDE);
-#else
         game_assets->turbulence_map = load_bmp(&transient_state->asset_arena, game_memory->platform.debug_platform_read_file, "turbulence.bmp");
-#endif
 
 #if __DEVELOPER
         game_assets->debug_bitmap = load_bmp(&transient_state->asset_arena, game_memory->platform.debug_platform_read_file, "doggo.bmp");
@@ -460,29 +463,41 @@ GAME_UPDATE(game_update)
                             Model *model = game_assets->xbot_model;
                             if (model)
                             {
-                                f32 V = len(entity->velocity);
-                                f32 lo = 0.2f;
-                                f32 hi = 1.0f;
+                                f32 scalar = len(entity->velocity);
+                                f32 lo = epsilon_f32;
+                                f32 hi = 0.2f;
+                                Animation_Channel *channel = &entity->animation_channels[0];
 
-                                if (V < lo)
+                                if (scalar < lo)
                                 {
-                                    Animation_Channel *channel = &entity->animation_channels[IDLE_CHANNEL];
+                                    channel->animation = game_assets->xbot_idle;
                                     accumulate(channel, dt);
-                                    eval(model, channel->animation, channel->dt, entity->animation_transform);
+                                    eval(model, channel->animation, channel->dt, entity->animation_transform, true);
                                 }
-                                else if (V > hi)
+                                else if (scalar > hi)
                                 {
-                                    Animation_Channel *channel = &entity->animation_channels[RUN_CHANNEL];
+                                    channel->animation = game_assets->xbot_run;
                                     accumulate(channel, dt);
-                                    eval(model, channel->animation, channel->dt, entity->animation_transform);
+                                    eval(model, channel->animation, channel->dt, entity->animation_transform, true);
                                 }
                                 else
                                 {
-                                    f32 T = (V - lo) / (hi - lo);
-
-                                    Animation_Channel *channel = &entity->animation_channels[RUN_CHANNEL];
-                                    accumulate(channel, dt * T);
-                                    eval(model, channel->animation, channel->dt, entity->animation_transform);
+                                    f32 t = (scalar - lo) / (hi - lo);
+                                    if (channel->animation == game_assets->xbot_idle)
+                                    {
+                                        interpolate(model,
+                                                    channel->animation, channel->dt,
+                                                    t,
+                                                    game_assets->xbot_run, 0.0f);
+                                    }
+                                    else
+                                    {
+                                        interpolate(model,
+                                                    game_assets->xbot_idle, 0.0f,
+                                                    t,
+                                                    channel->animation, channel->dt);
+                                    }
+                                    eval(model, 0, 0, entity->animation_transform, false);
                                 }
 
                                 for (u32 mesh_idx = 0;

@@ -84,7 +84,7 @@ load_model(Model *model, char *file_name, Memory_Arena *arena, Read_Entire_File 
 
             READ(node->id, s32);
             READ(node->offset, m4x4);
-            READ(node->transform, m4x4);
+            READ(node->base_transform, m4x4);
             READ(node->child_count, u32);
             READ_COUNT(node->child_ids, s32, node->child_count);
         }

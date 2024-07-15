@@ -34,6 +34,7 @@
 
 struct Camera;
 struct Asset_Font;
+enum Animation_State;
 
 internal b32
 strings_are_equal(u32 len1, char *str1, u32 len2, char *str2)
@@ -162,9 +163,7 @@ struct Entity
     f32                 u;
     u32                 flags;
 
-#define IDLE_CHANNEL 0
-#define RUN_CHANNEL  1
-    Animation_Channel   animation_channels[2];
+    Animation_Channel   animation_channels[1];
     m4x4                *animation_transform;
 
     Entity              *next;

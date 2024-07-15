@@ -44,7 +44,8 @@ struct Node
     s32     id;
 
     m4x4    offset;
-    m4x4    transform;  // transform in parent's bone-space. aiNode
+    m4x4    base_transform;  // transform in parent's bone-space. aiNode
+    m4x4    current_transform;
 
     u32     child_count;
     s32     *child_ids;

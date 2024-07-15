@@ -5,7 +5,6 @@
    $Creator: Sung Woo Lee $
    $Notice: (C) Copyright 2024 by Sung Woo Lee. All Rights Reserved. $
    ======================================================================== */
-
 struct Node_Hash_Result
 {
     b32 found;
@@ -45,87 +44,106 @@ accumulate(Animation_Channel *channel, f32 dt)
     }
 }
 
+struct TRS
+{
+    v3 translation;
+    qt rotation;
+    v3 scaling;
+};
+internal TRS
+interpolate_trs(TRS trs1, f32 t, TRS trs2)
+{
+    TRS result = {};
+    result.translation = lerp(trs1.translation, t, trs2.translation);
+    result.rotation = slerp(trs1.rotation, t, trs2.rotation);
+    result.scaling = lerp(trs1.scaling, t, trs2.scaling);
+    return result;
+}
+internal TRS
+interpolate_sample(Sample *sample, f32 dt)
+{
+    TRS result = {};
 
-internal m4x4
+    // Translation
+    result.translation = (sample->translations + (sample->translation_count - 1))->vec;
+    for (u32 translation_idx = 0;
+         translation_idx < sample->translation_count;
+         ++translation_idx)
+    {
+        dt_v3_Pair *hi_key = sample->translations + translation_idx;
+        if (hi_key->dt > dt)
+        {
+            dt_v3_Pair *lo_key = (hi_key - 1);
+            f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
+            result.translation = lerp(lo_key->vec, t, hi_key->vec);
+            break;
+        }
+        else if (hi_key->dt == dt)
+        {
+            result.translation = hi_key->vec;
+            break;
+        }
+    }
+
+    // Rotation
+    result.rotation = (sample->rotations + (sample->rotation_count - 1))->q;
+    for (u32 rotation_idx = 0;
+         rotation_idx < sample->rotation_count;
+         ++rotation_idx)
+    {
+        dt_qt_Pair *hi_key = sample->rotations + rotation_idx;
+        if (hi_key->dt > dt)
+        {
+            dt_qt_Pair *lo_key = (hi_key - 1);
+            f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
+            result.rotation = slerp(lo_key->q, t, hi_key->q);
+            break;
+        }
+        else if (hi_key->dt == dt)
+        {
+            result.rotation = hi_key->q;
+            break;
+        }
+    }
+
+    // Scaling
+    result.scaling = (sample->scalings + (sample->scaling_count - 1))->vec;
+    for (u32 scaling_idx = 0;
+         scaling_idx < sample->scaling_count;
+         ++scaling_idx)
+    {
+        dt_v3_Pair *hi_key = sample->scalings + scaling_idx;
+        if (hi_key->dt > dt)
+        {
+            dt_v3_Pair *lo_key = (hi_key - 1);
+            f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
+            result.scaling = lerp(lo_key->vec, t, hi_key->vec);
+            break;
+        }
+        else if (hi_key->dt == dt)
+        {
+            result.scaling = hi_key->vec;
+            break;
+        }
+    }
+
+    return result;
+}
+
+internal void
 eval_node(Animation *anim, f32 dt, Node *node)
 {
-    m4x4 result = {};
-
     Node_Hash_Result hash_result = get_sample_index(anim, node->id);
     if (hash_result.found)
     {
         Sample *sample = (anim->samples + hash_result.idx);
-        // lerp translation.
-        v3 lerped_translation = (sample->translations + (sample->translation_count - 1))->vec;
-        for (u32 translation_idx = 0;
-             translation_idx < sample->translation_count;
-             ++translation_idx)
-        {
-            dt_v3_Pair *hi_key = sample->translations + translation_idx;
-            if (hi_key->dt > dt)
-            {
-                dt_v3_Pair *lo_key = (hi_key - 1);
-                f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
-                lerped_translation = lerp(lo_key->vec, t, hi_key->vec);
-                break;
-            }
-            else if (hi_key->dt == dt)
-            {
-                lerped_translation = hi_key->vec;
-                break;
-            }
-        }
-
-        // slerp rotation.
-        qt slerped_rotation = (sample->rotations + (sample->rotation_count - 1))->q;
-        for (u32 rotation_idx = 0;
-             rotation_idx < sample->rotation_count;
-             ++rotation_idx)
-        {
-            dt_qt_Pair *hi_key = sample->rotations + rotation_idx;
-            if (hi_key->dt > dt)
-            {
-                dt_qt_Pair *lo_key = (hi_key - 1);
-                f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
-                slerped_rotation = slerp(lo_key->q, t, hi_key->q);
-                break;
-            }
-            else if (hi_key->dt == dt)
-            {
-                slerped_rotation = hi_key->q;
-                break;
-            }
-        }
-
-        // lerp scaling.
-        v3 lerped_scaling = (sample->scalings + (sample->scaling_count - 1))->vec;
-        for (u32 scaling_idx = 0;
-             scaling_idx < sample->scaling_count;
-             ++scaling_idx)
-        {
-            dt_v3_Pair *hi_key = sample->scalings + scaling_idx;
-            if (hi_key->dt > dt)
-            {
-                dt_v3_Pair *lo_key = (hi_key - 1);
-                f32 t = (dt - lo_key->dt) / (hi_key->dt - lo_key->dt);
-                lerped_scaling = lerp(lo_key->vec, t, hi_key->vec);
-                break;
-            }
-            else if (hi_key->dt == dt)
-            {
-                lerped_scaling = hi_key->vec;
-                break;
-            }
-        }
-
-        result = trs_to_transform(lerped_translation, slerped_rotation, lerped_scaling);
+        TRS trs = interpolate_sample(sample, dt);
+        node->current_transform = trs_to_transform(trs.translation, trs.rotation, trs.scaling);
     }
     else
     {
-        result = node->transform;
+        node->current_transform = node->base_transform;
     }
-
-    return result;
 }
 
 struct Eval_Stack_Frame
@@ -142,7 +160,7 @@ struct Eval_Stack
     u32 top;
 };
 internal void
-eval(Model *model, Animation *anim, f32 dt, m4x4 *final_transforms)
+eval(Model *model, Animation *anim, f32 dt, m4x4 *final_transforms, b32 do_eval_node)
 {
     Eval_Stack stack = {};
 
@@ -164,9 +182,9 @@ eval(Model *model, Animation *anim, f32 dt, m4x4 *final_transforms)
         {
             if (!frame->global_transform_done)
             {
-                m4x4 node_transform = eval_node(anim, dt, node);
+                if (do_eval_node) eval_node(anim, dt, node);
                 m4x4 parent_transform = (stack.top != 0) ? stack.frames[stack.top - 1].global_transform : identity();
-                m4x4 global_transform = parent_transform * node_transform;
+                m4x4 global_transform = parent_transform * node->current_transform;
                 m4x4 final_transform = global_transform * node->offset;
 
                 frame->global_transform = global_transform;
