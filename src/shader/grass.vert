@@ -20,8 +20,14 @@ smooth out v4 fC;
 
 void main()
 {
+    // sRGB
+    vec4 vertex_color = vC;
+    vertex_color.r *= vertex_color.r;
+    vertex_color.g *= vertex_color.g;
+    vertex_color.b *= vertex_color.b;
+
     v3 mP = vP;
-    v4 mC = vC;
+    v4 mC = vertex_color;
     v4 wP = world_transform * v4(mP, 1.0f);
     f32 C = 0.6366197f; // 2/pi
     f32 lerped_movement = mix(0.0f, 0.6f, mP.y / grass_max_vertex_y);

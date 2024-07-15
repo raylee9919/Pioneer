@@ -18,9 +18,15 @@ smooth out v4 fC;
 
 void main()
 {
+    // sRGB
+    vec4 vertex_color = vC;
+    vertex_color.r *= vertex_color.r;
+    vertex_color.g *= vertex_color.g;
+    vertex_color.b *= vertex_color.b;
+
     v3 mP = vP;
     v4 wP = world_transform * v4(mP, 1.0f);
-    v4 mC = vC;
+    v4 mC = vertex_color;
 
     v4 result_pos = wP;
     fP  = wP.xyz;

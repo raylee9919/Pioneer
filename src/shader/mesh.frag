@@ -55,10 +55,12 @@ void main()
 
     C *= v4(light_sum, 1.0f);
 
+
+    // sRGB
     if (C.a == 0.0f) 
-    {
         discard;
-    }
+    else
+        C.rgb = sqrt(C.rgb);
 }
 
 )MULTILINE"

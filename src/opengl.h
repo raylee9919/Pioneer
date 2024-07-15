@@ -6,12 +6,9 @@
    $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
    ======================================================================== */
 
-#define GL_EXTENSION_LIST           \
-    X(GL_EXT_texture_sRGB)          \
-    X(GL_EXT_framebuffer_sRGB)      \
-    X(GL_ARB_multisample)
-
 #define X(ext) ext,
+#define GL_EXTENSION_LIST           \
+    X(GL_ARB_multisample)
 enum GL_Extensions 
 {
     GL_EXTENSION_LIST
@@ -29,9 +26,6 @@ struct GL_Info
     char    *extensions;
     s32     major;
     s32     minor;
-
-    s32     texture_internal_format;
-    b32     is_framebuffer_srgb;
 
     b32     has_ext[GL_EXT_COUNT];
 };

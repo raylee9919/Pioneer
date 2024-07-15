@@ -16,11 +16,17 @@ smooth out v4 fC;
 
 void main()
 {
+    // sRGB
+    vec4 vertex_color = vC;
+    vertex_color.r *= vertex_color.r;
+    vertex_color.g *= vertex_color.g;
+    vertex_color.b *= vertex_color.b;
+
     v4 result_pos = world_transform * v4(vP, 1.0f);
     fP  = result_pos.xyz;
     fN  = vN;
     fUV = vUV;
-    fC  = vC;
+    fC  = vertex_color;
 
     gl_Position = mvp * result_pos;
 }

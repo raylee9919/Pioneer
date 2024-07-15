@@ -24,6 +24,13 @@ smooth out vec4 fC;
 
 void main()
 {
+    // sRGB
+    vec4 vertex_color = vC;
+    vertex_color.r *= vertex_color.r;
+    vertex_color.g *= vertex_color.g;
+    vertex_color.b *= vertex_color.b;
+
+    // Animation
     mat4x4 final_transform;
     if (is_skeletal != 0)
     {
@@ -62,7 +69,7 @@ void main()
     fP  = result_pos.xyz;
     fN  = normalize(mat3x3(final_transform) * vN);
     fUV = vUV;
-    fC  = vC;
+    fC  = vertex_color;
 
     gl_Position = mvp * result_pos;
 }
