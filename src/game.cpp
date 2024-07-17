@@ -137,8 +137,10 @@ GAME_UPDATE(game_update)
             }
         }
 
+
         Entity *xbot = push_entity(world_arena, chunk_hashmap, eEntity_XBot, Chunk_Position{0, 0, 0}, world->chunk_dim);
         game_state->player = xbot;
+
 
         f32 T = pi32 * 0.1f;
         f32 D = 5;
@@ -185,11 +187,15 @@ GAME_UPDATE(game_update)
             game_state->star_world_transforms[game_state->star_count++] = transpose(trs_to_transform(translation, rotation, scaling));
         }
 
-        // @Temporary
+        // @TEMPORARY
         init_console_state(&game_state->console_state, (f32)game_screen_buffer->width, (f32)game_screen_buffer->height);
+
+        // @TEMPORARY
+        game_state->light = push_entity(world_arena, chunk_hashmap, eEntity_Tile, {}, world->chunk_dim);
 
         game_state->init = true;
     }
+
     f32 dt = game_input->dt;
     game_state->time += dt;
 
@@ -200,6 +206,9 @@ GAME_UPDATE(game_update)
 
     DEBUG_VARIABLE(f32, Xbot, Accel_Constant);
     player->u = Accel_Constant;
+
+    // @TEMPORARY
+    game_state->light->chunk_pos = Chunk_Position{0, 0, 0, v3{0, 2.0f, 0}};
 
 
 
@@ -516,7 +525,8 @@ GAME_UPDATE(game_update)
                                 {
                                     Mesh *mesh = model->meshes + mesh_idx;
                                     Material *mat = model->materials + mesh->material_idx;
-                                    push_mesh(render_group, mesh, mat, world_transform, entity->animation_transform);
+                                    v3 light_pos = subtract(game_state->light->chunk_pos, {}, game_state->world->chunk_dim);
+                                    push_mesh(render_group, mesh, mat, world_transform, light_pos, entity->animation_transform);
                                 }
                             }
                         } break;
@@ -532,7 +542,8 @@ GAME_UPDATE(game_update)
                                 {
                                     Mesh *mesh = model->meshes + mesh_idx;
                                     Material *mat = model->materials + mesh->material_idx;
-                                    push_mesh(render_group, mesh, mat, world_transform);
+                                    v3 light_pos = subtract(game_state->light->chunk_pos, {}, game_state->world->chunk_dim);
+                                    push_mesh(render_group, mesh, mat, world_transform, light_pos);
                                 }
                             }
                         } break;

@@ -472,12 +472,12 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
                     glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
                     if (piece->animation_transforms)
-                    {
                         glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
-                    }
                     glUniform3fv(program->color_ambient, 1, (GLfloat *)&mat->color_ambient);
                     glUniform3fv(program->color_diffuse, 1, (GLfloat *)&mat->color_diffuse);
                     glUniform3fv(program->color_specular, 1, (GLfloat *)&mat->color_specular);
+
+                    glUniform3fv(program->light_pos, 1, (GLfloat *)&piece->light_pos);
 
                     glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0);
 
@@ -751,6 +751,7 @@ gl_init()
     gl.mesh_program.color_ambient    = glGetUniformLocation(gl.mesh_program.id, "color_ambient");
     gl.mesh_program.color_diffuse    = glGetUniformLocation(gl.mesh_program.id, "color_diffuse");
     gl.mesh_program.color_specular   = glGetUniformLocation(gl.mesh_program.id, "color_specular");
+    gl.mesh_program.light_pos        = glGetUniformLocation(gl.mesh_program.id, "light_pos");
 
     gl.grass_program.id = gl_create_program(header,
                                             grass_vshader,

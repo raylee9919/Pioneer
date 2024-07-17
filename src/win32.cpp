@@ -511,12 +511,10 @@ win32_xinput_handle_deadzone(XINPUT_STATE *state)
 
 DEBUG_PLATFORM_FREE_MEMORY(DebugPlatformFreeMemory) 
 {
-    if (memory) {
-        VirtualFree(memory, 0, MEM_RELEASE); 
-    }
+    if (memory) VirtualFree(memory, 0, MEM_RELEASE); 
 }
 
-PLATFORM_READ_ENTIRE_FILE(DebugPlatformReadEntireFile) 
+PLATFORM_READ_ENTIRE_FILE(win32_read_entire_file) 
 {
     Entire_File result = {};
 
@@ -978,74 +976,75 @@ DEBUG_PLATFORM_GET_PROCESS_STATE(win32_get_process_state)
   #define fourccXWMA 'AMWX'
   #define fourccDPDS 'sdpd'
 #endif
-HRESULT 
-win32_find_chunk(HANDLE hFile, DWORD fourcc, DWORD & dwChunkSize, DWORD & dwChunkDataPosition)
+internal b32 
+win32_find_chunk(Entire_File *entire_file, DWORD fourcc, u32 *chunk_size, u32 *chunk_data_position)
 {
-    HRESULT hr = S_OK;
-    if ( INVALID_SET_FILE_POINTER == SetFilePointer( hFile, 0, NULL, FILE_BEGIN ) )
-        return HRESULT_FROM_WIN32( GetLastError() );
+    b32 result = true;
 
-    DWORD dwChunkType;
-    DWORD dwChunkDataSize;
-    DWORD dwRIFFDataSize = 0;
-    DWORD dwFileType;
-    DWORD bytesRead = 0;
-    DWORD dwOffset = 0;
+    u32 chunk_type;
+    u32 chunk_data_size;
+    u32 riff_data_size = 0;
+    u32 file_type;
+    u32 bytesRead = 0;
+    u32 offset = 0;
 
-    while (hr == S_OK)
+    u8 *at = (u8 *)entire_file->contents;
+
+    for (;;)
     {
-        DWORD dwRead;
-        if( 0 == ReadFile( hFile, &dwChunkType, sizeof(DWORD), &dwRead, NULL ) )
-            hr = HRESULT_FROM_WIN32( GetLastError() );
+        chunk_type = *(u32 *)at;
+        at += sizeof(u32);
 
-        if( 0 == ReadFile( hFile, &dwChunkDataSize, sizeof(DWORD), &dwRead, NULL ) )
-            hr = HRESULT_FROM_WIN32( GetLastError() );
+        chunk_data_size = *(u32 *)at;
+        at += sizeof(u32);
 
-        switch (dwChunkType)
+        switch (chunk_type)
         {
             case fourccRIFF:
             {
-                dwRIFFDataSize = dwChunkDataSize;
-                dwChunkDataSize = 4;
-                if( 0 == ReadFile( hFile, &dwFileType, sizeof(DWORD), &dwRead, NULL ) )
-                    hr = HRESULT_FROM_WIN32( GetLastError() );
+                riff_data_size = chunk_data_size;
+                chunk_data_size = 4;
+                file_type = *(u32 *)at;
+                at += sizeof(u32);
             } break;
 
             default:
             {
-                if( INVALID_SET_FILE_POINTER == SetFilePointer( hFile, dwChunkDataSize, NULL, FILE_CURRENT ) )
-                    return HRESULT_FROM_WIN32( GetLastError() );            
+                at += chunk_data_size;
             } break;
         }
 
-        dwOffset += sizeof(DWORD) * 2;
+        offset += sizeof(u32) * 2;
 
-        if (dwChunkType == fourcc)
+        if (chunk_type == fourcc)
         {
-            dwChunkSize = dwChunkDataSize;
-            dwChunkDataPosition = dwOffset;
-            return S_OK;
+            *chunk_size = chunk_data_size;
+            *chunk_data_position = offset;
+            result = false;
+            break;
         }
 
-        dwOffset += dwChunkDataSize;
+        offset += chunk_data_size;
 
-        if (bytesRead >= dwRIFFDataSize) return S_FALSE;
-
+        if (bytesRead >= riff_data_size)
+        {
+            result = false;
+            break;
+        }
     }
 
-    return S_OK;
+    return result;
 }
 
-HRESULT
-win32_read_chunk_data(HANDLE hFile, void * buffer, DWORD buffersize, DWORD bufferoffset)
+internal void
+win32_read_chunk_data(Entire_File *entire_file, void *buffer, u32 buffer_size, DWORD buffer_offset)
 {
-    HRESULT hr = S_OK;
-    if( INVALID_SET_FILE_POINTER == SetFilePointer( hFile, bufferoffset, NULL, FILE_BEGIN ) )
-        return HRESULT_FROM_WIN32( GetLastError() );
-    DWORD dwRead;
-    if( 0 == ReadFile( hFile, buffer, buffersize, &dwRead, NULL ) )
-        hr = HRESULT_FROM_WIN32( GetLastError() );
-    return hr;
+    u8 *src = (u8 *)entire_file->contents;
+    src += buffer_offset;
+
+    u8 *dst = (u8 *)buffer;
+    for (u32 i = 0; i < buffer_size; ++i)
+        *dst++ = *src++;
 }
 
 #if __DEVELOPER
@@ -1104,6 +1103,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     //
     //
     //
+#if 1
     HRESULT hr;
 
     hr = CoInitializeEx(0, COINIT_MULTITHREADED);
@@ -1121,47 +1121,35 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     WAVEFORMATEXTENSIBLE wfx = {};
     XAUDIO2_BUFFER buffer = {};
 
-    char *audio_file_name = "audio/sample.wav";
-    HANDLE hFile = CreateFile(audio_file_name,
-                              GENERIC_READ,
-                              FILE_SHARE_READ,
-                              NULL,
-                              OPEN_EXISTING,
-                              0,
-                              NULL );
+    char *audio_file_name = "audio/requiem.wav";
+    Entire_File entire_file = win32_read_entire_file(audio_file_name);
 
-    if( INVALID_HANDLE_VALUE == hFile )
-        return HRESULT_FROM_WIN32( GetLastError() );
-
-    if( INVALID_SET_FILE_POINTER == SetFilePointer( hFile, 0, NULL, FILE_BEGIN ) )
-        return HRESULT_FROM_WIN32( GetLastError() );
-
-    DWORD dwChunkSize;
-    DWORD dwChunkPosition;
+    u32 chunk_size;
+    u32 chunk_position;
+    u32 filetype;
     //check the file type, should be fourccWAVE or 'XWMA'
-    win32_find_chunk(hFile, fourccRIFF, dwChunkSize, dwChunkPosition );
-    DWORD filetype;
-    win32_read_chunk_data(hFile, &filetype, sizeof(DWORD), dwChunkPosition);
-    if (filetype != fourccWAVE)
-        return S_FALSE;
+    win32_find_chunk(&entire_file, fourccRIFF, &chunk_size, &chunk_position);
+    win32_read_chunk_data(&entire_file, &filetype, sizeof(u32), chunk_position);
+    Assert(filetype == fourccWAVE);
 
-    win32_find_chunk(hFile, fourccFMT, dwChunkSize, dwChunkPosition );
-    win32_read_chunk_data(hFile, &wfx, dwChunkSize, dwChunkPosition );
+    win32_find_chunk(&entire_file, fourccFMT, &chunk_size, &chunk_position);
+    win32_read_chunk_data(&entire_file, &wfx, chunk_size, chunk_position);
 
     //fill out the audio data buffer with the contents of the fourccDATA chunk
-    win32_find_chunk(hFile, fourccDATA, dwChunkSize, dwChunkPosition );
-    BYTE *pDataBuffer = new BYTE[dwChunkSize];
-    win32_read_chunk_data(hFile, pDataBuffer, dwChunkSize, dwChunkPosition);
+    win32_find_chunk(&entire_file, fourccDATA, &chunk_size, &chunk_position);
+    u8 *data_buffer = (u8 *)VirtualAlloc(0, chunk_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    win32_read_chunk_data(&entire_file, data_buffer, chunk_size, chunk_position);
 
-    buffer.AudioBytes = dwChunkSize;  //size of the audio buffer in bytes
-    buffer.pAudioData = pDataBuffer;  //buffer containing audio data
+    buffer.AudioBytes = chunk_size;  //size of the audio buffer in bytes
+    buffer.pAudioData = data_buffer;  //buffer containing audio data
     buffer.Flags = XAUDIO2_END_OF_STREAM; // tell the source voice not to expect any data after this buffer
 
     IXAudio2SourceVoice* src_voice;
     if (FAILED(hr = xaudio->CreateSourceVoice(&src_voice, (WAVEFORMATEX *)&wfx))) return hr;
     if (FAILED(hr = src_voice->SubmitSourceBuffer(&buffer))) return hr;
     if (FAILED(hr = src_voice->Start(0))) return hr;
-    src_voice->SetVolume(.2f);
+    src_voice->SetVolume(0.05f);
+#endif
 
     //
     //
@@ -1197,7 +1185,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     game_memory.low_priority_queue = &low_priority_queue;
     game_memory.platform.platform_add_entry = Win32AddEntry;
     game_memory.platform.platform_complete_all_work = win32_complete_all_work;
-    game_memory.platform.debug_platform_read_file = DebugPlatformReadEntireFile;
+    game_memory.platform.debug_platform_read_file = win32_read_entire_file;
 
 #if __DEVELOPER
     game_memory.platform.debug_platform_write_file = DebugPlatformWriteEntireFile;

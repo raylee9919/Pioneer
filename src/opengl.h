@@ -43,6 +43,7 @@ struct Mesh_Program
     s32     color_ambient;
     s32     color_diffuse;
     s32     color_specular;
+    s32     light_pos;
 };
 
 struct Grass_Program

@@ -2,7 +2,7 @@
 
 set CCFLAGS=-Od -nologo -MD -GR- -EHa- -Oi -W4 -wd4100 -wd4189 -wd4505 -wd4201 -wd4477 -wd4311 -wd4302 -FC -Z7 -D_CRT_SECURE_NO_WARNINGS
 set CCFLAGS=-D__DEVELOPER=1 -D__MSVC %CCFLAGS%
-set CLFLAGS=-incremental:no -opt:ref User32.lib Gdi32.lib Winmm.lib opengl32.lib
+set CLFLAGS=-incremental:no -opt:ref User32.lib Gdi32.lib Winmm.lib opengl32.lib Ole32.lib
 
 if not exist ..\build mkdir ..\build
 pushd ..\build

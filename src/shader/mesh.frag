@@ -7,6 +7,7 @@ uniform v3          cam_pos;
 uniform v3 color_ambient;
 uniform v3 color_diffuse;
 uniform v3 color_specular;
+uniform v3 light_pos;
 
 smooth in v3 fP;
 smooth in v3 fN;
@@ -17,13 +18,13 @@ out v4 C;
 
 void main()
 {
-#define POINT_LIGHT 0
+#define POINT_LIGHT 1
     C = texture(texture_sampler, fUV) * fC;
 
+    //v3 light_pos        = v3(0.0f, 2.0f, 0.0f);
     v3 light_color      = v3(1.0f);
     f32 light_diffuse   = 0.5f;
     f32 light_specular  = 1.0f;
-    v3 light_pos        = v3(0.0f, 2.0f, 0.0f);
     v3 light_sum;
 #if POINT_LIGHT
     v3 to_light         = normalize(light_pos - fP);
@@ -33,7 +34,11 @@ void main()
     v3 from_cam         = normalize(fP - cam_pos);
 
     // ambient
+#if 0
     v3 ambient_light = color_ambient * light_color;
+#else
+    v3 ambient_light = v3(0, 0, 0);
+#endif
 
 #if POINT_LIGHT
     // distance falloff

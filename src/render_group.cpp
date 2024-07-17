@@ -42,13 +42,14 @@ end_render(Render_Group *render_group)
 
 internal void
 push_mesh(Render_Group *group, Mesh *mesh, Material *material,
-          m4x4 world_transform, m4x4 *animation_transforms = 0)
+          m4x4 world_transform, v3 light_pos, m4x4 *animation_transforms = 0)
 {
     Render_Mesh *piece          = push_render_entity(group, Render_Mesh);
     piece->mesh                 = mesh;
     piece->material             = material;
     piece->world_transform      = world_transform;
     piece->animation_transforms = animation_transforms;
+    piece->light_pos            = light_pos;
 }
 
 internal void

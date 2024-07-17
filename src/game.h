@@ -342,7 +342,10 @@ struct Game_State
     Camera              *free_camera;
     Camera              *orthographic_camera;
 
-    // @Temporary: this is meant to be in dev-engine memory.
+    // @TEMPORARY
+    Entity              *light;
+
+    // @TEMPORARY: this is meant to be in dev-engine memory.
     Console_State       console_state;
 };
 

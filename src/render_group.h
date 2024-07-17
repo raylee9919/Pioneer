@@ -35,8 +35,9 @@ struct Render_Mesh
     Render_Entity_Header    header;
     Mesh              *mesh;
     Material          *material;
-    m4x4                    world_transform;
-    m4x4                    *animation_transforms;
+    m4x4              world_transform;
+    m4x4              *animation_transforms;
+    v3                light_pos;
 };
 
 struct Render_Grass
