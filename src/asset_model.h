@@ -52,6 +52,13 @@ struct Asset_Node
     s32     *child_ids;
 };
 
+struct Asset_Texture
+{
+    u32     width;
+    u32     height;
+    void    *contents;
+};
+
 struct Asset_Model
 {
     u32                     mesh_count;
@@ -63,6 +70,9 @@ struct Asset_Model
     u32                     node_count;
     s32                     root_bone_node_id;
     Asset_Node              *nodes;
+
+    u32                     texture_count;
+    Asset_Texture           *textures;
 };
 
 

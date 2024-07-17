@@ -717,6 +717,33 @@ fill_asset_meshes(const aiScene *model, Asset_Model *asset_model, Hash_Table *ha
     }
 }
 
+static void
+fill_asset_textures(const aiScene *model, Asset_Model *asset_model)
+{
+    u32 texture_count = model->mNumTextures;
+    asset_model->texture_count = texture_count;
+    asset_model->textures = malloc_array(Asset_Texture, texture_count);
+
+    for (u32 texture_idx = 0;
+         texture_idx < texture_count;
+         ++texture_idx)
+    {
+        aiTexture *texture = model->mTextures[texture_idx];
+        u32 width = texture->mWidth;
+        u32 height = texture->mHeight;
+        aiTexel *data = texture->pcData;
+
+        Asset_Texture *asset_texture = asset_model->textures + texture_idx;
+        asset_texture->contents = malloc_array(u32, width * height);
+
+        aiTexel *src = data;
+        u32 *dst = (u32 *)asset_texture->contents;
+        aiTexel C = *src++;
+        assert(sizeof(aiTexel) == sizeof(u32));
+        *dst++ = (C.r << 24 | C.g << 16 | C.b << 8 | C.a);
+    }
+}
+
 static u32
 get_node_count_from(aiNode *node)
 {
@@ -922,11 +949,13 @@ int main(void)
                 fill_asset_nodes(model, &asset_model, one_below_root_node, &hash_table);
                 fill_asset_meshes(model, &asset_model, &hash_table);
                 fill_asset_materials(model, &asset_model);
+                fill_asset_textures(model, &asset_model);
 
                 // Write out the Asset_Model info.
                 write_asset_meshes(model_out, &asset_model);
                 write_asset_materials(model_out, &asset_model);
                 write_asset_nodes(model_out, &asset_model);
+                //write_asset_textures(model_out, &asset_model);
 
                 // Print status
                 printf("ok: written '%s'\n", out_file_name);

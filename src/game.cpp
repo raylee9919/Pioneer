@@ -465,20 +465,30 @@ GAME_UPDATE(game_update)
                             {
                                 f32 scalar = len(entity->velocity);
                                 f32 lo = epsilon_f32;
-                                f32 hi = 0.2f;
+                                f32 hi = 0.7f;
                                 Animation_Channel *channel = &entity->animation_channels[0];
 
-                                if (scalar < lo)
+                                if (scalar <= lo)
                                 {
-                                    channel->animation = game_assets->xbot_idle;
-                                    accumulate(channel, dt);
+                                    Animation *new_anim = game_assets->xbot_idle;
+                                    if (channel->animation != new_anim)
+                                    {
+                                        channel->animation = new_anim;
+                                        channel->dt = 0.0f;
+                                    }
                                     eval(model, channel->animation, channel->dt, entity->animation_transform, true);
+                                    accumulate(channel, dt);
                                 }
                                 else if (scalar > hi)
                                 {
-                                    channel->animation = game_assets->xbot_run;
-                                    accumulate(channel, dt);
+                                    Animation *new_anim = game_assets->xbot_run;
+                                    if (channel->animation != new_anim)
+                                    {
+                                        channel->animation = new_anim;
+                                        channel->dt = 0.0f;
+                                    }
                                     eval(model, channel->animation, channel->dt, entity->animation_transform, true);
+                                    accumulate(channel, dt);
                                 }
                                 else
                                 {

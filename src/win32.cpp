@@ -1016,7 +1016,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     win32_load_xinput();
 
     s32 monitor_hz = GetDeviceCaps(GetDC(hwnd), VREFRESH);
-    s32 desired_hz = monitor_hz / 2;
+    s32 desired_hz = 60;
     f32 desired_mspf = 1000.0f / (f32)desired_hz;
 
 
@@ -1311,7 +1311,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
 #if 0
             BEGIN_BLOCK(win32_framerate_wait);
             LARGE_INTEGER counter_end = win32_get_wall_clock();
-            f32 actual_mspf = win32_get_elapsed_ms(last_counter, counter_end);
+            actual_mspf = win32_get_elapsed_ms(last_counter, counter_end);
 
             if (actual_mspf < desired_mspf) 
             {
