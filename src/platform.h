@@ -118,13 +118,17 @@ enum Platform_Error_Type
 #define PLATFORM_ERROR_MESSAGE(name) void name(Platform_Error_Type type, char *message)
 typedef PLATFORM_ERROR_MESSAGE(Platform_Error_Message);
 
+enum Key_Flag
+{
+    PRESSED     = 0x1,
+    RELEASED    = 0x2,
+    ALT         = 0x4,
+    SHIFT       = 0x8,
+};
 struct Input_Key
 {
     u32 key;
-    b32 is_down;
-    b32 was_down;
-    b32 alt_was_down;
-    b32 shift_was_down;
+    u32 flag;
 };
 struct Input
 {
@@ -216,9 +220,6 @@ struct Game_Memory
     void                    *transient_memory;
     u64                     transient_memory_size;
 
-    void                    *debug_storage;
-    u64                     debug_storage_size;
-
     Platform_Work_Queue     *high_priority_queue;
     Platform_Work_Queue     *low_priority_queue;
 
@@ -250,5 +251,3 @@ string_length(char *string)
     }
     return count;
 }
-
-#include "debug_interface.h"

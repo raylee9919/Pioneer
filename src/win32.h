@@ -38,7 +38,6 @@ struct Win32_Game
     HMODULE             dll;
 
     Game_Update         *game_update;
-    Debug_Frame_End     *debug_frame_end;
 
     b32                 is_valid;
 };

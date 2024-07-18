@@ -329,7 +329,7 @@ struct Game_State
     Random_Series       random_series;
 
     Entity              *player;
-    Camera              *main_camera;
+    Camera              *player_camera;
 
     World               *world;
     Memory_Arena        world_arena;
@@ -342,6 +342,8 @@ struct Game_State
 
     Camera              *free_camera;
     Camera              *orthographic_camera;
+
+    Camera              *main_camera;
 
     // @TEMPORARY
     Entity              *light;

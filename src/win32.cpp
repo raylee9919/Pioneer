@@ -1066,10 +1066,6 @@ PLATFORM_ERROR_MESSAGE(win32_error_message)
     }
 }
 
-#if __DEVELOPER
-global_var Debug_Table g_debug_table_;
-Debug_Table *g_debug_table = &g_debug_table_;
-#endif
 
 int WINAPI
 WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) 
@@ -1192,17 +1188,14 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             Game_Memory game_memory = {};
             game_memory.permanent_memory_size   = MB(256);
             game_memory.transient_memory_size   = GB(1);
-            game_memory.debug_storage_size      = MB(64);
 
             u64 total_capacity = (game_memory.permanent_memory_size +
-                                  game_memory.transient_memory_size + 
-                                  game_memory.debug_storage_size);
+                                  game_memory.transient_memory_size);
             g_win32_state.game_memory = VirtualAlloc(base_address, (size_t)total_capacity,
                                                    MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
             g_win32_state.game_mem_total_cap = total_capacity;
             game_memory.permanent_memory = g_win32_state.game_memory;
             game_memory.transient_memory = ((u8 *)(game_memory.permanent_memory) + game_memory.permanent_memory_size);
-            game_memory.debug_storage = ((u8 *)(game_memory.transient_memory) + game_memory.transient_memory_size);
 
             game_memory.high_priority_queue = &high_priority_queue;
             game_memory.low_priority_queue = &low_priority_queue;
@@ -1267,17 +1260,12 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                 {
                     LARGE_INTEGER last_counter = win32_get_wall_clock();
 
-                    BEGIN_BLOCK(win32_executable_ready);
                     game_memory.executable_reloaded = false;
                     game_dll_time = win32_get_file_time(game_dll_abs_path);
                     if (CompareFileTime(&game_dll_time_last, &game_dll_time) != 0) 
                     {
                         win32_complete_all_work(&high_priority_queue);
                         win32_complete_all_work(&low_priority_queue);
-
-#if __DEVELOPER
-                        g_debug_table = &g_debug_table_;
-#endif
 
                         if (game.dll) 
                         {
@@ -1289,7 +1277,6 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                         if (game.dll) 
                         { 
                             game.game_update          = (Game_Update *)GetProcAddress(game.dll, "game_update");
-                            game.debug_frame_end    = (Debug_Frame_End *)GetProcAddress(game.dll, "debug_frame_end");
 
                             game.is_valid           = (game.game_update &&
                                                        1);
@@ -1305,9 +1292,8 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                         game_dll_time_last = game_dll_time;
                         game_memory.executable_reloaded = true;
                     }
-                    END_BLOCK(win32_executable_ready);
 
-                    BEGIN_BLOCK(win32_process_input);
+
                     MSG msg;
                     while (PeekMessageA(&msg, hwnd, 0, 0, PM_REMOVE)) // != GetMessage(), which waits until message appears.
                     {
@@ -1319,80 +1305,58 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                                 g_running = false;
                             } break;
 
+                            case WM_SYSKEYDOWN:
+                            {
+                            } break;
+
+                            case WM_SYSKEYUP:
+                            {
+                                u32 vk_code = (u32)msg.wParam;
+                                if (vk_code == VK_RETURN && msg.hwnd)
+                                        win32_toggle_fullscreen(msg.hwnd);
+                            } break;
+
                             case WM_KEYDOWN:
                             {
+                                u32 vk_code  = (u32)msg.wParam;
+                                b32 is_down  = ((msg.lParam & (1 << 31)) == 0);
+                                b32 was_down = ((msg.lParam & (1 << 30)) != 0);
+                                b32 shift = (GetKeyState(VK_SHIFT) & (1 << 15));
+
+                                Assert(input.next < array_count(input.keys));
+                                Input_Key *k = &input.keys[input.next++];
+                                k->key = vk_code;
+                                k->flag = ( Key_Flag::PRESSED | 
+                                           (shift ? Key_Flag::SHIFT : 0));
                             } break;
 
                             case WM_KEYUP: 
                             {
                                 u32 vk_code  = (u32)msg.wParam;
+                                b32 shift = (GetKeyState(VK_SHIFT) & (1 << 15));
 
-                                b32 was_down = ((msg.lParam & (1 << 30)) != 0);
-                                b32 is_down  = ((msg.lParam & (1UL << 31)) == 0);
-                                b32 alt_was_down = (msg.lParam & (1 << 29));
-                                b32 shift_was_down = (GetKeyState(VK_SHIFT) & (1 << 15));
-                                
                                 Assert(input.next < array_count(input.keys));
                                 Input_Key *k = &input.keys[input.next++];
                                 k->key = vk_code;
-                                k->is_down = is_down;
-                                k->was_down = was_down;
-                                k->alt_was_down = alt_was_down;
-                                k->shift_was_down = shift_was_down;
+                                k->flag = ( Key_Flag::RELEASED | 
+                                           (shift ? Key_Flag::SHIFT : 0));
 
-#if 0
-                                if (was_down != is_down) 
-                                {
-                                    switch (vk_code) 
-                                    {
-                                        // TODO: compressable I guess?
-                                        case 'Q': { win32_process_keyboard(&new_input->Q, is_down); } break;
-                                        case 'E': { win32_process_keyboard(&new_input->E, is_down); } break;
-                                        case 'W': { win32_process_keyboard(&new_input->W, is_down); } break;
-                                        case 'A': { win32_process_keyboard(&new_input->A, is_down); } break;
-                                        case 'S': { win32_process_keyboard(&new_input->S, is_down); } break;
-                                        case 'D': { win32_process_keyboard(&new_input->D, is_down); } break;
-                                        case VK_SHIFT: { win32_process_keyboard(&new_input->shift, is_down); } break; // shift
-                                        case VK_MENU: { win32_process_keyboard(&new_input->alt, is_down); } break; // alt
-                                        case VK_CONTROL: { win32_process_keyboard(&new_input->control, is_down); } break;
-                                        case VK_OEM_3: { win32_process_keyboard(&new_input->tilde, is_down); } break; // tilde
 #if 0 // @TODO: Broken!
-                                        case 'L': 
-                                        {
-                                            if (is_down) 
-                                            {
-                                                if (!g_win32_state.is_recording) 
-                                                {
-                                                    win32_begin_recording_input(&g_win32_state);
-                                                } 
-                                                else 
-                                                {
-                                                    win32_end_input_recording(&g_win32_state);
-                                                    win32_begin_input_playback(&g_win32_state);
-                                                }
-                                            }
-                                        } break;
-#endif
-                                    }
-
+                                case 'L': 
+                                {
                                     if (is_down) 
                                     {
-                                        b32 altWasDown = (msg.lParam & (1 << 29));
-                                        if ((vk_code == VK_F4) && altWasDown) 
+                                        if (!g_win32_state.is_recording) 
                                         {
-                                            g_running = false;
-                                        }
-                                        if ((vk_code == VK_RETURN) && altWasDown) 
+                                            win32_begin_recording_input(&g_win32_state);
+                                        } 
+                                        else 
                                         {
-                                            if (msg.hwnd) 
-                                            {
-                                                win32_toggle_fullscreen(msg.hwnd);
-                                            }
+                                            win32_end_input_recording(&g_win32_state);
+                                            win32_begin_input_playback(&g_win32_state);
                                         }
                                     }
-
-                                }
-                            } break;
+                                } break;
 #endif
                             }
 
@@ -1442,47 +1406,30 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                             // TODO: Diagnostic
                         }
                     }
-                    END_BLOCK(win32_process_input);
 
 #if 0
-                    BEGIN_BLOCK(win32_record_input);
                     if (g_win32_state.is_recording) 
                         win32_record_input(new_input);
                     if (g_win32_state.is_playing) 
                         win32_playback_input(new_input);
-                    END_BLOCK(win32_record_input);
 #endif
 
 #if 0
                     game_input.dt_per_frame = (desired_mspf / 1000.0f);
 #endif
 
-                    BEGIN_BLOCK(win32_game_update);
                     if (game.game_update) 
                         game.game_update(&game_memory, game_state, &input, &screen_buffer);
-                    END_BLOCK(win32_game_update);
 
                     //
                     //
                     //
 
-#if __DEVELOPER
-                    BEGIN_BLOCK(win32_debug_collation);
-                    if (game.debug_frame_end)
-                    {
-                        g_debug_table = game.debug_frame_end(&game_memory, &screen_buffer);
-                    }
-                    g_debug_table_.event_array_idx_event_idx = 0;
-                    END_BLOCK(win32_debug_collation);
-#endif
-
-                    BEGIN_BLOCK(win32_render);
                     HDC dc = GetDC(hwnd);
                     gl_render_batch(&game_memory.render_batch, wd.width, wd.height);
                     SwapBuffers(dc);
                     // win32_update_screen(dc, wd.width, wd.height);
                     ReleaseDC(hwnd, dc);
-                    END_BLOCK(win32_render);
 
                     f32 actual_mspf = win32_get_elapsed_ms(last_counter, win32_get_wall_clock());
                     input.dt = (actual_mspf / 1000.0f);
@@ -1494,7 +1441,6 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
 
                     // TODO: leave this off until we have vblank support?
 #if 0
-                    BEGIN_BLOCK(win32_framerate_wait);
                     LARGE_INTEGER counter_end = win32_get_wall_clock();
                     actual_mspf = win32_get_elapsed_ms(last_counter, counter_end);
 
@@ -1511,11 +1457,9 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                     {
                         // TODO: Missed framerate handling
                     }
-                    END_BLOCK(win32_framerate_wait);
 #endif
 
                     LARGE_INTEGER end_counter = win32_get_wall_clock();
-                    FRAME_MARKER(win32_get_seconds_elapsed(last_counter, end_counter));
                     last_counter = end_counter;
                 }
             }

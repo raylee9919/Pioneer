@@ -102,17 +102,16 @@ push_rect(Render_Group *group, Rect2 rect, f32 z, v4 color)
     push_bitmap(group, _v3_(rect.min, z), _v3_(rect.max, z), 0, color);
 }
 
-enum String_Op
+enum Push_String_Flag
 {
-    DRAW,
-    GET_RECT,
-    DRAW_AND_GET_RECT,
+    DRAW = 0x1,
+    GET_RECT = 0x2,
 };
 
 internal Rect2
-string_op(String_Op op, Render_Group *render_group,
-          v2 left_bottom, f32 z,
-          const char *str, Font *font, v4 color = _v4_(1, 1, 1, 1))
+push_string(Push_String_Flag flag, Render_Group *render_group,
+            v2 left_bottom, f32 z,
+            const char *str, Font *font, v4 color = _v4_(1, 1, 1, 1))
 {
     Rect2 result = rect2_inv_inf();
 
@@ -138,40 +137,27 @@ string_op(String_Op op, Render_Group *render_group,
                 v3 max = _v3_(left_x + w, left_bottom.y + glyph->ascent, z);
                 v3 min = max - _v3_(w, h, 0);
 
-                switch(op)
+                if (flag & Push_String_Flag::DRAW)
                 {
-                    case DRAW:
-                    {
-                        push_bitmap(render_group, min, max, bitmap, color);
-                    } break;
-
-                    case GET_RECT:
-                    {
-                        if (result.min.x > min.x)
-                            result.min.x = min.x;
-                        if (result.min.y > min.y)
-                            result.min.y = min.y;
-                        if (result.max.x < max.x)
-                            result.max.x = max.x;
-                        if (result.max.y < max.y)
-                            result.max.y = max.y;
-                    } break;
-
-                    case DRAW_AND_GET_RECT:
-                    {
-                        push_bitmap(render_group, min, max, bitmap, color);
-                        if (result.min.x > min.x)
-                            result.min.x = min.x;
-                        if (result.min.y > min.y)
-                            result.min.y = min.y;
-                        if (result.max.x < max.x)
-                            result.max.x = max.x;
-                        if (result.max.y < max.y)
-                            result.max.y = max.y;
-                    } break;
-
-                    INVALID_DEFAULT_CASE;
+                    push_bitmap(render_group, min, max, bitmap, color);
                 }
+
+                if (flag & Push_String_Flag::GET_RECT)
+                {
+                    if (result.min.x > min.x)
+                        result.min.x = min.x;
+                    if (result.min.y > min.y)
+                        result.min.y = min.y;
+                    if (result.max.x < max.x)
+                        result.max.x = max.x;
+                    if (result.max.y < max.y)
+                        result.max.y = max.y;
+                }
+            }
+            else if (flag & Push_String_Flag::GET_RECT)
+            {
+                if (result.max.x < left_x + glyph->B + C)
+                    result.max.x = left_x + glyph->B + C;
             }
 
             if (*(ch + 1))
@@ -183,6 +169,12 @@ string_op(String_Op op, Render_Group *render_group,
                 }
                 f32 advance_x = (glyph->B + C + A + kern);
                 left_x += advance_x;
+
+                if (flag & Push_String_Flag::GET_RECT)
+                {
+                    if (result.max.x < left_x)
+                        result.max.x = left_x;
+                }
             }
         } 
         else if (*ch == ' ')
@@ -194,6 +186,12 @@ string_op(String_Op op, Render_Group *render_group,
         {
 
         }
+    }
+
+    if (result.min.x == F32_MAX)
+    {
+        result.min = {};
+        result.max = {};
     }
 
     return result;

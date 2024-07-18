@@ -390,8 +390,6 @@ gl_bind_texture(Bitmap *bitmap)
 internal void
 gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 {
-    TIMED_FUNCTION();
-
     glViewport(0, 0, win_w, win_h);
 
     glEnable(GL_BLEND);

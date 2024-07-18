@@ -23,7 +23,7 @@ pushd ..\src
 popd
 
 REM game code
-cl %CCFLAGS% ..\src\game.cpp -LD /link -incremental:no -opt:ref -PDB:game_%random%.pdb -EXPORT:game_update -EXPORT:debug_frame_end
+cl %CCFLAGS% ..\src\game.cpp -LD /link -incremental:no -opt:ref -PDB:game_%random%.pdb -EXPORT:game_update
 
 REM windows layer
 cl %CCFLAGS% ..\src\win32.cpp /link %CLFLAGS% 

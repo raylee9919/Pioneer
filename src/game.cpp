@@ -25,10 +25,6 @@
 
 #define STAR_COUNT_MAX 100'000
 
-#if __DEVELOPER
-global_var Game_Memory *g_debug_memory;
-#endif
-
 internal void
 interpolate(Model *model, Animation *anim1, f32 dt1, f32 t, Animation *anim2, f32 dt2)
 {
@@ -62,11 +58,6 @@ interpolate(Model *model, Animation *anim1, f32 dt1, f32 t, Animation *anim2, f3
 extern "C"
 GAME_UPDATE(game_update)
 {
-
-#if __DEVELOPER
-    g_debug_memory = game_memory;
-#endif
-
     if (!game_state->init) 
     {
         init_arena(&game_state->world_arena,
@@ -132,25 +123,28 @@ GAME_UPDATE(game_update)
 
 
         f32 T = pi32 * 0.1f;
-        f32 D = 5;
+        f32 Dfc = 10.0f;
+        f32 Dpc = 5.0f;
         // @TODO: is it too janky?
         game_state->free_camera = push_camera( &game_state->world_arena,
                                                 eCamera_Type_Perspective,
                                                 (f32)screen_buffer->width, (f32)screen_buffer->height,
                                                 0.5f,
-                                                _v3_(0, D * sin(T * 2.0f), D * cos(T * 2.0f)),
+                                                _v3_(0.0f, Dfc * sin(T * 2.0f), Dfc * cos(T * 2.0f)),
                                                 _qt_(cos(T), -sin(T), 0, 0) );
 
-        game_state->main_camera = push_camera( &game_state->world_arena,
+        game_state->player_camera = push_camera( &game_state->world_arena,
                                                 eCamera_Type_Perspective,
                                                 (f32)screen_buffer->width, (f32)screen_buffer->height,
                                                 0.5f,
-                                                _v3_(0, D * sin(T * 2.0f), D * cos(T * 2.0f)),
+                                                _v3_(0, Dpc * sin(T * 2.0f), Dpc * cos(T * 2.0f)),
                                                 _qt_(cos(T), -sin(T), 0, 0) );
 
         game_state->orthographic_camera = push_camera( &game_state->world_arena,
                                                        eCamera_Type_Orthographic,
                                                        (f32)screen_buffer->width, (f32)screen_buffer->height);
+
+        game_state->main_camera = game_state->player_camera;
 
 
 
@@ -192,8 +186,7 @@ GAME_UPDATE(game_update)
 
     Entity *player = game_state->player;
 
-    DEBUG_VARIABLE(f32, Xbot, Accel_Constant);
-    player->u = Accel_Constant;
+    player->u = 190.0f;
 
     // @TEMPORARY
     game_state->light->chunk_pos = Chunk_Position{0, 0, 0, v3{0, 2.0f, 0}};
@@ -293,21 +286,21 @@ GAME_UPDATE(game_update)
     while (input->next > 0)
     {
         Input_Key *in = &input->keys[--input->next];
+        Console *console = &game_state->console;
 
         switch (game_state->mode)
         {
             case Game_Mode::GAME:
             {
-                Console *console = &game_state->console;
                 Camera *fc = game_state->free_camera;
                 f32 C = dt * 3.0f;
-                if (in->is_down)
+                if (in->flag & Key_Flag::PRESSED)
                 {
                     switch (in->key)
                     {
                         case 'W':
                         {
-                            DEBUG_IF(Render_Use_Debug_Camera)
+                            if (1)
                             {
                                 m4x4 rotation = to_m4x4(fc->world_rotation);
                                 fc->world_translation += rotation * _v3_(0, 0, -C);
@@ -321,7 +314,7 @@ GAME_UPDATE(game_update)
 
                         case 'A':
                         {
-                            DEBUG_IF(Render_Use_Debug_Camera)
+                            if (1)
                             {
                                 m4x4 rotation = to_m4x4(fc->world_rotation);
                                 fc->world_translation += rotation * _v3_(-C, 0, 0);
@@ -340,7 +333,7 @@ GAME_UPDATE(game_update)
 
                         case 'D':
                         {
-                            DEBUG_IF(Render_Use_Debug_Camera)
+                            if (1)
                             {
                                 m4x4 rotation = to_m4x4(fc->world_rotation);
                                 fc->world_translation += rotation * _v3_(C, 0, 0);
@@ -363,18 +356,11 @@ GAME_UPDATE(game_update)
                             fc->world_translation += rotation * _v3_(0, C, 0);
                         } break;
 
-                        case '`':
+                        case 0xC0:
                         {
-                            if (console->cooltime <= 0.0f)
-                            {
-                                console->is_down = !console->is_down;
-                                if (console->is_down)
-                                    game_state->mode = Game_Mode::CONSOLE;
-                                else
-                                    game_state->mode = Game_Mode::GAME;
-                                console->remain_t = CONSOLE_REMAIN_TIME_INIT;
-                                console->cooltime = CONSOLE_COOLTIME;
-                            }
+                            console->is_down = !console->is_down;
+                            game_state->mode = Game_Mode::CONSOLE;
+                            console->remain_t = CONSOLE_REMAIN_TIME_INIT;
                         } break;
 
                         default:
@@ -387,15 +373,45 @@ GAME_UPDATE(game_update)
 
             case CONSOLE:
             {
-                Console *con = &game_state->console;
-                Input_Buffer *ib = &con->input_buffer;
-                if (ib->at < ib->length)
+                if (in->flag & Key_Flag::PRESSED)
                 {
-                    ib->buffer[ib->at++] = 'A';
-                    ib->buffer[ib->at] = 0;
-                    Rect2 dim = string_op(GET_RECT, 0, v2{}, 0, ib->buffer, &game_assets->debug_font);
-                    con->cursor.offset.x = ib->offset.x + (dim.max.x - dim.min.x);
+                    Input_Buffer *ib = &console->input_buffer;
+                    if (in->key == 0xC0)
+                    {
+                        console->is_down = !console->is_down;
+                        game_state->mode = Game_Mode::GAME;
+                        console->remain_t = CONSOLE_REMAIN_TIME_INIT;
+                    }
+                    else if (in->key == 0x08)
+                    {
+                        if (ib->at != 0)
+                        {
+                            ib->buffer[--ib->at] = 0;
+                            Rect2 dim = push_string(Push_String_Flag::GET_RECT, 0, v2{}, 0, ib->buffer, &game_assets->debug_font);
+                            console->cursor.offset.x = ib->offset.x + (dim.max.x - dim.min.x);
+                        }
+                    }
+                    else if (in->key == 0x0D)
+                    {
+                        if (strings_are_equal(ib->at, ib->buffer, string_length("FREECAM"), "FREECAM"))
+                            game_state->main_camera = game_state->free_camera;
+                        else if (strings_are_equal(ib->at, ib->buffer, string_length("MAINCAM"), "MAINCAM"))
+                            game_state->main_camera = game_state->player_camera;
+                        ib->buffer[ib->at = 0] = 0;
+                        console->cursor.offset.x = ib->offset.x;
+                    }
+                    else
+                    {
+                        if (ib->at < ib->length)
+                        {
+                            ib->buffer[ib->at++] = (char)in->key;
+                            ib->buffer[ib->at] = 0;
+                            Rect2 dim = push_string(Push_String_Flag::GET_RECT, 0, v2{}, 0, ib->buffer, &game_assets->debug_font);
+                            console->cursor.offset.x = ib->offset.x + (dim.max.x - dim.min.x);
+                        }
+                    }
                 }
+
             } break;
 
             INVALID_DEFAULT_CASE;
@@ -412,20 +428,9 @@ GAME_UPDATE(game_update)
     //
     // Process Input
     //
-    Render_Group *render_group = 0;
-    DEBUG_IF(Render_Use_Debug_Camera)
-    {
-        render_group = alloc_render_group(&transient_state->transient_arena, MB(16), game_state->free_camera);
-    }
-    else
-    {
-        Camera *main_camera = game_state->main_camera;
-        render_group = alloc_render_group(&transient_state->transient_arena, MB(16), game_state->main_camera);
-
-        if (game_state->mode == Game_Mode::GAME)
-        {
-        }
-    }
+    Render_Group *render_group =
+        alloc_render_group(&transient_state->transient_arena, MB(16),
+                           (game_state->main_camera == game_state->player_camera) ? game_state->player_camera : game_state->free_camera);
     Assert(render_group);
 
     Render_Group *orthographic_group = alloc_render_group(&transient_state->transient_arena, MB(16),
@@ -438,9 +443,6 @@ GAME_UPDATE(game_update)
     v2 console_dim = 2.0f * console->half_dim;
     v4 cursor_color = lerp(cursor->color1, sin(game_state->time * 6.0f) * 0.5f + 1.0f, cursor->color2);
 
-    if (console->cooltime > 0.0f)
-        console->cooltime -= dt;
-
     if (console->remain_t > 0.0f)
     {
         console->remain_t -= dt;
@@ -451,11 +453,12 @@ GAME_UPDATE(game_update)
         Rect2 console_rect;
         Rect2 cursor_rect;
         f32 next_y;
+        v2 console_origin;
 
         if (console->is_down)
         {
             next_y = lerp(console->current_y, t, height - console->half_dim.y);
-            v2 console_origin = v2{width * 0.5f, next_y} - console->half_dim;
+            console_origin = v2{width * 0.5f, next_y} - console->half_dim;
             v2 cursor_origin = console_origin + cursor->offset;
             console_rect = rect2_min_max(console_origin, console_origin + console_dim);
             cursor_rect = rect2_min_max(cursor_origin, cursor_origin + cursor->dim);
@@ -463,7 +466,7 @@ GAME_UPDATE(game_update)
         else
         {
             next_y = lerp(console->current_y, t, height + console->half_dim.y);
-            v2 console_origin = v2{width * 0.5f, next_y} - console->half_dim;
+            console_origin = v2{width * 0.5f, next_y} - console->half_dim;
             v2 cursor_origin = console_origin + cursor->offset;
             console_rect = rect2_min_max(console_origin, console_origin + console_dim);
             cursor_rect = rect2_min_max(cursor_origin, cursor_origin + cursor->dim);
@@ -472,6 +475,9 @@ GAME_UPDATE(game_update)
         console->current_y = next_y;
         push_rect(orthographic_group, console_rect, 0.0f, console->bg_color);
         push_rect(orthographic_group, cursor_rect, 0.0f, cursor_color);
+
+        Input_Buffer *ib = &console->input_buffer;
+        push_string(Push_String_Flag::DRAW, orthographic_group, console_origin + ib->offset, 0.0f, ib->buffer, &game_assets->debug_font, ib->color);
     }
     else if (console->is_down)
     {
@@ -484,7 +490,7 @@ GAME_UPDATE(game_update)
         push_rect(orthographic_group, cursor_rect, 0.0f, cursor_color);
 
         Input_Buffer *ib = &console->input_buffer;
-        string_op(DRAW, orthographic_group, console_origin + ib->offset, 0.0f, ib->buffer, &game_assets->debug_font, ib->color);
+        push_string(Push_String_Flag::DRAW, orthographic_group, console_origin + ib->offset, 0.0f, ib->buffer, &game_assets->debug_font, ib->color);
     }
     else
     {
@@ -633,46 +639,12 @@ GAME_UPDATE(game_update)
 #endif
 
 
-    DEBUG_IF(Render_DrawGrass)
-    {
-        push_grass(render_group, &game_assets->grass_model->meshes[0], game_state->grass_count, game_state->grass_world_transforms, game_state->time, game_assets->grass_max_vertex_y, game_assets->turbulence_map);
-    }
-
-    DEBUG_IF(Render_DrawStar)
-    {
+        //push_grass(render_group, &game_assets->grass_model->meshes[0], game_state->grass_count, game_state->grass_world_transforms, game_state->time, game_assets->grass_max_vertex_y, game_assets->turbulence_map);
         push_star(render_group, game_assets->star_mesh, game_state->star_count, game_state->star_world_transforms, game_state->time);
-    }
 
-
-#if __DEVELOPER && 0
-    if (DEBUG_UI_ENABLED)
-    {
-        Debug_ID entity_debug_id = DEBUG_POINTER_ID(player);
-
-        DEBUG_BEGIN_DATA_BLOCK("player entity", entity_debug_id);
-        DEBUG_VALUE(player->world_translation);
-        DEBUG_VALUE(player->velocity);
-        DEBUG_VALUE(player->accel);
-        DEBUG_VALUE(player->u);
-        DEBUG_VALUE(game_assets->debug_bitmap);
-        DEBUG_END_DATA_BLOCK();
-    }
-#endif
 
     
-    render_group_to_output_batch(render_group, &game_memory->render_batch);
-    render_group_to_output_batch(orthographic_group, &game_memory->render_batch);
-    end_temporary_memory(&render_memory);
+        render_group_to_output_batch(render_group, &game_memory->render_batch);
+        render_group_to_output_batch(orthographic_group, &game_memory->render_batch);
+        end_temporary_memory(&render_memory);
 }
-
-
-#if __DEVELOPER
-#include "debug.cpp"
-#else
-
-extern "C"
-DEBUG_FRAME_END(debug_frame_end) 
-{
-    return 0;
-}
-#endif

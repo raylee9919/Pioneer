@@ -34,7 +34,7 @@ init_console(Console *console, Font *font, f32 screen_height, f32 screen_width, 
     cursor->offset = ib->offset;
     cursor->offset.y -= font->descent;
     cursor->dim = v2{font->max_char_width, font->v_advance};
-    cursor->color1 = v4{0.1f, 0.1f, 0.1f, 1.0f};
+    cursor->color1 = v4{0.05f, 0.05f, 0.05f, 1.0f};
     cursor->color2 = v4{1.0f, 1.0f, 1.0f, 1.0f};
 
     console->initted = true;

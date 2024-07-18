@@ -8,7 +8,6 @@
    ======================================================================== */
 
 #define CONSOLE_REMAIN_TIME_INIT 0.2f
-#define CONSOLE_COOLTIME 0.1f
 
 struct Font;
 
@@ -34,7 +33,6 @@ struct Console
     b32         initted;
 
     f32         remain_t;
-    f32         cooltime;
     f32         current_y;
     b32         is_down;
     v2          half_dim;
