@@ -28,6 +28,8 @@ struct Win32_State
     b32         is_playing;
     void        *game_memory;
     u64         game_mem_total_cap;
+
+    HWND        default_window_handle;
 };
 
 struct Win32_Game

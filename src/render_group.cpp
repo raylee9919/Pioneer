@@ -104,14 +104,15 @@ push_rect(Render_Group *group, Rect2 rect, f32 z, v4 color)
 
 enum String_Op
 {
-    eString_Op_Draw,
-    eString_Op_Get_Rect2,
+    DRAW,
+    GET_RECT,
+    DRAW_AND_GET_RECT,
 };
 
 internal Rect2
 string_op(String_Op op, Render_Group *render_group,
-          v3 left_bottom,
-          const char *str, Game_Assets *game_assets, v4 color = _v4_(1, 1, 1, 1))
+          v2 left_bottom, f32 z,
+          const char *str, Font *font, v4 color = _v4_(1, 1, 1, 1))
 {
     Rect2 result = rect2_inv_inf();
 
@@ -124,52 +125,61 @@ string_op(String_Op op, Render_Group *render_group,
          *ch;
          ++ch)
     {
-        Asset_Glyph *glyph = game_assets->glyphs[*ch];
+        Asset_Glyph *glyph = font->glyphs[*ch];
         if (glyph)
         {
-            C = (f32)game_assets->glyphs[*ch]->C;
+            C = (f32)font->glyphs[*ch]->C;
 
             if (*ch != ' ')
             {
                 Bitmap *bitmap = &glyph->bitmap;
                 f32 w = (f32)bitmap->width;
                 f32 h = (f32)bitmap->height;
-                v3 max = _v3_(left_x + w, left_bottom.y + glyph->ascent, left_bottom.z);
+                v3 max = _v3_(left_x + w, left_bottom.y + glyph->ascent, z);
                 v3 min = max - _v3_(w, h, 0);
 
-                if (op == eString_Op_Draw)
+                switch(op)
                 {
-                    push_bitmap(render_group, min, max, bitmap, color);
-                }
-                else
-                {
-                    Assert(op == eString_Op_Get_Rect2);
-                    if (result.min.x > min.x)
+                    case DRAW:
                     {
-                        result.min.x = min.x;
-                    }
-                    if (result.min.y > min.y)
-                    {
-                        result.min.y = min.y;
-                    }
+                        push_bitmap(render_group, min, max, bitmap, color);
+                    } break;
 
-                    if (result.max.x < max.x)
+                    case GET_RECT:
                     {
-                        result.max.x = max.x;
-                    }
-                    if (result.max.y < max.y)
+                        if (result.min.x > min.x)
+                            result.min.x = min.x;
+                        if (result.min.y > min.y)
+                            result.min.y = min.y;
+                        if (result.max.x < max.x)
+                            result.max.x = max.x;
+                        if (result.max.y < max.y)
+                            result.max.y = max.y;
+                    } break;
+
+                    case DRAW_AND_GET_RECT:
                     {
-                        result.max.y = max.y;
-                    }
+                        push_bitmap(render_group, min, max, bitmap, color);
+                        if (result.min.x > min.x)
+                            result.min.x = min.x;
+                        if (result.min.y > min.y)
+                            result.min.y = min.y;
+                        if (result.max.x < max.x)
+                            result.max.x = max.x;
+                        if (result.max.y < max.y)
+                            result.max.y = max.y;
+                    } break;
+
+                    INVALID_DEFAULT_CASE;
                 }
             }
 
             if (*(ch + 1))
             {
-                kern = (f32)get_kerning(&game_assets->kern_hashmap, *ch, *(ch + 1));
-                if (game_assets->glyphs[*(ch + 1)])
+                kern = (f32)get_kerning(&font->kern_hashmap, *ch, *(ch + 1));
+                if (font->glyphs[*(ch + 1)])
                 {
-                    A = (f32)game_assets->glyphs[*(ch + 1)]->A;
+                    A = (f32)font->glyphs[*(ch + 1)]->A;
                 }
                 f32 advance_x = (glyph->B + C + A + kern);
                 left_x += advance_x;

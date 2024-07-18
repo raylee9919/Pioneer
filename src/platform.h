@@ -110,11 +110,34 @@ typedef DEBUG_PLATFORM_EXECUTE_SYSTEM_COMMAND(Debug_Platform_Execute_System_Comm
 #define DEBUG_PLATFORM_GET_PROCESS_STATE(name) Debug_Process_State name(Debug_Executing_Process process)
 typedef DEBUG_PLATFORM_GET_PROCESS_STATE(Debug_Platform_Get_Process_State);
 
+enum Platform_Error_Type
+{
+    FATAL,
+    NON_FATAL,
+};
+#define PLATFORM_ERROR_MESSAGE(name) void name(Platform_Error_Type type, char *message)
+typedef PLATFORM_ERROR_MESSAGE(Platform_Error_Message);
+
+struct Input_Key
+{
+    u32 key;
+    b32 is_down;
+    b32 was_down;
+    b32 alt_was_down;
+    b32 shift_was_down;
+};
+struct Input
+{
+    Input_Key       keys[256];
+    u32             next;
+    f32             dt;
+};
+
+#if 0
 struct Game_Key 
 {
     b32 is_set;
 };
-
 enum Mouse_Enum 
 {
     eMouse_Left,
@@ -125,7 +148,6 @@ enum Mouse_Enum
 
     eMouse_Count
 };
-
 // these are following game coordinates.
 struct Mouse_Input 
 {
@@ -136,7 +158,6 @@ struct Mouse_Input
     v2      click_p[eMouse_Count];
     s32     wheel_delta;
 };
-
 struct Game_Input 
 {
     f32         dt;
@@ -154,6 +175,7 @@ struct Game_Input
 
     Mouse_Input mouse;
 };
+#endif
 
 struct Platform_Work_Queue;
 #define PLATFORM_WORK_QUEUE_CALLBACK(Name) void Name(Platform_Work_Queue *queue, void *data)
@@ -168,6 +190,8 @@ struct Platform_API
     Platform_Complete_All_Work  *platform_complete_all_work;
 
     Read_Entire_File            *debug_platform_read_file;
+    Platform_Error_Message      *error_message;
+    
 #if __DEVELOPER
     DEBUG_PLATFORM_WRITE_FILE_  *debug_platform_write_file;
     DEBUG_PLATFORM_FREE_MEMORY_ *debug_platform_free_memory;

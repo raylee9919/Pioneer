@@ -79,7 +79,7 @@ struct Debug_Table
 extern Debug_Table *g_debug_table;
 #endif
 
-#define DEBUG_FRAME_END(name) Debug_Table *name(Game_Memory *memory, Game_Screen_Buffer *game_screen_buffer, Game_Input *game_input)
+#define DEBUG_FRAME_END(name) Debug_Table *name(Game_Memory *memory, Game_Screen_Buffer *game_screen_buffer)
 typedef DEBUG_FRAME_END(Debug_Frame_End);
 
 #define unique_file_counter_string__(a, b, c) a "(" #b ")." #c

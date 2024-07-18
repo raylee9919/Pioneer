@@ -435,6 +435,17 @@ _v4_(v3 rgb, f32 a)
     return v;
 }
 
+inline v4
+lerp(v4 a, f32 t, v4 b)
+{
+    v4 result = {};
+    result.r = lerp(a.r, t, b.r);
+    result.g = lerp(a.g, t, b.g);
+    result.b = lerp(a.b, t, b.b);
+    result.a = lerp(a.a, t, b.a);
+    return result;
+}
+
 //
 // quaternion
 //

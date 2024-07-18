@@ -31,6 +31,7 @@
 #include "platform.h"
 #include "asset.h"
 #include "random.h"
+#include "editor/console.h"
 
 struct Camera;
 struct Asset_Font;
@@ -269,6 +270,16 @@ get_kerning(Kerning_Hashmap *hashmap, u32 first, u32 second)
     return result;
 }
 
+struct Font
+{
+    f32                 v_advance;
+    f32                 max_char_width;
+    f32                 ascent;
+    f32                 descent;
+    Kerning_Hashmap     kern_hashmap;
+    Asset_Glyph         *glyphs[256];
+};
+
 struct Game_Assets 
 {
     Asset_State         bitmapStates[GAI_Count];
@@ -276,9 +287,7 @@ struct Game_Assets
 
     Bitmap              *debug_bitmap;
 
-    u32                 v_advance;
-    Kerning_Hashmap     kern_hashmap;
-    Asset_Glyph         *glyphs[256];
+    Font                debug_font;
 
     Model               *xbot_model;
     Model               *cube_model;
@@ -306,18 +315,10 @@ struct Load_Asset_Work_Data
 };
 
 // @Temporary
-struct Console_State
+enum Game_Mode
 {
-#define CONSOLE_REMAIN_TIME_INIT 0.2f
-#define CONSOLE_COOLTIME 0.1f
-    f32         remain_t;
-    f32         cooltime;
-    f32         current_y;
-    b32         is_down;
-    v2          half_dim;
-    v4          color;
-
-    Asset_Font  *font;
+    GAME,
+    CONSOLE,
 };
 
 struct Game_State 
@@ -346,7 +347,9 @@ struct Game_State
     Entity              *light;
 
     // @TEMPORARY: this is meant to be in dev-engine memory.
-    Console_State       console_state;
+    Console             console;
+
+    Game_Mode           mode;
 };
 
 struct Transient_State 
@@ -364,9 +367,9 @@ struct Transient_State
 
 
 #define GAME_UPDATE(name) void name(Game_Memory *game_memory,                 \
-                                  Game_State *game_state,                   \
-                                  Game_Input *game_input,                   \
-                                  Game_Screen_Buffer *game_screen_buffer)
+                                    Game_State *game_state,                   \
+                                    Input *input,                             \
+                                    Game_Screen_Buffer *screen_buffer)
 typedef GAME_UPDATE(Game_Update);
 
 

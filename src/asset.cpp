@@ -188,8 +188,15 @@ load_font(Memory_Arena *arena, Read_Entire_File *read_file, Game_Assets *game_as
 
     // parse font header.
     u32 kern_count = ((Asset_Font_Header *)at)->kerning_pair_count;
-    game_assets->v_advance = ((Asset_Font_Header *)at)->vertical_advance;
+    Asset_Font_Header *header = (Asset_Font_Header *)at;
     at += sizeof(Asset_Font_Header);
+
+    Font *font = &game_assets->debug_font;
+
+    font->v_advance = header->vertical_advance;
+    font->max_char_width = header->max_char_width;
+    font->ascent = header->ascent;
+    font->descent = header->descent;
 
     // parse kerning pairs.
     for (u32 count = 0; count < kern_count; ++count) 
@@ -202,8 +209,8 @@ load_font(Memory_Arena *arena, Read_Entire_File *read_file, Game_Assets *game_as
         kern->second = asset_kern->second;
         kern->value = asset_kern->value;
 
-        u32 entry_idx = kerning_hash(&game_assets->kern_hashmap, kern->first, kern->second);
-        push_kerning(&game_assets->kern_hashmap, kern, entry_idx);
+        u32 entry_idx = kerning_hash(&game_assets->debug_font.kern_hashmap, kern->first, kern->second);
+        push_kerning(&game_assets->debug_font.kern_hashmap, kern, entry_idx);
         at += sizeof(Asset_Kerning);
     }
 
@@ -214,7 +221,7 @@ load_font(Memory_Arena *arena, Read_Entire_File *read_file, Game_Assets *game_as
         {
             Asset_Glyph *glyph = (Asset_Glyph *)at;
             Bitmap *bitmap = &glyph->bitmap;
-            game_assets->glyphs[glyph->codepoint] = glyph;
+            game_assets->debug_font.glyphs[glyph->codepoint] = glyph;
             at += sizeof(Asset_Glyph);
             glyph->bitmap.memory = at;
             at += glyph->bitmap.size;

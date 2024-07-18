@@ -16,6 +16,7 @@
 #include "sim.cpp"
 #include "asset.cpp"
 #include "animation_player.cpp"
+#include "editor/console.cpp"
 
 #define GRASS_COUNT_MAX 100'000
 #define GRASS_DENSITY 10
@@ -24,21 +25,9 @@
 
 #define STAR_COUNT_MAX 100'000
 
-
-
 #if __DEVELOPER
 global_var Game_Memory *g_debug_memory;
 #endif
-
-internal void
-init_console_state(Console_State *console_state, f32 screen_height, f32 screen_width)
-{
-    console_state->half_dim = v2{600.f, 250.0f};
-    console_state->remain_t = 0.0f;
-    console_state->is_down = false;
-    console_state->current_y = screen_height + console_state->half_dim.y;
-    console_state->color = v4{0.02f, 0.16f, 0.16f, 0.9f};
-}
 
 internal void
 interpolate(Model *model, Animation *anim1, f32 dt1, f32 t, Animation *anim2, f32 dt2)
@@ -147,21 +136,21 @@ GAME_UPDATE(game_update)
         // @TODO: is it too janky?
         game_state->free_camera = push_camera( &game_state->world_arena,
                                                 eCamera_Type_Perspective,
-                                                (f32)game_screen_buffer->width, (f32)game_screen_buffer->height,
+                                                (f32)screen_buffer->width, (f32)screen_buffer->height,
                                                 0.5f,
                                                 _v3_(0, D * sin(T * 2.0f), D * cos(T * 2.0f)),
                                                 _qt_(cos(T), -sin(T), 0, 0) );
 
         game_state->main_camera = push_camera( &game_state->world_arena,
                                                 eCamera_Type_Perspective,
-                                                (f32)game_screen_buffer->width, (f32)game_screen_buffer->height,
+                                                (f32)screen_buffer->width, (f32)screen_buffer->height,
                                                 0.5f,
                                                 _v3_(0, D * sin(T * 2.0f), D * cos(T * 2.0f)),
                                                 _qt_(cos(T), -sin(T), 0, 0) );
 
         game_state->orthographic_camera = push_camera( &game_state->world_arena,
                                                        eCamera_Type_Orthographic,
-                                                       (f32)game_screen_buffer->width, (f32)game_screen_buffer->height);
+                                                       (f32)screen_buffer->width, (f32)screen_buffer->height);
 
 
 
@@ -188,19 +177,18 @@ GAME_UPDATE(game_update)
         }
 
         // @TEMPORARY
-        init_console_state(&game_state->console_state, (f32)game_screen_buffer->width, (f32)game_screen_buffer->height);
-
-        // @TEMPORARY
         game_state->light = push_entity(world_arena, chunk_hashmap, eEntity_Tile, {}, world->chunk_dim);
+
+        game_state->mode = Game_Mode::GAME;
 
         game_state->init = true;
     }
 
-    f32 dt = game_input->dt;
+    f32 dt = input->dt;
     game_state->time += dt;
 
-    f32 height = (f32)game_screen_buffer->height;
-    f32 width = (f32)game_screen_buffer->width;
+    f32 height = (f32)screen_buffer->height;
+    f32 width = (f32)screen_buffer->width;
 
     Entity *player = game_state->player;
 
@@ -212,7 +200,6 @@ GAME_UPDATE(game_update)
 
 
 
-    ///////////////////////////////////////////////////////////////////////////
     //
     // Init Transient Memory
     //
@@ -298,8 +285,126 @@ GAME_UPDATE(game_update)
 
     Game_Assets *game_assets = &transient_state->game_assets;
 
-    Temporary_Memory render_memory = begin_temporary_memory(&transient_state->transient_arena);
+    // @TEMPORARY
+    if (!game_state->console.initted)
+        init_console(&game_state->console, &game_assets->debug_font, width, height, &game_state->world_arena); // @TODO: move arena.
 
+
+    while (input->next > 0)
+    {
+        Input_Key *in = &input->keys[--input->next];
+
+        switch (game_state->mode)
+        {
+            case Game_Mode::GAME:
+            {
+                Console *console = &game_state->console;
+                Camera *fc = game_state->free_camera;
+                f32 C = dt * 3.0f;
+                if (in->is_down)
+                {
+                    switch (in->key)
+                    {
+                        case 'W':
+                        {
+                            DEBUG_IF(Render_Use_Debug_Camera)
+                            {
+                                m4x4 rotation = to_m4x4(fc->world_rotation);
+                                fc->world_translation += rotation * _v3_(0, 0, -C);
+                            }
+                            else
+                            {
+                                m4x4 rotation = to_m4x4(player->world_rotation);
+                                player->accel = rotation * _v3_(0, 0, 1);
+                            }
+                        } break;
+
+                        case 'A':
+                        {
+                            DEBUG_IF(Render_Use_Debug_Camera)
+                            {
+                                m4x4 rotation = to_m4x4(fc->world_rotation);
+                                fc->world_translation += rotation * _v3_(-C, 0, 0);
+                            }
+                            else
+                            {
+                                player->world_rotation = _qt_(cos(dt), 0, sin(dt), 0) * player->world_rotation;
+                            }
+                        } break;
+
+                        case 'S':
+                        {
+                            m4x4 rotation = to_m4x4(fc->world_rotation);
+                            fc->world_translation += rotation * _v3_(0, 0, C);
+                        } break;
+
+                        case 'D':
+                        {
+                            DEBUG_IF(Render_Use_Debug_Camera)
+                            {
+                                m4x4 rotation = to_m4x4(fc->world_rotation);
+                                fc->world_translation += rotation * _v3_(C, 0, 0);
+                            }
+                            else
+                            {
+                                player->world_rotation = _qt_(cos(dt), 0, -sin(dt), 0) * player->world_rotation;
+                            }
+                        } break;
+
+                        case 'Q':
+                        {
+                            m4x4 rotation = to_m4x4(fc->world_rotation);
+                            fc->world_translation += rotation * _v3_(0, -C, 0);
+                        } break;
+
+                        case 'E':
+                        {
+                            m4x4 rotation = to_m4x4(fc->world_rotation);
+                            fc->world_translation += rotation * _v3_(0, C, 0);
+                        } break;
+
+                        case '`':
+                        {
+                            if (console->cooltime <= 0.0f)
+                            {
+                                console->is_down = !console->is_down;
+                                if (console->is_down)
+                                    game_state->mode = Game_Mode::CONSOLE;
+                                else
+                                    game_state->mode = Game_Mode::GAME;
+                                console->remain_t = CONSOLE_REMAIN_TIME_INIT;
+                                console->cooltime = CONSOLE_COOLTIME;
+                            }
+                        } break;
+
+                        default:
+                        {
+                        } break;
+
+                    }
+                }
+            } break;
+
+            case CONSOLE:
+            {
+                Console *con = &game_state->console;
+                Input_Buffer *ib = &con->input_buffer;
+                if (ib->at < ib->length)
+                {
+                    ib->buffer[ib->at++] = 'A';
+                    ib->buffer[ib->at] = 0;
+                    Rect2 dim = string_op(GET_RECT, 0, v2{}, 0, ib->buffer, &game_assets->debug_font);
+                    con->cursor.offset.x = ib->offset.x + (dim.max.x - dim.min.x);
+                }
+            } break;
+
+            INVALID_DEFAULT_CASE;
+        }
+    }
+
+
+
+    Temporary_Memory render_memory = begin_temporary_memory(&transient_state->transient_arena);
 
 
     v3 chunk_dim = game_state->world->chunk_dim;
@@ -310,60 +415,15 @@ GAME_UPDATE(game_update)
     Render_Group *render_group = 0;
     DEBUG_IF(Render_Use_Debug_Camera)
     {
-        render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
-                                                        game_state->free_camera);
-        Camera *free_camera = game_state->free_camera;
-        f32 C = dt * 3.0f;
-        if (game_input->W.is_set)
-        {
-            m4x4 rotation = to_m4x4(free_camera->world_rotation);
-            free_camera->world_translation += rotation * _v3_(0, 0, -C);
-        }
-        if (game_input->S.is_set)
-        {
-            m4x4 rotation = to_m4x4(free_camera->world_rotation);
-            free_camera->world_translation += rotation * _v3_(0, 0, C);
-        }
-        if (game_input->D.is_set)
-        {
-            m4x4 rotation = to_m4x4(free_camera->world_rotation);
-            free_camera->world_translation += rotation * _v3_(C, 0, 0);
-        }
-        if (game_input->A.is_set)
-        {
-            m4x4 rotation = to_m4x4(free_camera->world_rotation);
-            free_camera->world_translation += rotation * _v3_(-C, 0, 0);
-        }
-
-        if (game_input->Q.is_set)
-        {
-            m4x4 rotation = to_m4x4(free_camera->world_rotation);
-            free_camera->world_translation += rotation * _v3_(0, -C, 0);
-        }
-        if (game_input->E.is_set)
-        {
-            m4x4 rotation = to_m4x4(free_camera->world_rotation);
-            free_camera->world_translation += rotation * _v3_(0, C, 0);
-        }
+        render_group = alloc_render_group(&transient_state->transient_arena, MB(16), game_state->free_camera);
     }
     else
     {
         Camera *main_camera = game_state->main_camera;
-        render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
-                                                        game_state->main_camera);
+        render_group = alloc_render_group(&transient_state->transient_arena, MB(16), game_state->main_camera);
 
-        if (game_input->W.is_set)
+        if (game_state->mode == Game_Mode::GAME)
         {
-            m4x4 rotation = to_m4x4(player->world_rotation);
-            player->accel = rotation * _v3_(0, 0, 1);
-        }
-        if (game_input->D.is_set)
-        {
-            player->world_rotation = _qt_(cos(dt), 0, -sin(dt), 0) * player->world_rotation;
-        }
-        if (game_input->A.is_set)
-        {
-            player->world_rotation = _qt_(cos(dt), 0, sin(dt), 0) * player->world_rotation;
         }
     }
     Assert(render_group);
@@ -371,49 +431,64 @@ GAME_UPDATE(game_update)
     Render_Group *orthographic_group = alloc_render_group(&transient_state->transient_arena, MB(16),
                                                           game_state->orthographic_camera);
 
-    // @Developer
+    // @DEVELOPER
     // Drop-down console.
-    Console_State *console_state = &game_state->console_state;
-    if (console_state->cooltime > 0.0f)
-        console_state->cooltime -= dt;
+    Console *console = &game_state->console;
+    Cursor *cursor = &console->cursor;
+    v2 console_dim = 2.0f * console->half_dim;
+    v4 cursor_color = lerp(cursor->color1, sin(game_state->time * 6.0f) * 0.5f + 1.0f, cursor->color2);
 
-    if (game_input->tilde.is_set &&
-        console_state->cooltime <= 0.0f)
-    {
-        console_state->is_down = !console_state->is_down;
-        console_state->remain_t = CONSOLE_REMAIN_TIME_INIT;
-        console_state->cooltime = CONSOLE_COOLTIME;
-    }
+    if (console->cooltime > 0.0f)
+        console->cooltime -= dt;
 
-    if (console_state->remain_t > 0.0f)
+    if (console->remain_t > 0.0f)
     {
-        console_state->remain_t -= dt;
-        if (console_state->remain_t < 0.0f)
-            console_state->remain_t = 0.0f;
-        f32 t = (CONSOLE_REMAIN_TIME_INIT - console_state->remain_t) / CONSOLE_REMAIN_TIME_INIT;
+        console->remain_t -= dt;
+        if (console->remain_t < 0.0f)
+            console->remain_t = 0.0f;
+        f32 t = (CONSOLE_REMAIN_TIME_INIT - console->remain_t) / CONSOLE_REMAIN_TIME_INIT;
 
         Rect2 console_rect;
+        Rect2 cursor_rect;
         f32 next_y;
 
-        if (console_state->is_down)
+        if (console->is_down)
         {
-            next_y = lerp(console_state->current_y, t, height - console_state->half_dim.y);
-            console_rect = rect2_cen_half_dim(v2{width * 0.5f, next_y}, console_state->half_dim);
+            next_y = lerp(console->current_y, t, height - console->half_dim.y);
+            v2 console_origin = v2{width * 0.5f, next_y} - console->half_dim;
+            v2 cursor_origin = console_origin + cursor->offset;
+            console_rect = rect2_min_max(console_origin, console_origin + console_dim);
+            cursor_rect = rect2_min_max(cursor_origin, cursor_origin + cursor->dim);
         }
         else
         {
-            next_y = lerp(console_state->current_y, t, height + console_state->half_dim.y);
-            console_rect = rect2_cen_half_dim(v2{width * 0.5f, next_y}, console_state->half_dim);
+            next_y = lerp(console->current_y, t, height + console->half_dim.y);
+            v2 console_origin = v2{width * 0.5f, next_y} - console->half_dim;
+            v2 cursor_origin = console_origin + cursor->offset;
+            console_rect = rect2_min_max(console_origin, console_origin + console_dim);
+            cursor_rect = rect2_min_max(cursor_origin, cursor_origin + cursor->dim);
         }
 
-        console_state->current_y = next_y;
-        push_rect(orthographic_group, console_rect, 0.0f, console_state->color);
+        console->current_y = next_y;
+        push_rect(orthographic_group, console_rect, 0.0f, console->bg_color);
+        push_rect(orthographic_group, cursor_rect, 0.0f, cursor_color);
+    }
+    else if (console->is_down)
+    {
+        f32 console_y = height + (console->is_down ? -1 : 1) * console->half_dim.y;
+        v2 console_origin = v2{width * 0.5f, console_y} - console->half_dim;
+        v2 cursor_origin = console_origin + cursor->offset;
+        Rect2 console_rect = rect2_min_max(console_origin, console_origin + console_dim);
+        Rect2 cursor_rect = rect2_min_max(cursor_origin, cursor_origin + cursor->dim);
+        push_rect(orthographic_group, console_rect, 0.0f, console->bg_color);
+        push_rect(orthographic_group, cursor_rect, 0.0f, cursor_color);
+
+        Input_Buffer *ib = &console->input_buffer;
+        string_op(DRAW, orthographic_group, console_origin + ib->offset, 0.0f, ib->buffer, &game_assets->debug_font, ib->color);
     }
     else
     {
-        f32 console_y = height + (console_state->is_down ? -1 : 1) * console_state->half_dim.y;
-        Rect2 console_rect = rect2_cen_half_dim(v2{width * 0.5f, console_y}, console_state->half_dim);
-        push_rect(orthographic_group, console_rect, 0.0f, console_state->color);
+        // No need to draw.
     }
 
     //

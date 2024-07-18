@@ -63,7 +63,10 @@ enum Asset_State
 struct Asset_Font_Header 
 {
     u32 kerning_pair_count;
-    u32 vertical_advance;
+    f32 vertical_advance;
+    f32 max_char_width;
+    f32 ascent;
+    f32 descent;
 };
 
 struct Asset_Kerning 

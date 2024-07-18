@@ -21,6 +21,7 @@
 #include "game.h"
 #include "win32.h"
 
+global_var Win32_State          g_win32_state;
 global_var bool                 g_running = true;
 global_var Win32ScreenBuffer    g_screen_buffer;
 global_var f64                  g_counter_hz;
@@ -43,16 +44,9 @@ internal void
 win32_load_xinput() 
 {
     HMODULE xinput_module = LoadLibraryA("xinput1_4.dll");
-    if (!xinput_module) 
-    {
-        LoadLibraryA("Xinput9_1_0.dll"); 
-    }
-    if (!xinput_module) 
-    {
-        LoadLibraryA("xinput1_3.dll"); 
-    }
-
-    if(xinput_module) 
+    if (!xinput_module) xinput_module = LoadLibraryA("Xinput9_1_0.dll"); 
+    if (!xinput_module) xinput_module = LoadLibraryA("xinput1_3.dll"); 
+    if (xinput_module) 
     {
         xinput_get_state = (XInput_Get_State *)GetProcAddress(xinput_module, "XInputGetState");
         xinput_set_state = (XInput_Set_State *)GetProcAddress(xinput_module, "XInputSetState");
@@ -587,67 +581,68 @@ DEBUG_PLATFORM_WRITE_FILE(DebugPlatformWriteEntireFile)
     return result;
 }
 
+#if 0
 internal void
-win32_begin_recording_input(Win32_State *win32_state) 
+win32_begin_recording_input() 
 {
-    win32_state->is_recording = 1;
+    g_win32_state.is_recording = 1;
     const char *filename = "inputNstate.rec";
-    win32_state->record_file = CreateFileA(filename, GENERIC_WRITE,
+    g_win32_state.record_file = CreateFileA(filename, GENERIC_WRITE,
                                            0, 0, CREATE_ALWAYS, 0, 0);
     DWORD bytes_written;
-    DWORD bytes_to_write = (DWORD)win32_state->game_mem_total_cap;
-    Assert(bytes_to_write == win32_state->game_mem_total_cap);
-    WriteFile(win32_state->record_file, win32_state->game_memory, 
-              (DWORD)win32_state->game_mem_total_cap, &bytes_written, 0);
+    DWORD bytes_to_write = (DWORD)g_win32_state.game_mem_total_cap;
+    Assert(bytes_to_write == g_win32_state.game_mem_total_cap);
+    WriteFile(g_win32_state.record_file, g_win32_state.game_memory, 
+              (DWORD)g_win32_state.game_mem_total_cap, &bytes_written, 0);
 }
 
 internal void
-win32_record_input(Win32_State *win32_state, Game_Input *game_input) 
+win32_record_input(Game_Input *game_input) 
 {
     DWORD bytes_written;
-    WriteFile(win32_state->record_file, game_input, sizeof(*game_input),
+    WriteFile(g_win32_state.record_file, game_input, sizeof(*game_input),
               &bytes_written, 0);
 }
 
 internal void
-win32_end_input_recording(Win32_State *win32_state) 
+win32_end_input_recording() 
 {
-    CloseHandle(win32_state->record_file);
-    win32_state->is_recording = 0;
+    CloseHandle(g_win32_state.record_file);
+    g_win32_state.is_recording = 0;
 }
 
 internal void
-win32_begin_input_playback(Win32_State *win32_state) 
+win32_begin_input_playback() 
 {
-    win32_state->is_playing = 1;
+    g_win32_state.is_playing = 1;
 
     const char *filename = "inputNstate.rec";
-    win32_state->record_file = CreateFileA(filename, GENERIC_READ,
+    g_win32_state.record_file = CreateFileA(filename, GENERIC_READ,
                                            FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 
     DWORD bytes_read;
-    ReadFile(win32_state->record_file, win32_state->game_memory,
-             (DWORD)win32_state->game_mem_total_cap, &bytes_read, 0);
+    ReadFile(g_win32_state.record_file, g_win32_state.game_memory,
+             (DWORD)g_win32_state.game_mem_total_cap, &bytes_read, 0);
 }
 
 internal void
-win32_end_input_playback(Win32_State *win32_state) 
+win32_end_input_playback() 
 {
-    CloseHandle(win32_state->record_file);
-    win32_state->is_playing = 0;
+    CloseHandle(g_win32_state.record_file);
+    g_win32_state.is_playing = 0;
 }
 
 internal void
-win32_playback_input(Win32_State *win32_state, Game_Input *game_input) 
+win32_playback_input(Game_Input *game_input) 
 {
     DWORD bytes_read;
-    if (ReadFile(win32_state->record_file, game_input,
+    if (ReadFile(g_win32_state.record_file, game_input,
                  sizeof(*game_input), &bytes_read, 0)) 
     {
         if (bytes_read == 0) 
         {
-            win32_end_input_playback(win32_state);
-            win32_begin_input_playback(win32_state);
+            win32_end_input_playback();
+            win32_begin_input_playback();
         }
     }
 }
@@ -723,6 +718,7 @@ win32_process_mouse_click(s32 vk, Mouse_Input *mouse)
     }
     mouse->is_down[E] = is_down;
 }
+#endif
 
 internal LRESULT 
 win32_window_callback(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) 
@@ -1047,6 +1043,29 @@ win32_read_chunk_data(Entire_File *entire_file, void *buffer, u32 buffer_size, D
         *dst++ = *src++;
 }
 
+PLATFORM_ERROR_MESSAGE(win32_error_message)
+{
+    char *caption = "Game Warning";
+    
+    UINT MBoxType = MB_OK;
+    if(type == FATAL)
+    {
+        caption = "Game Fatal Error";
+        MBoxType |= MB_ICONSTOP;
+    }
+    else
+    {
+        MBoxType |= MB_ICONWARNING;
+    }
+    
+    MessageBoxExA(g_win32_state.default_window_handle, message, caption, MBoxType, 0);
+    
+    if(type == FATAL)
+    {
+        ExitProcess(1);
+    }
+}
+
 #if __DEVELOPER
 global_var Debug_Table g_debug_table_;
 Debug_Table *g_debug_table = &g_debug_table_;
@@ -1073,405 +1092,446 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     g_show_cursor = true;
 #endif
 
-    WNDCLASSA wnd_class = {};
-    wnd_class.style             = CS_HREDRAW | CS_VREDRAW;
-    wnd_class.lpfnWndProc       = win32_window_callback;
-    wnd_class.hInstance         = hinst;
-    wnd_class.hCursor           = LoadCursorA(0, IDC_ARROW);
-    wnd_class.lpszClassName     = "GameWindowClass";
-    RegisterClassA(&wnd_class);
+    WNDCLASSA window_class = {};
+    window_class.style             = CS_HREDRAW | CS_VREDRAW;
+    window_class.lpfnWndProc       = win32_window_callback;
+    window_class.hInstance         = hinst;
+    window_class.hCursor           = LoadCursorA(0, IDC_ARROW);
+    window_class.lpszClassName     = "GameWindowClass";
 
-    HWND hwnd = CreateWindowExA(0, wnd_class.lpszClassName, "Game",
-                                WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+    if (RegisterClassA(&window_class))
+    {
+        HWND hwnd = CreateWindowExA(0, window_class.lpszClassName, "Game",
+                                    WS_OVERLAPPEDWINDOW | WS_VISIBLE,
 #if 1
-                                CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+                                    CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
 #else
-                                0, 0, 1920, 1080,
+                                    0, 0, 1920, 1080,
 #endif
-                                0, 0, hinst, 0);
-    Assert(hwnd);
+                                    0, 0, hinst, 0);
 
-    win32_toggle_fullscreen(hwnd);
-
-    Win32_Window_Dimension dim = win32_get_window_dimension(hwnd);
-    win32_resize_dib_section(&g_screen_buffer, dim.width, dim.height);
-
-    win32_init_opengl(GetDC(hwnd));
-
-    win32_load_xinput();
-
-    //
-    //
-    //
-#if 1
-    HRESULT hr;
-
-    hr = CoInitializeEx(0, COINIT_MULTITHREADED);
-    if (FAILED(hr))
-        Assert(!"coinit failed"); // @TODO: error-handling
-
-    IXAudio2 *xaudio = 0;
-    if (FAILED(hr = XAudio2Create(&xaudio, 0, XAUDIO2_DEFAULT_PROCESSOR)))
-        Assert(!"XAudio init failed"); // @TODO: error-handling
-
-    IXAudio2MasteringVoice *master_voice = 0;
-    if (FAILED(hr = xaudio->CreateMasteringVoice(&master_voice)))
-        Assert(!"master voice creation failed"); // @TODO: error-handling
-
-    WAVEFORMATEXTENSIBLE wfx = {};
-    XAUDIO2_BUFFER buffer = {};
-
-    char *audio_file_name = "audio/requiem.wav";
-    Entire_File entire_file = win32_read_entire_file(audio_file_name);
-
-    u32 chunk_size;
-    u32 chunk_position;
-    u32 filetype;
-    //check the file type, should be fourccWAVE or 'XWMA'
-    win32_find_chunk(&entire_file, fourccRIFF, &chunk_size, &chunk_position);
-    win32_read_chunk_data(&entire_file, &filetype, sizeof(u32), chunk_position);
-    Assert(filetype == fourccWAVE);
-
-    win32_find_chunk(&entire_file, fourccFMT, &chunk_size, &chunk_position);
-    win32_read_chunk_data(&entire_file, &wfx, chunk_size, chunk_position);
-
-    //fill out the audio data buffer with the contents of the fourccDATA chunk
-    win32_find_chunk(&entire_file, fourccDATA, &chunk_size, &chunk_position);
-    u8 *data_buffer = (u8 *)VirtualAlloc(0, chunk_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-    win32_read_chunk_data(&entire_file, data_buffer, chunk_size, chunk_position);
-
-    buffer.AudioBytes = chunk_size;  //size of the audio buffer in bytes
-    buffer.pAudioData = data_buffer;  //buffer containing audio data
-    buffer.Flags = XAUDIO2_END_OF_STREAM; // tell the source voice not to expect any data after this buffer
-
-    IXAudio2SourceVoice* src_voice;
-    if (FAILED(hr = xaudio->CreateSourceVoice(&src_voice, (WAVEFORMATEX *)&wfx))) return hr;
-    if (FAILED(hr = src_voice->SubmitSourceBuffer(&buffer))) return hr;
-    if (FAILED(hr = src_voice->Start(0))) return hr;
-    src_voice->SetVolume(0.05f);
-#endif
-
-    //
-    //
-    //
-    s32 monitor_hz = GetDeviceCaps(GetDC(hwnd), VREFRESH);
-    s32 desired_hz = 60;
-    f32 desired_mspf = 1000.0f / (f32)desired_hz;
-
-
-    // @TEMPORARY
-#if 1
-    LPVOID base_address = (LPVOID)TB(2);
-#else
-    LPVOID base_address = 0;
-#endif
-    Game_Memory game_memory = {};
-    Win32_State win32_state = {};
-    game_memory.permanent_memory_size   = MB(256);
-    game_memory.transient_memory_size   = GB(1);
-    game_memory.debug_storage_size      = MB(64);
-
-    u64 total_capacity = (game_memory.permanent_memory_size +
-                          game_memory.transient_memory_size + 
-                          game_memory.debug_storage_size);
-    win32_state.game_memory = VirtualAlloc(base_address, (size_t)total_capacity,
-                                           MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-    win32_state.game_mem_total_cap = total_capacity;
-    game_memory.permanent_memory = win32_state.game_memory;
-    game_memory.transient_memory = ((u8 *)(game_memory.permanent_memory) + game_memory.permanent_memory_size);
-    game_memory.debug_storage = ((u8 *)(game_memory.transient_memory) + game_memory.transient_memory_size);
-
-    game_memory.high_priority_queue = &high_priority_queue;
-    game_memory.low_priority_queue = &low_priority_queue;
-    game_memory.platform.platform_add_entry = Win32AddEntry;
-    game_memory.platform.platform_complete_all_work = win32_complete_all_work;
-    game_memory.platform.debug_platform_read_file = win32_read_entire_file;
-
-#if __DEVELOPER
-    game_memory.platform.debug_platform_write_file = DebugPlatformWriteEntireFile;
-    game_memory.platform.debug_platform_free_memory = DebugPlatformFreeMemory;
-    game_memory.platform.debug_platform_execute_system_command = win32_execute_system_command;
-    game_memory.platform.debug_platform_get_process_state = win32_get_process_state;
-#endif
-
-    win32_init_render_batch(&game_memory.render_batch, KB(4));
-
-    Game_State *game_state = (Game_State *)game_memory.permanent_memory;
-
-    Game_Screen_Buffer game_screen_buffer = {};
-    game_screen_buffer.memory = g_screen_buffer.memory;
-    game_screen_buffer.width = g_screen_buffer.width;
-    game_screen_buffer.height = g_screen_buffer.height;
-    game_screen_buffer.bpp = g_screen_buffer.bpp;
-    game_screen_buffer.pitch = g_screen_buffer.bpp * g_screen_buffer.width;
-
-    HMODULE xinput_dll = LoadLibraryA(TEXT("xinput.dll"));
-    if (!xinput_dll) 
-    {
-        // TODO: diagnostic.
-    }
-
-    const char *game_dll_filename = "game.dll";
-    const char *game_dll_load_filename = "game_load.dll";
-
-    char exe_path_buf[MAX_PATH];
-    DWORD exe_path_length = GetModuleFileNameA(0, exe_path_buf, MAX_PATH);
-    DWORD last_backslash_idx = 0;
-    for(DWORD idx = 0; idx < exe_path_length; idx++) 
-    {
-        if(exe_path_buf[idx] == '\\') { last_backslash_idx = idx; }
-    }
-
-    char game_dll_abs_path[MAX_PATH];
-    char game_dll_load_abs_path[MAX_PATH];
-    win32_concat_str(game_dll_abs_path, exe_path_buf, last_backslash_idx + 1, game_dll_filename, str_len(game_dll_filename));
-    win32_concat_str(game_dll_load_abs_path, exe_path_buf, last_backslash_idx + 1, game_dll_load_filename, str_len(game_dll_load_filename));
-
-    FILETIME game_dll_time_last = {};
-    FILETIME game_dll_time = {};
-
-    Win32_Game game = {};
-    Game_Input game_input = {};
-
-    //
-    // Loop
-    //
-    if (game_memory.permanent_memory && 
-        game_memory.transient_memory)
-    {
-        while(g_running) 
+        if (hwnd)
         {
-            LARGE_INTEGER last_counter = win32_get_wall_clock();
+            g_win32_state.default_window_handle = hwnd;
 
-            BEGIN_BLOCK(win32_executable_ready);
-            game_memory.executable_reloaded = false;
-            game_dll_time = win32_get_file_time(game_dll_abs_path);
-            if (CompareFileTime(&game_dll_time_last, &game_dll_time) != 0) 
-            {
-                win32_complete_all_work(&high_priority_queue);
-                win32_complete_all_work(&low_priority_queue);
+            win32_toggle_fullscreen(hwnd);
 
-#if __DEVELOPER
-                g_debug_table = &g_debug_table_;
-#endif
-
-                if (game.dll) 
-                {
-                    FreeLibrary(game.dll); 
-                    game.dll = 0;
-                }
-                CopyFileA(game_dll_abs_path, game_dll_load_abs_path, FALSE);
-                game.dll = LoadLibraryA(game_dll_load_filename);
-                if (game.dll) 
-                { 
-                    game.game_update          = (Game_Update *)GetProcAddress(game.dll, "game_update");
-                    game.debug_frame_end    = (Debug_Frame_End *)GetProcAddress(game.dll, "debug_frame_end");
-
-                    game.is_valid           = (game.game_update &&
-                                               1);
-                    if (!game.is_valid)
-                    {
-                        game.game_update = 0;
-                    }
-                } 
-                else 
-                {
-                    // TODO: Diagnostic 
-                }
-                game_dll_time_last = game_dll_time;
-                game_memory.executable_reloaded = true;
-            }
-            END_BLOCK(win32_executable_ready);
-
-            BEGIN_BLOCK(win32_process_input);
-            game_input.mouse.wheel_delta = 0;
-            MSG msg;
-            while (PeekMessageA(&msg, hwnd, 0, 0, PM_REMOVE)) 
-            {
-                switch(msg.message) 
-                {
-                    case WM_QUIT: 
-                    {
-                        g_running = false;
-                    } break;
-                    case WM_SYSKEYDOWN:
-                    case WM_SYSKEYUP:
-                    case WM_KEYDOWN:
-                    case WM_KEYUP: 
-                    {
-                        u64 vk_code  = msg.wParam;
-                        b32 is_down  = ((msg.lParam & (1 << 31)) == 0);
-                        b32 was_down = ((msg.lParam & (1 << 30)) != 0);
-                        if (was_down != is_down) 
-                        {
-                            switch (vk_code) 
-                            {
-                                // TODO: compressable I guess?
-                                case 'Q': { win32_process_keyboard(&game_input.Q, is_down); } break;
-                                case 'E': { win32_process_keyboard(&game_input.E, is_down); } break;
-                                case 'W': { win32_process_keyboard(&game_input.W, is_down); } break;
-                                case 'A': { win32_process_keyboard(&game_input.A, is_down); } break;
-                                case 'S': { win32_process_keyboard(&game_input.S, is_down); } break;
-                                case 'D': { win32_process_keyboard(&game_input.D, is_down); } break;
-                                case VK_SHIFT: { win32_process_keyboard(&game_input.shift, is_down); } break; // tilde
-                                case VK_MENU: { win32_process_keyboard(&game_input.alt, is_down); } break; // alt
-                                case VK_CONTROL: { win32_process_keyboard(&game_input.control, is_down); } break;
-                                case VK_OEM_3: { win32_process_keyboard(&game_input.tilde, is_down); } break; // tilde
-                                case 'L': 
-                                {
-                                    if (is_down) 
-                                    {
-                                        if (!win32_state.is_recording) 
-                                        {
-                                            win32_begin_recording_input(&win32_state);
-                                        } 
-                                        else 
-                                        {
-                                            win32_end_input_recording(&win32_state);
-                                            win32_begin_input_playback(&win32_state);
-                                        }
-                                    }
-                                } break;
-                            }
-
-                            if (is_down) 
-                            {
-                                bool32 altWasDown = (msg.lParam & (1 << 29));
-                                if ((vk_code == VK_F4) && altWasDown) 
-                                {
-                                    g_running = false;
-                                }
-                                if ((vk_code == VK_RETURN) && altWasDown) 
-                                {
-                                    if (msg.hwnd) 
-                                    {
-                                        win32_toggle_fullscreen(msg.hwnd);
-                                    }
-                                }
-                            }
-
-                        }
-                    } break;
-                    case WM_MOUSEWHEEL: 
-                    {
-                        s16 z_delta = (GET_WHEEL_DELTA_WPARAM(msg.wParam) / WHEEL_DELTA);
-                        game_input.mouse.wheel_delta = z_delta;
-                    } break;
-                }
-                TranslateMessage(&msg);
-                DispatchMessageA(&msg);
-            }
-
-            Win32_Window_Dimension wd = win32_get_window_dimension(hwnd);
+            Win32_Window_Dimension dim = win32_get_window_dimension(hwnd);
             win32_resize_dib_section(&g_screen_buffer, dim.width, dim.height);
 
-            Mouse_Input *mouse = &game_input.mouse;
-            // TODO: we don't need to calculate aspect ratio every frame!
-            win32_get_mouse_pos_to_game_coord(hwnd, wd, &game_input);
+            win32_init_opengl(GetDC(hwnd));
 
-            // get mouse info via function call, alternative to WM.
-            win32_process_mouse_click(VK_LBUTTON, mouse);
-            win32_process_mouse_click(VK_MBUTTON, mouse);
-            win32_process_mouse_click(VK_RBUTTON, mouse);
+            win32_load_xinput();
 
-            DWORD result;    
-            for(DWORD idx = 0;
-                idx < XUSER_MAX_COUNT;
-                idx++) 
-            {
-                XINPUT_STATE state;
-                ZeroMemory(&state, sizeof(XINPUT_STATE));
-                result = xinput_get_state(idx, &state);
-                win32_xinput_handle_deadzone(&state);
-                if (result == ERROR_SUCCESS) 
-                {
+            //
+            //
+            //
+#if 1
+            HRESULT hr;
 
-                } 
-                else 
-                {
-                    // TODO: Diagnostic
-                }
-            }
-            END_BLOCK(win32_process_input);
+            hr = CoInitializeEx(0, COINIT_MULTITHREADED);
+            if (FAILED(hr))
+                Assert(!"coinit failed"); // @TODO: error-handling
 
-            BEGIN_BLOCK(win32_record_input);
-            if (win32_state.is_recording) 
-            {
-                win32_record_input(&win32_state, &game_input);
-            }
-            if (win32_state.is_playing) 
-            {
-                win32_playback_input(&win32_state, &game_input);
-            }
-            END_BLOCK(win32_record_input);
+            IXAudio2 *xaudio = 0;
+            if (FAILED(hr = XAudio2Create(&xaudio, 0, XAUDIO2_DEFAULT_PROCESSOR)))
+                Assert(!"XAudio init failed"); // @TODO: error-handling
 
-#if 0
-            game_input.dt_per_frame = (desired_mspf / 1000.0f);
+            IXAudio2MasteringVoice *master_voice = 0;
+            if (FAILED(hr = xaudio->CreateMasteringVoice(&master_voice)))
+                Assert(!"master voice creation failed"); // @TODO: error-handling
+
+            WAVEFORMATEXTENSIBLE wfx = {};
+            XAUDIO2_BUFFER buffer = {};
+
+            char *audio_file_name = "audio/requiem.wav";
+            Entire_File entire_file = win32_read_entire_file(audio_file_name);
+
+            u32 chunk_size;
+            u32 chunk_position;
+            u32 filetype;
+            //check the file type, should be fourccWAVE or 'XWMA'
+            win32_find_chunk(&entire_file, fourccRIFF, &chunk_size, &chunk_position);
+            win32_read_chunk_data(&entire_file, &filetype, sizeof(u32), chunk_position);
+            Assert(filetype == fourccWAVE);
+
+            win32_find_chunk(&entire_file, fourccFMT, &chunk_size, &chunk_position);
+            win32_read_chunk_data(&entire_file, &wfx, chunk_size, chunk_position);
+
+            //fill out the audio data buffer with the contents of the fourccDATA chunk
+            win32_find_chunk(&entire_file, fourccDATA, &chunk_size, &chunk_position);
+            u8 *data_buffer = (u8 *)VirtualAlloc(0, chunk_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+            win32_read_chunk_data(&entire_file, data_buffer, chunk_size, chunk_position);
+
+            buffer.AudioBytes = chunk_size;  //size of the audio buffer in bytes
+            buffer.pAudioData = data_buffer;  //buffer containing audio data
+            buffer.Flags = XAUDIO2_END_OF_STREAM; // tell the source voice not to expect any data after this buffer
+
+            IXAudio2SourceVoice* src_voice;
+            if (FAILED(hr = xaudio->CreateSourceVoice(&src_voice, (WAVEFORMATEX *)&wfx))) return hr;
+            if (FAILED(hr = src_voice->SubmitSourceBuffer(&buffer))) return hr;
+            if (FAILED(hr = src_voice->Start(0))) return hr;
+            src_voice->SetVolume(0.05f);
 #endif
 
-            BEGIN_BLOCK(win32_game_update);
-            if (game.game_update) 
-            {
-                game.game_update(&game_memory, game_state, &game_input, &game_screen_buffer);
-            }
-            END_BLOCK(win32_game_update);
+            //
+            //
+            //
+            s32 monitor_hz = GetDeviceCaps(GetDC(hwnd), VREFRESH);
+            s32 desired_hz = 60;
+            f32 desired_mspf = 1000.0f / (f32)desired_hz;
 
-            //
-            //
-            //
+            Input input = {};
+
+            // @TEMPORARY
+#if 1
+            LPVOID base_address = (LPVOID)TB(2);
+#else
+            LPVOID base_address = 0;
+#endif
+            Game_Memory game_memory = {};
+            game_memory.permanent_memory_size   = MB(256);
+            game_memory.transient_memory_size   = GB(1);
+            game_memory.debug_storage_size      = MB(64);
+
+            u64 total_capacity = (game_memory.permanent_memory_size +
+                                  game_memory.transient_memory_size + 
+                                  game_memory.debug_storage_size);
+            g_win32_state.game_memory = VirtualAlloc(base_address, (size_t)total_capacity,
+                                                   MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+            g_win32_state.game_mem_total_cap = total_capacity;
+            game_memory.permanent_memory = g_win32_state.game_memory;
+            game_memory.transient_memory = ((u8 *)(game_memory.permanent_memory) + game_memory.permanent_memory_size);
+            game_memory.debug_storage = ((u8 *)(game_memory.transient_memory) + game_memory.transient_memory_size);
+
+            game_memory.high_priority_queue = &high_priority_queue;
+            game_memory.low_priority_queue = &low_priority_queue;
+            game_memory.platform.platform_add_entry = Win32AddEntry;
+            game_memory.platform.platform_complete_all_work = win32_complete_all_work;
+            game_memory.platform.debug_platform_read_file = win32_read_entire_file;
+            game_memory.platform.error_message = win32_error_message;
 
 #if __DEVELOPER
-            BEGIN_BLOCK(win32_debug_collation);
-            if (game.debug_frame_end)
-            {
-                g_debug_table = game.debug_frame_end(&game_memory, &game_screen_buffer, &game_input);
-            }
-            g_debug_table_.event_array_idx_event_idx = 0;
-            END_BLOCK(win32_debug_collation);
+            game_memory.platform.debug_platform_write_file = DebugPlatformWriteEntireFile;
+            game_memory.platform.debug_platform_free_memory = DebugPlatformFreeMemory;
+            game_memory.platform.debug_platform_execute_system_command = win32_execute_system_command;
+            game_memory.platform.debug_platform_get_process_state = win32_get_process_state;
 #endif
 
-            BEGIN_BLOCK(win32_render);
-            HDC dc = GetDC(hwnd);
-            gl_render_batch(&game_memory.render_batch, wd.width, wd.height);
-            SwapBuffers(dc);
-            // win32_update_screen(dc, wd.width, wd.height);
-            ReleaseDC(hwnd, dc);
-            END_BLOCK(win32_render);
+            win32_init_render_batch(&game_memory.render_batch, KB(4));
 
-            f32 actual_mspf = win32_get_elapsed_ms(last_counter, win32_get_wall_clock());
-            game_input.dt = (actual_mspf / 1000.0f);
+            Game_State *game_state = (Game_State *)game_memory.permanent_memory;
 
+            Game_Screen_Buffer screen_buffer = {};
+            screen_buffer.memory = g_screen_buffer.memory;
+            screen_buffer.width = g_screen_buffer.width;
+            screen_buffer.height = g_screen_buffer.height;
+            screen_buffer.bpp = g_screen_buffer.bpp;
+            screen_buffer.pitch = g_screen_buffer.bpp * g_screen_buffer.width;
 
-            //
-            //
-            //
-
-            // TODO: leave this off until we have vblank support?
-#if 0
-            BEGIN_BLOCK(win32_framerate_wait);
-            LARGE_INTEGER counter_end = win32_get_wall_clock();
-            actual_mspf = win32_get_elapsed_ms(last_counter, counter_end);
-
-            if (actual_mspf < desired_mspf) 
+            HMODULE xinput_dll = LoadLibraryA(TEXT("xinput.dll"));
+            if (!xinput_dll) 
             {
-                DWORD ms_to_sleep = (DWORD)(desired_mspf - actual_mspf);
-                if (ms_to_sleep > 0)
+                // TODO: diagnostic.
+            }
+
+            const char *game_dll_filename = "game.dll";
+            const char *game_dll_load_filename = "game_load.dll";
+
+            char exe_path_buf[MAX_PATH];
+            DWORD exe_path_length = GetModuleFileNameA(0, exe_path_buf, MAX_PATH);
+            DWORD last_backslash_idx = 0;
+            for(DWORD idx = 0; idx < exe_path_length; idx++) 
+            {
+                if (exe_path_buf[idx] == '\\') 
+                    last_backslash_idx = idx;
+            }
+
+            char game_dll_abs_path[MAX_PATH];
+            char game_dll_load_abs_path[MAX_PATH];
+            win32_concat_str(game_dll_abs_path, exe_path_buf, last_backslash_idx + 1, game_dll_filename, str_len(game_dll_filename));
+            win32_concat_str(game_dll_load_abs_path, exe_path_buf, last_backslash_idx + 1, game_dll_load_filename, str_len(game_dll_load_filename));
+
+            FILETIME game_dll_time_last = {};
+            FILETIME game_dll_time = {};
+
+            Win32_Game game = {};
+
+            //
+            // Loop
+            //
+            if (game_memory.permanent_memory && 
+                game_memory.transient_memory)
+            {
+                while(g_running) 
                 {
-                    Sleep(ms_to_sleep);
-                }
-                actual_mspf = win32_get_elapsed_ms(last_counter, win32_get_wall_clock());
-            } 
-            else 
-            {
-                // TODO: Missed framerate handling
-            }
-            END_BLOCK(win32_framerate_wait);
+                    LARGE_INTEGER last_counter = win32_get_wall_clock();
+
+                    BEGIN_BLOCK(win32_executable_ready);
+                    game_memory.executable_reloaded = false;
+                    game_dll_time = win32_get_file_time(game_dll_abs_path);
+                    if (CompareFileTime(&game_dll_time_last, &game_dll_time) != 0) 
+                    {
+                        win32_complete_all_work(&high_priority_queue);
+                        win32_complete_all_work(&low_priority_queue);
+
+#if __DEVELOPER
+                        g_debug_table = &g_debug_table_;
 #endif
 
-            LARGE_INTEGER end_counter = win32_get_wall_clock();
-            FRAME_MARKER(win32_get_seconds_elapsed(last_counter, end_counter));
-            last_counter = end_counter;
+                        if (game.dll) 
+                        {
+                            FreeLibrary(game.dll); 
+                            game.dll = 0;
+                        }
+                        CopyFileA(game_dll_abs_path, game_dll_load_abs_path, FALSE);
+                        game.dll = LoadLibraryA(game_dll_load_filename);
+                        if (game.dll) 
+                        { 
+                            game.game_update          = (Game_Update *)GetProcAddress(game.dll, "game_update");
+                            game.debug_frame_end    = (Debug_Frame_End *)GetProcAddress(game.dll, "debug_frame_end");
+
+                            game.is_valid           = (game.game_update &&
+                                                       1);
+                            if (!game.is_valid)
+                            {
+                                game.game_update = 0;
+                            }
+                        } 
+                        else 
+                        {
+                            // TODO: Diagnostic 
+                        }
+                        game_dll_time_last = game_dll_time;
+                        game_memory.executable_reloaded = true;
+                    }
+                    END_BLOCK(win32_executable_ready);
+
+                    BEGIN_BLOCK(win32_process_input);
+                    MSG msg;
+                    while (PeekMessageA(&msg, hwnd, 0, 0, PM_REMOVE)) // != GetMessage(), which waits until message appears.
+                    {
+                        WPARAM wparam = msg.wParam;
+                        switch(msg.message) 
+                        {
+                            case WM_QUIT: 
+                            {
+                                g_running = false;
+                            } break;
+
+                            case WM_KEYDOWN:
+                            {
+                            } break;
+
+                            case WM_KEYUP: 
+                            {
+                                u32 vk_code  = (u32)msg.wParam;
+
+                                b32 was_down = ((msg.lParam & (1 << 30)) != 0);
+                                b32 is_down  = ((msg.lParam & (1UL << 31)) == 0);
+                                b32 alt_was_down = (msg.lParam & (1 << 29));
+                                b32 shift_was_down = (GetKeyState(VK_SHIFT) & (1 << 15));
+                                
+                                Assert(input.next < array_count(input.keys));
+                                Input_Key *k = &input.keys[input.next++];
+                                k->key = vk_code;
+                                k->is_down = is_down;
+                                k->was_down = was_down;
+                                k->alt_was_down = alt_was_down;
+                                k->shift_was_down = shift_was_down;
+
+#if 0
+                                if (was_down != is_down) 
+                                {
+                                    switch (vk_code) 
+                                    {
+                                        // TODO: compressable I guess?
+                                        case 'Q': { win32_process_keyboard(&new_input->Q, is_down); } break;
+                                        case 'E': { win32_process_keyboard(&new_input->E, is_down); } break;
+                                        case 'W': { win32_process_keyboard(&new_input->W, is_down); } break;
+                                        case 'A': { win32_process_keyboard(&new_input->A, is_down); } break;
+                                        case 'S': { win32_process_keyboard(&new_input->S, is_down); } break;
+                                        case 'D': { win32_process_keyboard(&new_input->D, is_down); } break;
+                                        case VK_SHIFT: { win32_process_keyboard(&new_input->shift, is_down); } break; // shift
+                                        case VK_MENU: { win32_process_keyboard(&new_input->alt, is_down); } break; // alt
+                                        case VK_CONTROL: { win32_process_keyboard(&new_input->control, is_down); } break;
+                                        case VK_OEM_3: { win32_process_keyboard(&new_input->tilde, is_down); } break; // tilde
+#if 0 // @TODO: Broken!
+                                        case 'L': 
+                                        {
+                                            if (is_down) 
+                                            {
+                                                if (!g_win32_state.is_recording) 
+                                                {
+                                                    win32_begin_recording_input(&g_win32_state);
+                                                } 
+                                                else 
+                                                {
+                                                    win32_end_input_recording(&g_win32_state);
+                                                    win32_begin_input_playback(&g_win32_state);
+                                                }
+                                            }
+                                        } break;
+#endif
+                                    }
+
+                                    if (is_down) 
+                                    {
+                                        b32 altWasDown = (msg.lParam & (1 << 29));
+                                        if ((vk_code == VK_F4) && altWasDown) 
+                                        {
+                                            g_running = false;
+                                        }
+                                        if ((vk_code == VK_RETURN) && altWasDown) 
+                                        {
+                                            if (msg.hwnd) 
+                                            {
+                                                win32_toggle_fullscreen(msg.hwnd);
+                                            }
+                                        }
+                                    }
+
+                                }
+                            } break;
+#endif
+                            }
+
+
+                            case WM_MOUSEWHEEL: 
+                            {
+#if 0
+                                s16 z_delta = (GET_WHEEL_DELTA_WPARAM(msg.wParam) / WHEEL_DELTA);
+                                new_input->mouse.wheel_delta = z_delta;
+#endif
+                            } break;
+                        }
+
+                        TranslateMessage(&msg);
+                        DispatchMessageA(&msg);
+                    }
+
+                    Win32_Window_Dimension wd = win32_get_window_dimension(hwnd);
+                    win32_resize_dib_section(&g_screen_buffer, dim.width, dim.height);
+
+#if 0
+                    Mouse_Input *mouse = &new_input->mouse;
+                    // TODO: we don't need to calculate aspect ratio every frame!
+                    win32_get_mouse_pos_to_game_coord(hwnd, wd, new_input);
+
+                    // get mouse info via function call, alternative to WM.
+                    win32_process_mouse_click(VK_LBUTTON, mouse);
+                    win32_process_mouse_click(VK_MBUTTON, mouse);
+                    win32_process_mouse_click(VK_RBUTTON, mouse);
+#endif
+
+                    DWORD result;    
+                    for(DWORD idx = 0;
+                        idx < XUSER_MAX_COUNT;
+                        idx++) 
+                    {
+                        XINPUT_STATE state;
+                        ZeroMemory(&state, sizeof(XINPUT_STATE));
+                        result = xinput_get_state(idx, &state);
+                        win32_xinput_handle_deadzone(&state);
+                        if (result == ERROR_SUCCESS) 
+                        {
+
+                        } 
+                        else 
+                        {
+                            // TODO: Diagnostic
+                        }
+                    }
+                    END_BLOCK(win32_process_input);
+
+#if 0
+                    BEGIN_BLOCK(win32_record_input);
+                    if (g_win32_state.is_recording) 
+                        win32_record_input(new_input);
+                    if (g_win32_state.is_playing) 
+                        win32_playback_input(new_input);
+                    END_BLOCK(win32_record_input);
+#endif
+
+#if 0
+                    game_input.dt_per_frame = (desired_mspf / 1000.0f);
+#endif
+
+                    BEGIN_BLOCK(win32_game_update);
+                    if (game.game_update) 
+                        game.game_update(&game_memory, game_state, &input, &screen_buffer);
+                    END_BLOCK(win32_game_update);
+
+                    //
+                    //
+                    //
+
+#if __DEVELOPER
+                    BEGIN_BLOCK(win32_debug_collation);
+                    if (game.debug_frame_end)
+                    {
+                        g_debug_table = game.debug_frame_end(&game_memory, &screen_buffer);
+                    }
+                    g_debug_table_.event_array_idx_event_idx = 0;
+                    END_BLOCK(win32_debug_collation);
+#endif
+
+                    BEGIN_BLOCK(win32_render);
+                    HDC dc = GetDC(hwnd);
+                    gl_render_batch(&game_memory.render_batch, wd.width, wd.height);
+                    SwapBuffers(dc);
+                    // win32_update_screen(dc, wd.width, wd.height);
+                    ReleaseDC(hwnd, dc);
+                    END_BLOCK(win32_render);
+
+                    f32 actual_mspf = win32_get_elapsed_ms(last_counter, win32_get_wall_clock());
+                    input.dt = (actual_mspf / 1000.0f);
+
+
+                    //
+                    //
+                    //
+
+                    // TODO: leave this off until we have vblank support?
+#if 0
+                    BEGIN_BLOCK(win32_framerate_wait);
+                    LARGE_INTEGER counter_end = win32_get_wall_clock();
+                    actual_mspf = win32_get_elapsed_ms(last_counter, counter_end);
+
+                    if (actual_mspf < desired_mspf) 
+                    {
+                        DWORD ms_to_sleep = (DWORD)(desired_mspf - actual_mspf);
+                        if (ms_to_sleep > 0)
+                        {
+                            Sleep(ms_to_sleep);
+                        }
+                        actual_mspf = win32_get_elapsed_ms(last_counter, win32_get_wall_clock());
+                    } 
+                    else 
+                    {
+                        // TODO: Missed framerate handling
+                    }
+                    END_BLOCK(win32_framerate_wait);
+#endif
+
+                    LARGE_INTEGER end_counter = win32_get_wall_clock();
+                    FRAME_MARKER(win32_get_seconds_elapsed(last_counter, end_counter));
+                    last_counter = end_counter;
+                }
+            }
+            else
+            {
+                win32_error_message(FATAL, "Unable to allocate memory.");
+            }
         }
+        else
+        {
+            win32_error_message(FATAL, "Unable to open game window.");
+        }
+    }
+    else
+    {
+        win32_error_message(FATAL, "Unable to register game window handle.");
     }
 
     return 0;
