@@ -36,7 +36,7 @@ struct Camera;
 enum Animation_State;
 
 internal b32
-strings_are_equal(u32 len1, char *str1, u32 len2, char *str2)
+string_equal(u32 len1, char *str1, u32 len2, char *str2)
 {
     b32 result = (len1 == len2);
 
