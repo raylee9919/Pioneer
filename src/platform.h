@@ -6,6 +6,7 @@
    $Notice: (C) Copyright %s by Sung Woo Lee. All Rights Reserved. $
    ======================================================================== */
 
+#include "usb_hid_keys.h"
 #include "config.h"
 
 union v2;
@@ -94,6 +95,20 @@ struct Debug_Process_State
     s32 return_code;
 };
 
+enum Platform_Event_Type
+{
+    KEY,
+};
+struct Platform_Event
+{
+    Platform_Event_Type type;
+};
+struct Platform_Event_Queue
+{
+    Platform_Event events[256];
+    u32 at;
+};
+
 #define DEBUG_PLATFORM_WRITE_FILE(name) b32 name(const char *filename, u32 size, void *contents)
 typedef DEBUG_PLATFORM_WRITE_FILE(DEBUG_PLATFORM_WRITE_FILE_);
 
@@ -133,11 +148,15 @@ struct Mouse_Input
 struct Game_Key 
 {
     b32 is_down;
+    b32 pressed;
 };
 struct Game_Input 
 {
     f32         dt;
 
+    Game_Key    keys[256];
+
+#if 0
     Game_Key    W;
     Game_Key    S;
     Game_Key    A;
@@ -148,6 +167,7 @@ struct Game_Input
     Game_Key    Q;
     Game_Key    E;
     Game_Key    tilde;
+#endif
 
     Mouse_Input mouse;
 };

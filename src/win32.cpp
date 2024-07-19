@@ -602,10 +602,10 @@ win32_begin_recording_input(Win32_State *win32_state)
 }
 
 internal void
-win32_record_input(Win32_State *win32_state, Game_Input *game_input) 
+win32_record_input(Win32_State *win32_state, Game_Input *input) 
 {
     DWORD bytes_written;
-    WriteFile(win32_state->record_file, game_input, sizeof(*game_input),
+    WriteFile(win32_state->record_file, input, sizeof(*input),
               &bytes_written, 0);
 }
 
@@ -638,11 +638,11 @@ win32_end_input_playback(Win32_State *win32_state)
 }
 
 internal void
-win32_playback_input(Win32_State *win32_state, Game_Input *game_input) 
+win32_playback_input(Win32_State *win32_state, Game_Input *input) 
 {
     DWORD bytes_read;
-    if (ReadFile(win32_state->record_file, game_input,
-                 sizeof(*game_input), &bytes_read, 0)) 
+    if (ReadFile(win32_state->record_file, input,
+                 sizeof(*input), &bytes_read, 0)) 
     {
         if (bytes_read == 0) 
         {
@@ -660,18 +660,18 @@ win32_process_keyboard(Game_Key *game_key, b32 is_down)
 }
 
 internal void
-win32_get_mouse_pos_to_game_coord(HWND hwnd, Win32_Window_Dimension wd, Game_Input *game_input) 
+win32_get_mouse_pos_to_game_coord(HWND hwnd, Win32_Window_Dimension wd, Game_Input *input) 
 {
     f32 aspect_h_over_w = safe_ratio((f32)wd.height, (f32)wd.width);
     POINT mouse_p;
     GetCursorPos(&mouse_p);
     ScreenToClient(hwnd, &mouse_p);
 #if 0
-    game_input->mouse.P.x = safe_ratio( 2.0f * (f32)mouse_p.x, (f32)wd.width) - 1.0f;
-    game_input->mouse.P.y = (f32)mouse_p.y; //safe_ratio(-2.0f * (f32)mouse_p.y * aspect_h_over_w, (f32)wd.height) + aspect_h_over_w;
+    input->mouse.P.x = safe_ratio( 2.0f * (f32)mouse_p.x, (f32)wd.width) - 1.0f;
+    input->mouse.P.y = (f32)mouse_p.y; //safe_ratio(-2.0f * (f32)mouse_p.y * aspect_h_over_w, (f32)wd.height) + aspect_h_over_w;
 #endif
-    game_input->mouse.P.x = (f32)mouse_p.x;
-    game_input->mouse.P.y = (f32)(wd.height - mouse_p.y - 1);
+    input->mouse.P.x = (f32)mouse_p.x;
+    input->mouse.P.y = (f32)(wd.height - mouse_p.y - 1);
 }
 
 internal void
@@ -1231,8 +1231,29 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     FILETIME game_dll_time = {};
 
     Win32_Game game = {};
-    Game_Input game_input = {};
+    Game_Input input = {};
+    //
+    //
+    //
+    u8 win32_keycode_map[256];
+    win32_keycode_map[VK_BACK]      = KEY_BACKSPACE;
+    win32_keycode_map[VK_TAB]       = KEY_TAB;
+    win32_keycode_map[VK_RETURN]    = KEY_ENTER;
+    win32_keycode_map[VK_LSHIFT]    = KEY_LEFTSHIFT;
+    win32_keycode_map[VK_LCONTROL]  = KEY_LEFTCTRL;
+    win32_keycode_map[VK_LMENU]     = KEY_LEFTALT;
+    win32_keycode_map[VK_ESCAPE]    = KEY_ESC;
+    win32_keycode_map[VK_SPACE]     = KEY_SPACE;
+    win32_keycode_map[VK_LEFT]      = KEY_LEFT;
+    win32_keycode_map[VK_RIGHT]     = KEY_RIGHT;
+    win32_keycode_map[VK_UP]        = KEY_UP;
+    win32_keycode_map[VK_DOWN]      = KEY_DOWN;
+    for (char c = 'A'; c <= 'Z'; ++c)
+        win32_keycode_map[c] = KEY_A + (c - 'A');
+    for (char c = VK_F1; c <= VK_F12; ++c)
+        win32_keycode_map[c] = KEY_F1 + (c - VK_F1);
 
+    
     //
     // Loop
     //
@@ -1264,7 +1285,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                 game.dll = LoadLibraryA(game_dll_load_filename);
                 if (game.dll) 
                 { 
-                    game.game_update          = (Game_Update *)GetProcAddress(game.dll, "game_update");
+                    game.game_update        = (Game_Update *)GetProcAddress(game.dll, "game_update");
                     game.debug_frame_end    = (Debug_Frame_End *)GetProcAddress(game.dll, "debug_frame_end");
 
                     game.is_valid           = (game.game_update &&
@@ -1284,7 +1305,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             END_BLOCK(win32_executable_ready);
 
             BEGIN_BLOCK(win32_process_input);
-            game_input.mouse.wheel_delta = 0;
+            input.mouse.wheel_delta = 0;
             MSG msg;
             while (PeekMessageA(&msg, hwnd, 0, 0, PM_REMOVE)) 
             {
@@ -1299,42 +1320,33 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                     case WM_KEYDOWN:
                     case WM_KEYUP: 
                     {
-                        u64 vk_code  = msg.wParam;
+                        u8 vk_code   = (u8)msg.wParam;
+                        u8 slot = win32_keycode_map[vk_code];
                         b32 is_down  = ((msg.lParam & (1 << 31)) == 0);
                         b32 was_down = ((msg.lParam & (1 << 30)) != 0);
                         b32 alt      = (msg.lParam & (1 << 29));
+                        if (is_down)
+                            input.keys[slot].pressed = true;
                         if (was_down != is_down) 
                         {
-                            switch (vk_code) 
+                            input.keys[slot].is_down = is_down;
+#if 0
+                            case 'L': 
                             {
-                                // TODO: compressable I guess?
-                                case 'Q': { win32_process_keyboard(&game_input.Q, is_down); } break;
-                                case 'E': { win32_process_keyboard(&game_input.E, is_down); } break;
-                                case 'W': { win32_process_keyboard(&game_input.W, is_down); } break;
-                                case 'A': { win32_process_keyboard(&game_input.A, is_down); } break;
-                                case 'S': { win32_process_keyboard(&game_input.S, is_down); } break;
-                                case 'D': { win32_process_keyboard(&game_input.D, is_down); } break;
-                                case VK_SHIFT: { win32_process_keyboard(&game_input.shift, is_down); } break; // tilde
-                                case VK_MENU: { win32_process_keyboard(&game_input.alt, is_down); } break; // alt
-                                case VK_CONTROL: { win32_process_keyboard(&game_input.control, is_down); } break;
-                                case VK_OEM_3: { win32_process_keyboard(&game_input.tilde, is_down); } break; // tilde
-                                case 'L': 
+                                if (is_down) 
                                 {
-                                    if (is_down) 
+                                    if (!win32_state.is_recording) 
                                     {
-                                        if (!win32_state.is_recording) 
-                                        {
-                                            win32_begin_recording_input(&win32_state);
-                                        } 
-                                        else 
-                                        {
-                                            win32_end_input_recording(&win32_state);
-                                            win32_begin_input_playback(&win32_state);
-                                        }
+                                        win32_begin_recording_input(&win32_state);
+                                    } 
+                                    else 
+                                    {
+                                        win32_end_input_recording(&win32_state);
+                                        win32_begin_input_playback(&win32_state);
                                     }
-                                } break;
-                            }
-
+                                }
+                            } break;
+#endif
                             if (is_down) 
                             {
                                 if (alt)
@@ -1353,7 +1365,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                     case WM_MOUSEWHEEL: 
                     {
                         s16 z_delta = (GET_WHEEL_DELTA_WPARAM(msg.wParam) / WHEEL_DELTA);
-                        game_input.mouse.wheel_delta = z_delta;
+                        input.mouse.wheel_delta = z_delta;
                     } break;
                 }
 
@@ -1364,9 +1376,9 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             Win32_Window_Dimension wd = win32_get_window_dimension(hwnd);
             win32_resize_dib_section(&g_screen_buffer, dim.width, dim.height);
 
-            Mouse_Input *mouse = &game_input.mouse;
+            Mouse_Input *mouse = &input.mouse;
             // TODO: we don't need to calculate aspect ratio every frame!
-            win32_get_mouse_pos_to_game_coord(hwnd, wd, &game_input);
+            win32_get_mouse_pos_to_game_coord(hwnd, wd, &input);
 
             // get mouse info via function call, alternative to WM.
             win32_process_mouse_click(VK_LBUTTON, mouse);
@@ -1396,22 +1408,22 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             BEGIN_BLOCK(win32_record_input);
             if (win32_state.is_recording) 
             {
-                win32_record_input(&win32_state, &game_input);
+                win32_record_input(&win32_state, &input);
             }
             if (win32_state.is_playing) 
             {
-                win32_playback_input(&win32_state, &game_input);
+                win32_playback_input(&win32_state, &input);
             }
             END_BLOCK(win32_record_input);
 
 #if 0
-            game_input.dt_per_frame = (desired_mspf / 1000.0f);
+            input.dt_per_frame = (desired_mspf / 1000.0f);
 #endif
 
             BEGIN_BLOCK(win32_game_update);
             if (game.game_update) 
             {
-                game.game_update(&game_memory, game_state, &game_input, &game_screen_buffer);
+                game.game_update(&game_memory, game_state, &input, &game_screen_buffer);
             }
             END_BLOCK(win32_game_update);
 
@@ -1423,11 +1435,16 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             BEGIN_BLOCK(win32_debug_collation);
             if (game.debug_frame_end)
             {
-                g_debug_table = game.debug_frame_end(&game_memory, &game_screen_buffer, &game_input);
+                g_debug_table = game.debug_frame_end(&game_memory, &game_screen_buffer, &input);
             }
             g_debug_table_.event_array_idx_event_idx = 0;
             END_BLOCK(win32_debug_collation);
 #endif
+
+            BEGIN_BLOCK(win32_reset_input);
+            for (u32 i = 0; i < array_count(input.keys); ++i)
+                input.keys[i].pressed = false;
+            END_BLOCK(win32_reset_input);
 
             BEGIN_BLOCK(win32_render);
             HDC dc = GetDC(hwnd);
@@ -1438,7 +1455,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             END_BLOCK(win32_render);
 
             f32 actual_mspf = win32_get_elapsed_ms(last_counter, win32_get_wall_clock());
-            game_input.dt = (actual_mspf / 1000.0f);
+            input.dt = (actual_mspf / 1000.0f);
 
 
             //
@@ -1466,6 +1483,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             }
             END_BLOCK(win32_framerate_wait);
 #endif
+
 
             LARGE_INTEGER end_counter = win32_get_wall_clock();
             FRAME_MARKER(win32_get_seconds_elapsed(last_counter, end_counter));

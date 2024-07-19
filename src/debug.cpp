@@ -1087,7 +1087,7 @@ debug_begin_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p, b3
 
             case eDebug_Interaction_Select:
             {
-                if (!input->shift.is_down)
+                if (!input->keys[KEY_LEFTSHIFT].is_down)
                 {
                     clear_selection(debug_state);
                 }

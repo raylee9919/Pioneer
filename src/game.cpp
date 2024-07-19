@@ -26,8 +26,6 @@
 
 #define STAR_COUNT_MAX 100'000
 
-
-
 #if __DEVELOPER
 global_var Game_Memory *g_debug_memory;
 #endif
@@ -42,6 +40,7 @@ init_console(Console *console, f32 screen_height, f32 screen_width, Font *font) 
     console->is_down    = false;
     console->bg_color   = v4{0.02f, 0.02f, 0.02f, 0.9f};
     console->font       = font;
+    console->text_color = v4{1.0f, 0.0f, 1.0f, 1.0f};
 
     console->input_baseline_offset = v2{5.0f, 2.0f + font->descent};
 
@@ -55,9 +54,6 @@ init_console(Console *console, f32 screen_height, f32 screen_width, Font *font) 
 internal void
 accumulate(Console *console, f32 dt)
 {
-    if (console->cooltime > 0.0f)
-        console->cooltime -= dt;
-
     console->dt += (console->is_down ? 1.0f : -1.0f) * dt;
     console->dt = clamp(console->dt, 0.0f, CONSOLE_TARGET_T);
 }
@@ -216,7 +212,7 @@ GAME_UPDATE(game_update)
         game_state->init = true;
     }
 
-    f32 dt = game_input->dt;
+    f32 dt = input->dt;
     game_state->time += dt;
     f32 time = game_state->time;
 
@@ -335,33 +331,33 @@ GAME_UPDATE(game_update)
                                                         game_state->free_camera);
         Camera *free_camera = game_state->free_camera;
         f32 C = dt * 3.0f;
-        if (game_input->W.is_down)
+        if (input->keys[KEY_W].is_down)
         {
             m4x4 rotation = to_m4x4(free_camera->world_rotation);
             free_camera->world_translation += rotation * _v3_(0, 0, -C);
         }
-        if (game_input->S.is_down)
+        if (input->keys[KEY_S].is_down)
         {
             m4x4 rotation = to_m4x4(free_camera->world_rotation);
             free_camera->world_translation += rotation * _v3_(0, 0, C);
         }
-        if (game_input->D.is_down)
+        if (input->keys[KEY_D].is_down)
         {
             m4x4 rotation = to_m4x4(free_camera->world_rotation);
             free_camera->world_translation += rotation * _v3_(C, 0, 0);
         }
-        if (game_input->A.is_down)
+        if (input->keys[KEY_A].is_down)
         {
             m4x4 rotation = to_m4x4(free_camera->world_rotation);
             free_camera->world_translation += rotation * _v3_(-C, 0, 0);
         }
 
-        if (game_input->Q.is_down)
+        if (input->keys[KEY_Q].is_down)
         {
             m4x4 rotation = to_m4x4(free_camera->world_rotation);
             free_camera->world_translation += rotation * _v3_(0, -C, 0);
         }
-        if (game_input->E.is_down)
+        if (input->keys[KEY_E].is_down)
         {
             m4x4 rotation = to_m4x4(free_camera->world_rotation);
             free_camera->world_translation += rotation * _v3_(0, C, 0);
@@ -373,16 +369,16 @@ GAME_UPDATE(game_update)
         render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
                                                         game_state->main_camera);
 
-        if (game_input->W.is_down)
+        if (input->keys[KEY_W].is_down)
         {
             m4x4 rotation = to_m4x4(player->world_rotation);
             player->accel = rotation * _v3_(0, 0, dt * player->u);
         }
-        if (game_input->D.is_down)
+        if (input->keys[KEY_D].is_down)
         {
             player->world_rotation = _qt_(cos(dt), 0, -sin(dt), 0) * player->world_rotation;
         }
-        if (game_input->A.is_down)
+        if (input->keys[KEY_A].is_down)
         {
             player->world_rotation = _qt_(cos(dt), 0, sin(dt), 0) * player->world_rotation;
         }
@@ -396,18 +392,24 @@ GAME_UPDATE(game_update)
     // Drop-down console.
     Console *console = &game_state->console;
     accumulate(console, dt);
-    if (game_input->tilde.is_down &&
-        console->cooltime <= 0.0f)
-    {
+    if (input->keys[KEY_F1].pressed)
         console->is_down = !console->is_down;
-        console->cooltime = CONSOLE_COOLTIME;
-    }
-    if (console->cbuf_at < array_count(console->cbuf) - 1)
+    if (console->is_down)
     {
-        if (game_input->A.is_down)
+        if (console->cbuf_at < array_count(console->cbuf) - 1)
         {
-            console->cbuf[console->cbuf_at++] = 'a';
-            console->cbuf[console->cbuf_at] = 0;
+            if (input->keys[KEY_A].pressed)
+            {
+                console->cbuf[console->cbuf_at++] = 'a';
+                console->cbuf[console->cbuf_at] = 0;
+            }
+        }
+        if (console->cbuf_at > 0)
+        {
+            if (input->keys[KEY_BACKSPACE].pressed)
+            {
+                console->cbuf[--console->cbuf_at] = 0;
+            }
         }
     }
     if (console->dt != 0.0f)
@@ -427,7 +429,7 @@ GAME_UPDATE(game_update)
 
         Rect2 r = string_op(String_Op::DRAW | String_Op::GET_RECT,
                             orthographic_group, _v3_(con_o + console->input_baseline_offset, 0.0f),
-                            console->cbuf, console->font);
+                            console->cbuf, console->font, console->text_color);
         cursor->offset = console->input_baseline_offset + v2{r.max.x - r.min.x};
     }
     else

@@ -326,14 +326,13 @@ struct Console_Cursor
 struct Console
 {
     #define CONSOLE_TARGET_T 0.2f
-    #define CONSOLE_COOLTIME 0.1f
     f32         dt;
-    f32         cooltime;
     b32         is_down;
     v2          half_dim;
     v4          bg_color;
 
     Font        *font;
+    v4          text_color;
 
     Console_Cursor cursor;
 
@@ -388,8 +387,8 @@ struct Transient_State
 
 
 #define GAME_UPDATE(name) void name(Game_Memory *game_memory,                 \
-                                  Game_State *game_state,                   \
-                                  Game_Input *game_input,                   \
+                                  Game_State *game_state,                     \
+                                  Game_Input *input,                          \
                                   Game_Screen_Buffer *game_screen_buffer)
 typedef GAME_UPDATE(Game_Update);
 
