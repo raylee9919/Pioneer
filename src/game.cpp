@@ -211,7 +211,7 @@ GAME_UPDATE(game_update)
 
 
         // @TEMPORARY
-        game_state->light = push_entity(world_arena, chunk_hashmap, Entity_Type::LIGHT, {}, world->chunk_dim);
+        game_state->light = push_entity(world_arena, chunk_hashmap, Entity_Type::LIGHT, Chunk_Position{0, 0, 0, v3{0, 2.0f, 0}}, world->chunk_dim);
 
         game_state->init = true;
     }
@@ -227,9 +227,6 @@ GAME_UPDATE(game_update)
 
     DEBUG_VARIABLE(f32, Xbot, Accel_Constant);
     player->u = Accel_Constant;
-
-    // @TEMPORARY
-    game_state->light->chunk_pos = Chunk_Position{0, 0, 0, v3{0, 2.0f, 0}};
 
     ///////////////////////////////////////////////////////////////////////////
     //
