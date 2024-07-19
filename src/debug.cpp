@@ -1320,8 +1320,8 @@ get_or_create_group_with_name(Debug_State *debug_state, Debug_Variable_Group *pa
          link != &parent->sentinel;
          link = link->next)
     {
-        if (link->children && string_equal(link->children->name_length, link->children->name,
-                                           name_length, name))
+        if (link->children && string_equal(link->children->name, link->children->name_length,
+                                           name, name_length))
         {
             result = link->children;
         }

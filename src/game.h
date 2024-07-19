@@ -36,7 +36,7 @@ struct Camera;
 enum Animation_State;
 
 internal b32
-string_equal(u32 len1, char *str1, u32 len2, char *str2)
+string_equal(char *str1, u32 len1, char *str2, u32 len2)
 {
     b32 result = (len1 == len2);
 
@@ -327,7 +327,6 @@ struct Console
 {
     #define CONSOLE_TARGET_T 0.2f
     f32         dt;
-    b32         is_down;
     v2          half_dim;
     v4          bg_color;
 
@@ -343,15 +342,22 @@ struct Console
     b32 initted;
 };
 
+enum Game_Mode
+{
+    GAME,
+    CONSOLE,
+    MENU,
+};
 struct Game_State 
 {
     b32                 init;
     f32                 time;
 
+    Game_Mode           mode;
+
     Random_Series       random_series;
 
     Entity              *player;
-    Camera              *main_camera;
 
     World               *world;
     Memory_Arena        world_arena;
@@ -362,6 +368,8 @@ struct Game_State
     m4x4                *star_world_transforms;
     s32                 star_count;
 
+    Camera              *using_camera;
+    Camera              *player_camera;
     Camera              *free_camera;
     Camera              *orthographic_camera;
 
@@ -387,9 +395,10 @@ struct Transient_State
 
 
 #define GAME_UPDATE(name) void name(Game_Memory *game_memory,                 \
-                                  Game_State *game_state,                     \
-                                  Game_Input *input,                          \
-                                  Game_Screen_Buffer *game_screen_buffer)
+                                    Game_State *game_state,                   \
+                                    Game_Input *input,                        \
+                                    Event_Queue *event_queue,                 \
+                                    Game_Screen_Buffer *game_screen_buffer)
 typedef GAME_UPDATE(Game_Update);
 
 

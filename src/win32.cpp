@@ -1239,6 +1239,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     win32_keycode_map[VK_BACK]      = KEY_BACKSPACE;
     win32_keycode_map[VK_TAB]       = KEY_TAB;
     win32_keycode_map[VK_RETURN]    = KEY_ENTER;
+    win32_keycode_map[VK_SHIFT]     = KEY_LEFTSHIFT;
     win32_keycode_map[VK_LSHIFT]    = KEY_LEFTSHIFT;
     win32_keycode_map[VK_LCONTROL]  = KEY_LEFTCTRL;
     win32_keycode_map[VK_LMENU]     = KEY_LEFTALT;
@@ -1253,6 +1254,8 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     for (char c = VK_F1; c <= VK_F12; ++c)
         win32_keycode_map[c] = KEY_F1 + (c - VK_F1);
 
+    Event_Queue event_queue = {};
+    zero_struct(event_queue);
     
     //
     // Loop
@@ -1321,15 +1324,28 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                     case WM_KEYUP: 
                     {
                         u8 vk_code   = (u8)msg.wParam;
-                        u8 slot = win32_keycode_map[vk_code];
                         b32 is_down  = ((msg.lParam & (1 << 31)) == 0);
                         b32 was_down = ((msg.lParam & (1 << 30)) != 0);
                         b32 alt      = (msg.lParam & (1 << 29));
-                        if (is_down)
-                            input.keys[slot].pressed = true;
+                        u8 slot      = win32_keycode_map[vk_code];
+
+                        if (event_queue.next_idx < array_count(event_queue.events))
+                        {
+                            Event new_event = {};
+                            new_event.key = slot;
+                            if (is_down)
+                            {
+                                new_event.flag |= Event_Flag::PRESSED;
+                            }
+                            else
+                            {
+                                new_event.flag |= Event_Flag::RELEASED;
+                            }
+                            event_queue.events[event_queue.next_idx++] = new_event;
+                        }
+
                         if (was_down != is_down) 
                         {
-                            input.keys[slot].is_down = is_down;
 #if 0
                             case 'L': 
                             {
@@ -1423,7 +1439,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             BEGIN_BLOCK(win32_game_update);
             if (game.game_update) 
             {
-                game.game_update(&game_memory, game_state, &input, &game_screen_buffer);
+                game.game_update(&game_memory, game_state, &input, &event_queue, &game_screen_buffer);
             }
             END_BLOCK(win32_game_update);
 
@@ -1440,11 +1456,6 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             g_debug_table_.event_array_idx_event_idx = 0;
             END_BLOCK(win32_debug_collation);
 #endif
-
-            BEGIN_BLOCK(win32_reset_input);
-            for (u32 i = 0; i < array_count(input.keys); ++i)
-                input.keys[i].pressed = false;
-            END_BLOCK(win32_reset_input);
 
             BEGIN_BLOCK(win32_render);
             HDC dc = GetDC(hwnd);

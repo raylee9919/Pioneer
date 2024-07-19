@@ -104,8 +104,8 @@ push_rect(Render_Group *group, Rect2 rect, f32 z, v4 color)
 
 enum String_Op : u8
 {
-    DRAW = 0x1,
-    GET_RECT = 0x2,
+    DRAW        = 0x1,
+    GET_RECT    = 0x2,
 };
 
 internal Rect2
@@ -156,7 +156,7 @@ string_op(u8 flag, Render_Group *render_group,
             }
             else if(flag & String_Op::GET_RECT)
             {
-                
+                result.max.x += (glyph->B + C);
             }
 
             if (*(ch + 1))

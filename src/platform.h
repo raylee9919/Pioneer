@@ -95,20 +95,6 @@ struct Debug_Process_State
     s32 return_code;
 };
 
-enum Platform_Event_Type
-{
-    KEY,
-};
-struct Platform_Event
-{
-    Platform_Event_Type type;
-};
-struct Platform_Event_Queue
-{
-    Platform_Event events[256];
-    u32 at;
-};
-
 #define DEBUG_PLATFORM_WRITE_FILE(name) b32 name(const char *filename, u32 size, void *contents)
 typedef DEBUG_PLATFORM_WRITE_FILE(DEBUG_PLATFORM_WRITE_FILE_);
 
@@ -125,6 +111,22 @@ typedef DEBUG_PLATFORM_EXECUTE_SYSTEM_COMMAND(Debug_Platform_Execute_System_Comm
 #define DEBUG_PLATFORM_GET_PROCESS_STATE(name) Debug_Process_State name(Debug_Executing_Process process)
 typedef DEBUG_PLATFORM_GET_PROCESS_STATE(Debug_Platform_Get_Process_State);
 
+
+enum Event_Flag : u8
+{
+    PRESSED  = 0x1,
+    RELEASED = 0x2,
+};
+struct Event
+{
+    u8 key;
+    u8 flag;
+};
+struct Event_Queue
+{
+    Event events[256];
+    u32 next_idx;
+};
 enum Mouse_Enum 
 {
     eMouse_Left,
@@ -148,27 +150,11 @@ struct Mouse_Input
 struct Game_Key 
 {
     b32 is_down;
-    b32 pressed;
 };
 struct Game_Input 
 {
     f32         dt;
-
     Game_Key    keys[256];
-
-#if 0
-    Game_Key    W;
-    Game_Key    S;
-    Game_Key    A;
-    Game_Key    D;
-    Game_Key    alt;
-    Game_Key    shift;
-    Game_Key    control;
-    Game_Key    Q;
-    Game_Key    E;
-    Game_Key    tilde;
-#endif
-
     Mouse_Input mouse;
 };
 

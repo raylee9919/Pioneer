@@ -246,9 +246,7 @@ update_entity_position(Game_State *game_state, Entity *self, f32 dt)
     Chunk_Position old_chunk_pos = self->chunk_pos;
     Chunk_Position new_chunk_pos = self->chunk_pos;
 
-    self->accel             *= dt * self->u;
-    self->accel             += self->velocity;
-    self->accel             -= dt * 650.0f * self->velocity;
+    self->accel             -= dt * 400.0f * self->velocity;
     self->velocity          += dt * self->accel;
     self->world_translation += dt * self->velocity;
     self->accel             = v3{};
