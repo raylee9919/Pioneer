@@ -1239,6 +1239,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     win32_keycode_map[VK_BACK]      = KEY_BACKSPACE;
     win32_keycode_map[VK_TAB]       = KEY_TAB;
     win32_keycode_map[VK_RETURN]    = KEY_ENTER;
+    win32_keycode_map[VK_SHIFT]     = KEY_LEFTSHIFT;
     win32_keycode_map[VK_LSHIFT]    = KEY_LEFTSHIFT;
     win32_keycode_map[VK_LCONTROL]  = KEY_LEFTCTRL;
     win32_keycode_map[VK_LMENU]     = KEY_LEFTALT;
@@ -1252,6 +1253,9 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
         win32_keycode_map[c] = KEY_A + (c - 'A');
     for (char c = VK_F1; c <= VK_F12; ++c)
         win32_keycode_map[c] = KEY_F1 + (c - VK_F1);
+    for (char c = 0x31; c <= 0x39; ++c)
+        win32_keycode_map[c] = KEY_1 + (c - 0x31);
+    win32_keycode_map[0x30] = KEY_0;
 
     
     //

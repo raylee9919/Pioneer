@@ -37,10 +37,10 @@ init_console(Console *console, f32 screen_height, f32 screen_width, Font *font) 
 
     console->half_dim   = v2{600.f, 250.0f};
     console->dt         = 0.0f;
-    console->is_down    = false;
+    console->open       = false;
     console->bg_color   = v4{0.02f, 0.02f, 0.02f, 0.9f};
     console->font       = font;
-    console->text_color = v4{1.0f, 0.0f, 1.0f, 1.0f};
+    console->text_color = v4{0.5f, 1.0f, 0.5f, 1.0f};
 
     console->input_baseline_offset = v2{5.0f, 2.0f + font->descent};
 
@@ -52,9 +52,16 @@ init_console(Console *console, f32 screen_height, f32 screen_width, Font *font) 
 }
 
 internal void
+console_input(Console *console, char c)
+{
+    console->cbuf[console->cbuf_at++] = c;
+    console->cbuf[console->cbuf_at] = 0;
+}
+
+internal void
 accumulate(Console *console, f32 dt)
 {
-    console->dt += (console->is_down ? 1.0f : -1.0f) * dt;
+    console->dt += (console->open ? 1.0f : -1.0f) * dt;
     console->dt = clamp(console->dt, 0.0f, CONSOLE_TARGET_T);
 }
 
@@ -161,26 +168,26 @@ GAME_UPDATE(game_update)
 
 
         f32 T = pi32 * 0.1f;
-        f32 D = 5;
+        f32 D1 = 5;
+        f32 D2 = 10.0f;
         // @TODO: is it too janky?
         game_state->free_camera = push_camera( &game_state->world_arena,
                                                 eCamera_Type_Perspective,
                                                 (f32)game_screen_buffer->width, (f32)game_screen_buffer->height,
                                                 0.5f,
-                                                _v3_(0, D * sin(T * 2.0f), D * cos(T * 2.0f)),
+                                                _v3_(0, D2 * sin(T * 2.0f), D2 * cos(T * 2.0f)),
                                                 _qt_(cos(T), -sin(T), 0, 0) );
-
-        game_state->main_camera = push_camera( &game_state->world_arena,
+        game_state->player_camera = push_camera( &game_state->world_arena,
                                                 eCamera_Type_Perspective,
                                                 (f32)game_screen_buffer->width, (f32)game_screen_buffer->height,
                                                 0.5f,
-                                                _v3_(0, D * sin(T * 2.0f), D * cos(T * 2.0f)),
+                                                _v3_(0, D1 * sin(T * 2.0f), D1 * cos(T * 2.0f)),
                                                 _qt_(cos(T), -sin(T), 0, 0) );
-
         game_state->orthographic_camera = push_camera( &game_state->world_arena,
                                                        eCamera_Type_Orthographic,
                                                        (f32)game_screen_buffer->width, (f32)game_screen_buffer->height);
 
+        game_state->using_camera = game_state->player_camera;
 
 
 
@@ -325,7 +332,7 @@ GAME_UPDATE(game_update)
     // Process Input
     //
     Render_Group *render_group = 0;
-    DEBUG_IF(Render_Use_Debug_Camera)
+    if (game_state->using_camera == game_state->free_camera)
     {
         render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
                                                         game_state->free_camera);
@@ -365,9 +372,8 @@ GAME_UPDATE(game_update)
     }
     else
     {
-        Camera *main_camera = game_state->main_camera;
         render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
-                                                        game_state->main_camera);
+                                                        game_state->player_camera);
 
         if (input->keys[KEY_W].is_down)
         {
@@ -393,23 +399,46 @@ GAME_UPDATE(game_update)
     Console *console = &game_state->console;
     accumulate(console, dt);
     if (input->keys[KEY_F1].pressed)
-        console->is_down = !console->is_down;
-    if (console->is_down)
+    {
+        console->open = !console->open;
+    }
+    if (console->open)
     {
         if (console->cbuf_at < array_count(console->cbuf) - 1)
         {
-            if (input->keys[KEY_A].pressed)
+            // @TODO: consume items in event queue... maybe?
+            for (u8 c = KEY_A; c <= KEY_Z; ++c)
             {
-                console->cbuf[console->cbuf_at++] = 'a';
-                console->cbuf[console->cbuf_at] = 0;
+                if (input->keys[c].pressed)
+                {
+                    if (input->keys[KEY_LEFTSHIFT].is_down)
+                        console_input(console, 'A' + (c - KEY_A));
+                    else
+                        console_input(console, 'a' + (c - KEY_A));
+                }
             }
+            for (u8 c = KEY_1; c <= KEY_9; ++c)
+            {
+                if (input->keys[c].pressed)
+                    console_input(console, '1' + (c - KEY_1));
+            }
+            if (input->keys[KEY_0].pressed)
+                console_input(console, '0');
+            if (input->keys[KEY_SPACE].pressed)
+                console_input(console, ' ');
         }
-        if (console->cbuf_at > 0)
-        {
-            if (input->keys[KEY_BACKSPACE].pressed)
-            {
+
+        if (console->cbuf_at > 0 && input->keys[KEY_BACKSPACE].pressed)
                 console->cbuf[--console->cbuf_at] = 0;
-            }
+
+        if (input->keys[KEY_ENTER].pressed)
+        {
+            if (string_equal(console->cbuf, console->cbuf_at, "freecam", string_length("freecam")))
+                game_state->using_camera = game_state->free_camera;
+            else if (string_equal(console->cbuf, console->cbuf_at, "playercam", string_length("playercam")))
+                game_state->using_camera = game_state->player_camera;
+
+            console->cbuf[console->cbuf_at = 0] = 0;
         }
     }
     if (console->dt != 0.0f)

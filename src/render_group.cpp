@@ -156,7 +156,7 @@ string_op(u8 flag, Render_Group *render_group,
             }
             else if(flag & String_Op::GET_RECT)
             {
-                
+                result.max.x += glyph->B + C;
             }
 
             if (*(ch + 1))
