@@ -102,16 +102,16 @@ push_rect(Render_Group *group, Rect2 rect, f32 z, v4 color)
     push_bitmap(group, _v3_(rect.min, z), _v3_(rect.max, z), 0, color);
 }
 
-enum String_Op
+enum String_Op : u8
 {
-    eString_Op_Draw,
-    eString_Op_Get_Rect2,
+    DRAW = 0x1,
+    GET_RECT = 0x2,
 };
 
 internal Rect2
-string_op(String_Op op, Render_Group *render_group,
+string_op(u8 flag, Render_Group *render_group,
           v3 left_bottom,
-          const char *str, Game_Assets *game_assets, v4 color = _v4_(1, 1, 1, 1))
+          const char *str, Font *font, v4 color = _v4_(1, 1, 1, 1))
 {
     Rect2 result = rect2_inv_inf();
 
@@ -124,10 +124,10 @@ string_op(String_Op op, Render_Group *render_group,
          *ch;
          ++ch)
     {
-        Asset_Glyph *glyph = game_assets->glyphs[*ch];
+        Asset_Glyph *glyph = font->glyphs[*ch];
         if (glyph)
         {
-            C = (f32)game_assets->glyphs[*ch]->C;
+            C = (f32)font->glyphs[*ch]->C;
 
             if (*ch != ' ')
             {
@@ -137,39 +137,34 @@ string_op(String_Op op, Render_Group *render_group,
                 v3 max = _v3_(left_x + w, left_bottom.y + glyph->ascent, left_bottom.z);
                 v3 min = max - _v3_(w, h, 0);
 
-                if (op == eString_Op_Draw)
+                if (flag & String_Op::DRAW)
                 {
                     push_bitmap(render_group, min, max, bitmap, color);
                 }
-                else
-                {
-                    Assert(op == eString_Op_Get_Rect2);
-                    if (result.min.x > min.x)
-                    {
-                        result.min.x = min.x;
-                    }
-                    if (result.min.y > min.y)
-                    {
-                        result.min.y = min.y;
-                    }
 
+                if (flag & String_Op::GET_RECT)
+                {
+                    if (result.min.x > min.x)
+                        result.min.x = min.x;
+                    if (result.min.y > min.y)
+                        result.min.y = min.y;
                     if (result.max.x < max.x)
-                    {
                         result.max.x = max.x;
-                    }
                     if (result.max.y < max.y)
-                    {
                         result.max.y = max.y;
-                    }
                 }
+            }
+            else if(flag & String_Op::GET_RECT)
+            {
+                
             }
 
             if (*(ch + 1))
             {
-                kern = (f32)get_kerning(&game_assets->kern_hashmap, *ch, *(ch + 1));
-                if (game_assets->glyphs[*(ch + 1)])
+                kern = (f32)get_kerning(&font->kern_hashmap, *ch, *(ch + 1));
+                if (font->glyphs[*(ch + 1)])
                 {
-                    A = (f32)game_assets->glyphs[*(ch + 1)]->A;
+                    A = (f32)font->glyphs[*(ch + 1)]->A;
                 }
                 f32 advance_x = (glyph->B + C + A + kern);
                 left_x += advance_x;
@@ -185,6 +180,9 @@ string_op(String_Op op, Render_Group *render_group,
 
         }
     }
+
+    if (result.min.x == F32_MAX)
+        result = {};
 
     return result;
 }

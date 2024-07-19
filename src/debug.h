@@ -223,6 +223,7 @@ struct Debug_State
     Render_Group *render_group;
 
     Game_Assets *game_assets;
+    Font *font;
 
     b32 compiling;
     Debug_Executing_Process compiler;

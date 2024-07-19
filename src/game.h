@@ -33,7 +33,6 @@
 #include "random.h"
 
 struct Camera;
-struct Asset_Font;
 enum Animation_State;
 
 internal b32
@@ -142,8 +141,9 @@ struct Animation_Channel
 
 enum Entity_Type 
 {
-    eEntity_XBot,
-    eEntity_Tile,
+    XBOT,
+    TILE,
+    LIGHT,
 };
 enum Entity_Flag 
 {
@@ -269,6 +269,16 @@ get_kerning(Kerning_Hashmap *hashmap, u32 first, u32 second)
     return result;
 }
 
+struct Font
+{
+    u32                 v_advance;
+    f32                 ascent;
+    f32                 descent;
+    f32                 max_width;
+    Kerning_Hashmap     kern_hashmap;
+    Asset_Glyph         *glyphs[256];
+};
+
 struct Game_Assets 
 {
     Asset_State         bitmapStates[GAI_Count];
@@ -276,12 +286,11 @@ struct Game_Assets
 
     Bitmap              *debug_bitmap;
 
-    u32                 v_advance;
-    Kerning_Hashmap     kern_hashmap;
-    Asset_Glyph         *glyphs[256];
+    Font                debug_font;
 
     Model               *xbot_model;
     Model               *cube_model;
+    Model               *sphere_model;
     Model               *octahedral_model;
 
     Model               *grass_model;
@@ -305,19 +314,34 @@ struct Load_Asset_Work_Data
     Work_Memory_Arena   *workSlot;
 };
 
-// @Temporary
-struct Console_State
+struct Console_Cursor
 {
-#define CONSOLE_REMAIN_TIME_INIT 0.2f
-#define CONSOLE_COOLTIME 0.1f
-    f32         remain_t;
+    v2 offset;
+    v2 dim;
+    v4 color1;
+    v4 color2;
+};
+
+// @Temporary
+struct Console
+{
+    #define CONSOLE_TARGET_T 0.2f
+    #define CONSOLE_COOLTIME 0.1f
+    f32         dt;
     f32         cooltime;
-    f32         current_y;
     b32         is_down;
     v2          half_dim;
-    v4          color;
+    v4          bg_color;
 
-    Asset_Font  *font;
+    Font        *font;
+
+    Console_Cursor cursor;
+
+    char        cbuf[64];
+    u32         cbuf_at;
+    v2          input_baseline_offset;
+
+    b32 initted;
 };
 
 struct Game_State 
@@ -346,7 +370,7 @@ struct Game_State
     Entity              *light;
 
     // @TEMPORARY: this is meant to be in dev-engine memory.
-    Console_State       console_state;
+    Console             console;
 };
 
 struct Transient_State 

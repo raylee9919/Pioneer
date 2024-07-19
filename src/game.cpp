@@ -9,6 +9,8 @@
 
 #define ASSET_FILE_NAME "asset.pack"
 
+#define MESH_DIR "mesh/"
+
 #include "types.h"
 #include "game.h"
 #include "memory.cpp"
@@ -31,13 +33,33 @@ global_var Game_Memory *g_debug_memory;
 #endif
 
 internal void
-init_console_state(Console_State *console_state, f32 screen_height, f32 screen_width)
+init_console(Console *console, f32 screen_height, f32 screen_width, Font *font) //@TODO: assert font...
 {
-    console_state->half_dim = v2{600.f, 250.0f};
-    console_state->remain_t = 0.0f;
-    console_state->is_down = false;
-    console_state->current_y = screen_height + console_state->half_dim.y;
-    console_state->color = v4{0.02f, 0.16f, 0.16f, 0.9f};
+    Assert(!console->initted);
+
+    console->half_dim   = v2{600.f, 250.0f};
+    console->dt         = 0.0f;
+    console->is_down    = false;
+    console->bg_color   = v4{0.02f, 0.02f, 0.02f, 0.9f};
+    console->font       = font;
+
+    console->input_baseline_offset = v2{5.0f, 2.0f + font->descent};
+
+    Console_Cursor *cursor = &console->cursor;
+    cursor->offset = console->input_baseline_offset;
+    cursor->dim = v2{font->max_width, font->ascent + font->descent + 1.0f};
+    cursor->color1 = v4{0.2f, 0.2f, 0.2f, 1.0f};
+    cursor->color2 = v4{1.0f, 1.0f, 1.0f, 1.0f};
+}
+
+internal void
+accumulate(Console *console, f32 dt)
+{
+    if (console->cooltime > 0.0f)
+        console->cooltime -= dt;
+
+    console->dt += (console->is_down ? 1.0f : -1.0f) * dt;
+    console->dt = clamp(console->dt, 0.0f, CONSOLE_TARGET_T);
 }
 
 internal void
@@ -108,7 +130,7 @@ GAME_UPDATE(game_update)
                 tile_pos.offset.z += dim.z * Z;
                 recalc_pos(&tile_pos, game_state->world->chunk_dim);
                 Entity *tile1 = push_entity(world_arena, chunk_hashmap,
-                                            eEntity_Tile, tile_pos, world->chunk_dim);
+                                            Entity_Type::TILE, tile_pos, world->chunk_dim);
 #if 1
                 for (s32 z = -GRASS_DENSITY; z <= GRASS_DENSITY; ++z)
                 {
@@ -138,7 +160,7 @@ GAME_UPDATE(game_update)
         }
 
 
-        Entity *xbot = push_entity(world_arena, chunk_hashmap, eEntity_XBot, Chunk_Position{0, 0, 0}, world->chunk_dim);
+        Entity *xbot = push_entity(world_arena, chunk_hashmap, Entity_Type::XBOT, Chunk_Position{0, 0, 0}, world->chunk_dim);
         game_state->player = xbot;
 
 
@@ -187,17 +209,16 @@ GAME_UPDATE(game_update)
             game_state->star_world_transforms[game_state->star_count++] = transpose(trs_to_transform(translation, rotation, scaling));
         }
 
-        // @TEMPORARY
-        init_console_state(&game_state->console_state, (f32)game_screen_buffer->width, (f32)game_screen_buffer->height);
 
         // @TEMPORARY
-        game_state->light = push_entity(world_arena, chunk_hashmap, eEntity_Tile, {}, world->chunk_dim);
+        game_state->light = push_entity(world_arena, chunk_hashmap, Entity_Type::LIGHT, {}, world->chunk_dim);
 
         game_state->init = true;
     }
 
     f32 dt = game_input->dt;
     game_state->time += dt;
+    f32 time = game_state->time;
 
     f32 height = (f32)game_screen_buffer->height;
     f32 width = (f32)game_screen_buffer->width;
@@ -209,8 +230,6 @@ GAME_UPDATE(game_update)
 
     // @TEMPORARY
     game_state->light->chunk_pos = Chunk_Position{0, 0, 0, v3{0, 2.0f, 0}};
-
-
 
     ///////////////////////////////////////////////////////////////////////////
     //
@@ -248,6 +267,7 @@ GAME_UPDATE(game_update)
         game_assets->xbot_model = push_struct(&transient_state->asset_arena, Model);
         game_assets->cube_model = push_struct(&transient_state->asset_arena, Model);
         game_assets->octahedral_model = push_struct(&transient_state->asset_arena, Model);
+        game_assets->sphere_model = push_struct(&transient_state->asset_arena, Model);
         game_assets->grass_model = push_struct(&transient_state->asset_arena, Model);
 
         game_assets->xbot_idle = push_struct(&transient_state->asset_arena, Animation);
@@ -259,7 +279,7 @@ GAME_UPDATE(game_update)
         // @Temporary
         // @Temporary
         // @Temporary
-        load_model(game_assets->xbot_model, "mesh/xbot.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        load_model(game_assets->xbot_model, MESH_DIR"xbot.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
         player->animation_transform = push_array(&transient_state->transient_arena, m4x4, game_assets->xbot_model->node_count);
         f32 xbot_scale = 0.01f;
         game_assets->xbot_model->nodes[0].base_transform =
@@ -268,6 +288,7 @@ GAME_UPDATE(game_update)
 
         load_model(game_assets->cube_model, "cube.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
         load_model(game_assets->octahedral_model, "octahedral.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        load_model(game_assets->sphere_model, MESH_DIR"sphere.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
         load_model(game_assets->grass_model, "grass.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
         for (u32 vertex_idx = 0;
              vertex_idx < game_assets->grass_model->meshes[0].vertex_count;
@@ -281,7 +302,7 @@ GAME_UPDATE(game_update)
 
         game_assets->star_mesh = game_assets->octahedral_model->meshes;
 
-        load_font(&transient_state->asset_arena, game_memory->platform.debug_platform_read_file, &transient_state->game_assets);
+        load_font(&transient_state->asset_arena, game_memory->platform.debug_platform_read_file, &game_assets->debug_font);
 
         //
         // Noise Map
@@ -292,6 +313,8 @@ GAME_UPDATE(game_update)
         game_assets->debug_bitmap = load_bmp(&transient_state->asset_arena, game_memory->platform.debug_platform_read_file, "doggo.bmp");
 #endif
 
+        if (!game_state->console.initted)
+            init_console(&game_state->console, width, height, &game_assets->debug_font);
 
         transient_state->init = true;  
     }
@@ -299,6 +322,7 @@ GAME_UPDATE(game_update)
     Game_Assets *game_assets = &transient_state->game_assets;
 
     Temporary_Memory render_memory = begin_temporary_memory(&transient_state->transient_arena);
+
 
 
 
@@ -314,33 +338,33 @@ GAME_UPDATE(game_update)
                                                         game_state->free_camera);
         Camera *free_camera = game_state->free_camera;
         f32 C = dt * 3.0f;
-        if (game_input->W.is_set)
+        if (game_input->W.is_down)
         {
             m4x4 rotation = to_m4x4(free_camera->world_rotation);
             free_camera->world_translation += rotation * _v3_(0, 0, -C);
         }
-        if (game_input->S.is_set)
+        if (game_input->S.is_down)
         {
             m4x4 rotation = to_m4x4(free_camera->world_rotation);
             free_camera->world_translation += rotation * _v3_(0, 0, C);
         }
-        if (game_input->D.is_set)
+        if (game_input->D.is_down)
         {
             m4x4 rotation = to_m4x4(free_camera->world_rotation);
             free_camera->world_translation += rotation * _v3_(C, 0, 0);
         }
-        if (game_input->A.is_set)
+        if (game_input->A.is_down)
         {
             m4x4 rotation = to_m4x4(free_camera->world_rotation);
             free_camera->world_translation += rotation * _v3_(-C, 0, 0);
         }
 
-        if (game_input->Q.is_set)
+        if (game_input->Q.is_down)
         {
             m4x4 rotation = to_m4x4(free_camera->world_rotation);
             free_camera->world_translation += rotation * _v3_(0, -C, 0);
         }
-        if (game_input->E.is_set)
+        if (game_input->E.is_down)
         {
             m4x4 rotation = to_m4x4(free_camera->world_rotation);
             free_camera->world_translation += rotation * _v3_(0, C, 0);
@@ -352,16 +376,16 @@ GAME_UPDATE(game_update)
         render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
                                                         game_state->main_camera);
 
-        if (game_input->W.is_set)
+        if (game_input->W.is_down)
         {
             m4x4 rotation = to_m4x4(player->world_rotation);
-            player->accel = rotation * _v3_(0, 0, 1);
+            player->accel = rotation * _v3_(0, 0, dt * player->u);
         }
-        if (game_input->D.is_set)
+        if (game_input->D.is_down)
         {
             player->world_rotation = _qt_(cos(dt), 0, -sin(dt), 0) * player->world_rotation;
         }
-        if (game_input->A.is_set)
+        if (game_input->A.is_down)
         {
             player->world_rotation = _qt_(cos(dt), 0, sin(dt), 0) * player->world_rotation;
         }
@@ -373,48 +397,47 @@ GAME_UPDATE(game_update)
 
     // @Developer
     // Drop-down console.
-    Console_State *console_state = &game_state->console_state;
-    if (console_state->cooltime > 0.0f)
-        console_state->cooltime -= dt;
-
-    if (game_input->tilde.is_set &&
-        console_state->cooltime <= 0.0f)
+    Console *console = &game_state->console;
+    accumulate(console, dt);
+    if (game_input->tilde.is_down &&
+        console->cooltime <= 0.0f)
     {
-        console_state->is_down = !console_state->is_down;
-        console_state->remain_t = CONSOLE_REMAIN_TIME_INIT;
-        console_state->cooltime = CONSOLE_COOLTIME;
+        console->is_down = !console->is_down;
+        console->cooltime = CONSOLE_COOLTIME;
     }
-
-    if (console_state->remain_t > 0.0f)
+    if (console->cbuf_at < array_count(console->cbuf) - 1)
     {
-        console_state->remain_t -= dt;
-        if (console_state->remain_t < 0.0f)
-            console_state->remain_t = 0.0f;
-        f32 t = (CONSOLE_REMAIN_TIME_INIT - console_state->remain_t) / CONSOLE_REMAIN_TIME_INIT;
-
-        Rect2 console_rect;
+        if (game_input->A.is_down)
+        {
+            console->cbuf[console->cbuf_at++] = 'a';
+            console->cbuf[console->cbuf_at] = 0;
+        }
+    }
+    if (console->dt != 0.0f)
+    {
+        f32 T = normalize(0.0f, console->dt, CONSOLE_TARGET_T);
         f32 next_y;
 
-        if (console_state->is_down)
-        {
-            next_y = lerp(console_state->current_y, t, height - console_state->half_dim.y);
-            console_rect = rect2_cen_half_dim(v2{width * 0.5f, next_y}, console_state->half_dim);
-        }
-        else
-        {
-            next_y = lerp(console_state->current_y, t, height + console_state->half_dim.y);
-            console_rect = rect2_cen_half_dim(v2{width * 0.5f, next_y}, console_state->half_dim);
-        }
+        next_y = lerp(width, T, height - console->half_dim.y);
+        Rect2 console_rect = rect2_cen_half_dim(v2{width * 0.5f, next_y}, console->half_dim);
+        v2 con_o = console_rect.min;
+        push_rect(orthographic_group, console_rect, 0.0f, console->bg_color);
 
-        console_state->current_y = next_y;
-        push_rect(orthographic_group, console_rect, 0.0f, console_state->color);
+        Console_Cursor *cursor = &console->cursor;
+        Rect2 cursor_rect = rect2_min_dim(con_o + cursor->offset - v2{0.0f, console->font->descent}, cursor->dim);
+        v4 cursor_color = lerp(cursor->color1, 0.5f*sin(time*5.0f) + 1.0f, cursor->color2);
+        push_rect(orthographic_group, cursor_rect, 0.0f, cursor_color);
+
+        Rect2 r = string_op(String_Op::DRAW | String_Op::GET_RECT,
+                            orthographic_group, _v3_(con_o + console->input_baseline_offset, 0.0f),
+                            console->cbuf, console->font);
+        cursor->offset = console->input_baseline_offset + v2{r.max.x - r.min.x};
     }
     else
     {
-        f32 console_y = height + (console_state->is_down ? -1 : 1) * console_state->half_dim.y;
-        Rect2 console_rect = rect2_cen_half_dim(v2{width * 0.5f, console_y}, console_state->half_dim);
-        push_rect(orthographic_group, console_rect, 0.0f, console_state->color);
+        // No need to draw.
     }
+
 
     //
     //
@@ -467,7 +490,7 @@ GAME_UPDATE(game_update)
 
                     switch (entity->type) 
                     {
-                        case eEntity_XBot: 
+                        case Entity_Type::XBOT: 
                         {
                             Model *model = game_assets->xbot_model;
                             if (model)
@@ -531,9 +554,26 @@ GAME_UPDATE(game_update)
                             }
                         } break;
 
-                        case eEntity_Tile: 
+                        case Entity_Type::TILE: 
                         {
                             Model *model = game_assets->cube_model;
+                            if (model)
+                            {
+                                for (u32 mesh_idx = 0;
+                                     mesh_idx < model->mesh_count;
+                                     ++mesh_idx)
+                                {
+                                    Mesh *mesh = model->meshes + mesh_idx;
+                                    Material *mat = model->materials + mesh->material_idx;
+                                    v3 light_pos = subtract(game_state->light->chunk_pos, {}, game_state->world->chunk_dim);
+                                    push_mesh(render_group, mesh, mat, world_transform, light_pos);
+                                }
+                            }
+                        } break;
+
+                        case Entity_Type::LIGHT:
+                        {
+                            Model *model = game_assets->sphere_model;
                             if (model)
                             {
                                 for (u32 mesh_idx = 0;
@@ -560,12 +600,12 @@ GAME_UPDATE(game_update)
 
     DEBUG_IF(Render_DrawGrass)
     {
-        push_grass(render_group, &game_assets->grass_model->meshes[0], game_state->grass_count, game_state->grass_world_transforms, game_state->time, game_assets->grass_max_vertex_y, game_assets->turbulence_map);
+        push_grass(render_group, &game_assets->grass_model->meshes[0], game_state->grass_count, game_state->grass_world_transforms, time, game_assets->grass_max_vertex_y, game_assets->turbulence_map);
     }
 
     DEBUG_IF(Render_DrawStar)
     {
-        push_star(render_group, game_assets->star_mesh, game_state->star_count, game_state->star_world_transforms, game_state->time);
+        push_star(render_group, game_assets->star_mesh, game_state->star_count, game_state->star_world_transforms, time);
     }
 
 

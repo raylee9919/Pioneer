@@ -180,16 +180,20 @@ load_animation(Animation *anim, char *file_name, Memory_Arena *arena,
 // Font
 //
 internal void
-load_font(Memory_Arena *arena, Read_Entire_File *read_file, Game_Assets *game_assets)
+load_font(Memory_Arena *arena, Read_Entire_File *read_file, Font *font)
 {
     Entire_File read = read_file(ASSET_FILE_NAME);
     u8 *at = (u8 *)read.contents;
     u8 *end = at + read.content_size;
 
     // parse font header.
-    u32 kern_count = ((Asset_Font_Header *)at)->kerning_pair_count;
-    game_assets->v_advance = ((Asset_Font_Header *)at)->vertical_advance;
+    Asset_Font_Header *header = (Asset_Font_Header *)at;
     at += sizeof(Asset_Font_Header);
+    u32 kern_count = header->kerning_pair_count;
+    font->v_advance = header->vertical_advance;
+    font->ascent = header->ascent;
+    font->descent = header->descent;
+    font->max_width = header->max_width;
 
     // parse kerning pairs.
     for (u32 count = 0; count < kern_count; ++count) 
@@ -202,8 +206,8 @@ load_font(Memory_Arena *arena, Read_Entire_File *read_file, Game_Assets *game_as
         kern->second = asset_kern->second;
         kern->value = asset_kern->value;
 
-        u32 entry_idx = kerning_hash(&game_assets->kern_hashmap, kern->first, kern->second);
-        push_kerning(&game_assets->kern_hashmap, kern, entry_idx);
+        u32 entry_idx = kerning_hash(&font->kern_hashmap, kern->first, kern->second);
+        push_kerning(&font->kern_hashmap, kern, entry_idx);
         at += sizeof(Asset_Kerning);
     }
 
@@ -214,7 +218,7 @@ load_font(Memory_Arena *arena, Read_Entire_File *read_file, Game_Assets *game_as
         {
             Asset_Glyph *glyph = (Asset_Glyph *)at;
             Bitmap *bitmap = &glyph->bitmap;
-            game_assets->glyphs[glyph->codepoint] = glyph;
+            font->glyphs[glyph->codepoint] = glyph;
             at += sizeof(Asset_Glyph);
             glyph->bitmap.memory = at;
             at += glyph->bitmap.size;

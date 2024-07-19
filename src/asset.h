@@ -64,6 +64,9 @@ struct Asset_Font_Header
 {
     u32 kerning_pair_count;
     u32 vertical_advance;
+    f32 ascent;
+    f32 descent;
+    f32 max_width;
 };
 
 struct Asset_Kerning 

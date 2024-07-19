@@ -655,8 +655,8 @@ win32_playback_input(Win32_State *win32_state, Game_Input *game_input)
 internal void
 win32_process_keyboard(Game_Key *game_key, b32 is_down) 
 {
-    if (is_down) game_key->is_set = true; 
-    else game_key->is_set = false;
+    if (is_down) game_key->is_down = true; 
+    else game_key->is_down = false;
 }
 
 internal void
@@ -1302,6 +1302,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                         u64 vk_code  = msg.wParam;
                         b32 is_down  = ((msg.lParam & (1 << 31)) == 0);
                         b32 was_down = ((msg.lParam & (1 << 30)) != 0);
+                        b32 alt      = (msg.lParam & (1 << 29));
                         if (was_down != is_down) 
                         {
                             switch (vk_code) 
@@ -1336,28 +1337,26 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
 
                             if (is_down) 
                             {
-                                bool32 altWasDown = (msg.lParam & (1 << 29));
-                                if ((vk_code == VK_F4) && altWasDown) 
+                                if (alt)
                                 {
-                                    g_running = false;
-                                }
-                                if ((vk_code == VK_RETURN) && altWasDown) 
-                                {
-                                    if (msg.hwnd) 
-                                    {
-                                        win32_toggle_fullscreen(msg.hwnd);
-                                    }
+                                    if (vk_code == VK_F4)
+                                        g_running = false;
+                                    if (vk_code == VK_RETURN)
+                                        if (msg.hwnd) 
+                                            win32_toggle_fullscreen(msg.hwnd);
                                 }
                             }
 
                         }
                     } break;
+
                     case WM_MOUSEWHEEL: 
                     {
                         s16 z_delta = (GET_WHEEL_DELTA_WPARAM(msg.wParam) / WHEEL_DELTA);
                         game_input.mouse.wheel_delta = z_delta;
                     } break;
                 }
+
                 TranslateMessage(&msg);
                 DispatchMessageA(&msg);
             }

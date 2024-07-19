@@ -905,6 +905,7 @@ int main(void)
         "../data/xbot_run.fbx",
         "../data/grass.dae",
         "../data/cube.dae",
+        "../data/sphere.fbx",
         "../data/octahedral.dae",
     };
 

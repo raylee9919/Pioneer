@@ -110,11 +110,6 @@ typedef DEBUG_PLATFORM_EXECUTE_SYSTEM_COMMAND(Debug_Platform_Execute_System_Comm
 #define DEBUG_PLATFORM_GET_PROCESS_STATE(name) Debug_Process_State name(Debug_Executing_Process process)
 typedef DEBUG_PLATFORM_GET_PROCESS_STATE(Debug_Platform_Get_Process_State);
 
-struct Game_Key 
-{
-    b32 is_set;
-};
-
 enum Mouse_Enum 
 {
     eMouse_Left,
@@ -125,7 +120,6 @@ enum Mouse_Enum
 
     eMouse_Count
 };
-
 // these are following game coordinates.
 struct Mouse_Input 
 {
@@ -136,7 +130,10 @@ struct Mouse_Input
     v2      click_p[eMouse_Count];
     s32     wheel_delta;
 };
-
+struct Game_Key 
+{
+    b32 is_down;
+};
 struct Game_Input 
 {
     f32         dt;

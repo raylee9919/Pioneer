@@ -13,7 +13,7 @@ REM font builder
 REM cl %CCFLAGS% ..\src\asset_builder.cpp /link %CLFLAGS%
 
 REM assimp
-cl ..\src\assimp.cpp assimp-vc143-mt.lib /std:c++17 /Od /nologo /MTd /GR /EHsc /W4 -wd4505 -wd4700 /wd4201 /wd4189 /wd4100 /FC /Z7 /I..\src\third_party\assimp\include /D_CRT_SECURE_NO_WARNINGS /link /LIBPATH:..\src\third_party\assimp\lib\x64 /incremental:no /opt:ref
+REM cl ..\src\assimp.cpp assimp-vc143-mt.lib /std:c++17 /Od /nologo /MTd /GR /EHsc /W4 -wd4505 -wd4700 /wd4201 /wd4189 /wd4100 /FC /Z7 /I..\src\third_party\assimp\include /D_CRT_SECURE_NO_WARNINGS /link /LIBPATH:..\src\third_party\assimp\lib\x64 /incremental:no /opt:ref
 
 
 REM Simple Preprocessor

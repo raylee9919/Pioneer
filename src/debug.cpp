@@ -87,15 +87,14 @@ debug_text_line(char *string)
     if (debug_state)
     {
         Render_Group *render_group = debug_state->render_group;
-        Game_Assets *game_assets = debug_state->game_assets;
-        Assert(game_assets);
-        f32 line_advance = (f32)game_assets->v_advance;
+        Font *font = debug_state->font;
+        f32 line_advance = (f32)font->v_advance;
 
-        string_op(eString_Op_Draw, render_group,
+        string_op(String_Op::DRAW, render_group,
                   _v3_(debug_state->left_edge,
                        debug_state->at_y - line_advance, 0.0f),
-                  string, game_assets, _v4_(1, 1, 1, 1));
-        debug_state->at_y -= game_assets->v_advance;
+                  string, font, _v4_(1, 1, 1, 1));
+        debug_state->at_y -= font->v_advance;
     }
 }
 
@@ -816,20 +815,21 @@ debug_draw_event(Layout *layout, Debug_Stored_Event *stored_event, Debug_ID debu
                                     eDebug_Var_To_Text_Colon|
                                     eDebug_Var_To_Text_Pretty_Bools);
 
-                Rect2 text_bounds = string_op(eString_Op_Get_Rect2, debug_state->render_group, _v3_(0, 0, 0), text, game_assets);
+                Font *font = debug_state->font;
+                Rect2 text_bounds = string_op(String_Op::GET_RECT, debug_state->render_group, _v3_(0, 0, 0), text, font);
                 v2 dim = _v2_(get_dim(text_bounds).x, layout->line_advance);
 
                 Layout_Element element = begin_element_rect(layout, &dim);
                 default_interaction(&element, item_interaction);
                 end_element(&element);
 
-                string_op(eString_Op_Draw,
+                string_op(String_Op::DRAW,
                           debug_state->render_group,
                           _v3_(_v2_(element.bounds.min.x,
-                                    element.bounds.max.y - game_assets->v_advance),
+                                    element.bounds.max.y - font->v_advance),
                                0.0f),
                           text,
-                          game_assets,
+                          font,
                           item_color);
 
             } break;
@@ -893,6 +893,7 @@ internal void
 debug_draw_main_menu(Debug_State *debug_state, v2 menu_p, v2 mouse_p)
 {
     Game_Assets *game_assets = debug_state->game_assets;
+    Font *font = debug_state->font;
 
     for (Debug_Tree *tree = debug_state->tree_sentinel.next;
          tree != &debug_state->tree_sentinel;
@@ -902,7 +903,7 @@ debug_draw_main_menu(Debug_State *debug_state, v2 menu_p, v2 mouse_p)
         layout.debug_state = debug_state;
         layout.mouse_p = mouse_p;
         layout.at = tree->ui_p;
-        layout.line_advance = (f32)game_assets->v_advance;
+        layout.line_advance = (f32)font->v_advance;
         layout.spacing_y = 4.0f;
 
         int depth = 0;
@@ -939,7 +940,7 @@ debug_draw_main_menu(Debug_State *debug_state, v2 menu_p, v2 mouse_p)
                         copy(link->children->name_length, link->children->name, text);
                         text[link->children->name_length] = 0;
 
-                        Rect2 text_bounds = string_op(eString_Op_Get_Rect2, debug_state->render_group, _v3_(0, 0, 0), text, game_assets);
+                        Rect2 text_bounds = string_op(String_Op::GET_RECT, debug_state->render_group, _v3_(0, 0, 0), text, font);
                         v2 dim = _v2_(get_dim(text_bounds).x, layout.line_advance);
 
 
@@ -950,13 +951,13 @@ debug_draw_main_menu(Debug_State *debug_state, v2 menu_p, v2 mouse_p)
                         b32 is_hot = interaction_is_hot(debug_state, item_interaction);
                         v4 item_color = is_hot ? _v4_(1, 1, 0, 1) : _v4_(1, 1, 1, 1);
 
-                        string_op(eString_Op_Draw,
+                        string_op(String_Op::DRAW,
                                   debug_state->render_group,
                                   _v3_(_v2_(element.bounds.min.x,
-                                            element.bounds.max.y - game_assets->v_advance),
+                                            element.bounds.max.y - font->v_advance),
                                        0.0f),
                                   text,
-                                  game_assets,
+                                  font,
                                   item_color);
 
                         if (view->collapsible.expanded_always)
@@ -1086,7 +1087,7 @@ debug_begin_interact(Debug_State *debug_state, Game_Input *input, v2 mouse_p, b3
 
             case eDebug_Interaction_Select:
             {
-                if (!input->shift.is_set)
+                if (!input->shift.is_down)
                 {
                     clear_selection(debug_state);
                 }
@@ -1744,6 +1745,8 @@ debug_start(Debug_State *debug_state, Game_Assets *game_assets, u32 width, u32 h
         Camera *debug_overlay_camera = push_camera(&debug_state->debug_arena, eCamera_Type_Orthographic, (f32)width, (f32)height);
         debug_state->render_group = alloc_render_group(&debug_state->debug_arena, MB(16),
                                                        debug_overlay_camera);
+
+        debug_state->font = &game_assets->debug_font;
 
         debug_state->paused = false;
         debug_state->scope_to_record = 0;

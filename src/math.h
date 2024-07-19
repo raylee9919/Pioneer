@@ -75,6 +75,14 @@ safe_ratio(f32 a, f32 b)
     return result;
 }
 
+inline f32
+normalize(f32 lo, f32 t, f32 hi)
+{
+    f32 result = (t - lo) / (hi - lo);
+    result = clamp(result, 0.0f, 1.0f);
+    return result;
+}
+
 //
 // v2
 //
@@ -399,7 +407,6 @@ _v3i_(s32 x, s32 y, s32 z)
 //
 // v4
 //
-
 union v4
 {
     struct {
@@ -434,6 +441,18 @@ _v4_(v3 rgb, f32 a)
     v.a = a;
     return v;
 }
+
+inline v4
+lerp(v4 a, f32 t, v4 b)
+{
+    v4 result = {};
+    result.r = lerp(a.r, t, b.r);
+    result.g = lerp(a.g, t, b.g);
+    result.b = lerp(a.b, t, b.b);
+    result.a = lerp(a.a, t, b.a);
+    return result;
+}
+
 
 //
 // quaternion
@@ -832,6 +851,15 @@ rect2_cen_half_dim(v2 cen, v2 h_dim)
     Rect2 result = {};
     result.min = cen - h_dim;
     result.max = cen + h_dim;
+    return result;
+}
+
+inline Rect2
+rect2_min_dim(v2 min, v2 dim)
+{
+    Rect2 result = {};
+    result.min = min;
+    result.max = min + dim;
     return result;
 }
 

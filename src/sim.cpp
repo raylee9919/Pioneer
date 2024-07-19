@@ -102,18 +102,23 @@ push_entity(Memory_Arena *arena, Chunk_Hashmap *hashmap,
 
     switch (type) 
     {
-        case eEntity_XBot: 
+        case Entity_Type::XBOT: 
         {
             entity->u                   = 200.0f;
         } break;
 
-        case eEntity_Tile: 
+        case Entity_Type::TILE: 
         {
             entity->world_translation.y -= 0.25f;
             entity->world_scaling       = _v3_(0.48f, 0.25f, 0.48f);
         } break;
 
-        INVALID_DEFAULT_CASE
+        case Entity_Type::LIGHT:
+        {
+            entity->world_scaling       = _v3_(0.48f, 0.25f, 0.48f);
+        } break;
+
+        INVALID_DEFAULT_CASE;
     }
 
     Chunk *chunk = get_chunk(arena, hashmap, chunk_pos);
@@ -287,12 +292,12 @@ update_entities(Game_State *game_state, f32 dt,
                 {
                     switch (entity->type) 
                     {
-                        case eEntity_XBot: 
+                        case Entity_Type::XBOT: 
                         {
                             update_entity_position(game_state, entity, dt);
                         } break;
 
-                        case eEntity_Tile: 
+                        case Entity_Type::TILE: 
                         {
 #if 0
                             f32 theta = acos(entity->world_rotation.w);
@@ -303,6 +308,11 @@ update_entities(Game_State *game_state, f32 dt,
                             }
                             entity->world_rotation = _qt_(cos(theta), 0, sin(theta), 0);
 #endif
+                        } break;
+
+                        case Entity_Type::LIGHT:
+                        {
+                            update_entity_position(game_state, entity, dt);
                         } break;
 
                         INVALID_DEFAULT_CASE
