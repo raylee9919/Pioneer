@@ -9,8 +9,6 @@
 
 #define MESH_DIR "mesh/"
 
-#define ASSET_FILE_NAME "asset.pack"
-
 #include "types.h"
 #include "game.h"
 #include "memory.cpp"
@@ -292,7 +290,8 @@ GAME_UPDATE(game_update)
 
         assets->star_mesh = assets->octahedral_model->meshes;
 
-        load_font(&transient_state->asset_arena, game_memory->platform.debug_platform_read_file, &assets->debug_font);
+        load_font(&transient_state->asset_arena, game_memory->platform.debug_platform_read_file, "font/courier_new.sfnt", &assets->debug_font);
+        load_font(&transient_state->asset_arena, game_memory->platform.debug_platform_read_file, "font/gill_sans.sfnt", &assets->menu_font);
 
         //
         // Noise Map
@@ -714,10 +713,22 @@ GAME_UPDATE(game_update)
     }
     else if (game_state->mode == MENU)
     {
-        push_rect(orthographic_group, rect2_min_dim(v2{}, v2{width, height}), 0.0f, v4{0.2f, 0.2f, 0.2f, 1.0f});
+        Rect2 r;
+
+        push_rect(orthographic_group, rect2_min_dim(v2{}, v2{width, height}), 0.0f, v4{0.02f, 0.02f, 0.02f, 1.0f});
         char *menu = "Hello, Sailor!";
-        Rect2 r = string_op(String_Op::GET_RECT, 0, v3{}, menu, &assets->debug_font);
-        string_op(String_Op::DRAW, orthographic_group, v3{0.5f*(width-r.max.x+r.min.x), height*0.8f, 0.0f}, menu, &assets->debug_font);
+        r = string_op(String_Op::GET_RECT, 0, v3{}, menu, &assets->menu_font);
+        r = string_op(String_Op::GET_RECT | String_Op::DRAW, orthographic_group, v3{0.5f*(width-r.max.x+r.min.x), height*0.8f, 0.0f}, menu, &assets->menu_font, v4{1.0f, 0.5f, 0.5f, 1.0f});
+
+        char *menu2 = "Music: ON";
+        r = string_op(String_Op::GET_RECT, 0, v3{}, menu2, &assets->menu_font);
+        r = string_op(String_Op::GET_RECT | String_Op::DRAW, orthographic_group, v3{0.5f*(width-r.max.x+r.min.x), height*0.5f, 0.0f}, menu2, &assets->menu_font, v4{1.0f, 0.5f, 0.5f, 1.0f});
+
+        char *menu3 = "Exit Game";
+        r = string_op(String_Op::GET_RECT, 0, v3{}, menu3, &assets->menu_font);
+        r = string_op(String_Op::GET_RECT | String_Op::DRAW, orthographic_group, v3{0.5f*(width-r.max.x+r.min.x), height*0.3f, 0.0f}, menu3, &assets->menu_font, v4{1.0f, 0.5f, 0.5f, 1.0f});
+
+        //push_rect(orthographic_group, r, 0.0f, v4{1.0f, 1.0f, 1.0f, 0.3f});
     }
 
 

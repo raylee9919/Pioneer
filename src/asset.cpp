@@ -179,9 +179,9 @@ load_animation(Animation *anim, char *file_name, Memory_Arena *arena,
 // Font
 //
 internal void
-load_font(Memory_Arena *arena, Read_Entire_File *read_file, Font *font)
+load_font(Memory_Arena *arena, Read_Entire_File *read_file, char *file_name, Font *font)
 {
-    Entire_File read = read_file(ASSET_FILE_NAME);
+    Entire_File read = read_file(file_name);
     u8 *at = (u8 *)read.contents;
     u8 *end = at + read.content_size;
 

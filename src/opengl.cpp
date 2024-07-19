@@ -400,7 +400,8 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glEnable(GL_SCISSOR_TEST);
 
     glEnable(GL_DEPTH_TEST);
-    glClearColor(0.13f, 0.15f, 0.37f, 1.0f);
+    //glClearColor(0.13f, 0.15f, 0.37f, 1.0f);
+    glClearColor(0.03f, 0.02f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glClearDepth(1.0f);
     glClear(GL_DEPTH_BUFFER_BIT);

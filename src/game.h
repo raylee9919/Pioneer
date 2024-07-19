@@ -287,6 +287,7 @@ struct Game_Assets
     Bitmap              *debug_bitmap;
 
     Font                debug_font;
+    Font                menu_font;
 
     Model               *xbot_model;
     Model               *cube_model;

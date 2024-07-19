@@ -115,7 +115,7 @@ push_entity(Memory_Arena *arena, Chunk_Hashmap *hashmap,
 
         case Entity_Type::LIGHT:
         {
-            entity->world_scaling       = _v3_(0.48f, 0.25f, 0.48f);
+            entity->world_scaling       = _v3_(0.5f, 0.25f, 0.5f);
         } break;
 
         INVALID_DEFAULT_CASE;

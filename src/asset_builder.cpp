@@ -72,7 +72,8 @@ write_bmp(const char *filename, FILE *out_file)
 {
     FILE *file = fopen(filename, "rb");
 
-    if(file) {
+    if(file) 
+    {
         BMP_Info_Header header = {};
         fread(&header, sizeof(BMP_Info_Header), 1, file);
         Assert(header.compression == 3);
@@ -133,7 +134,9 @@ write_bmp(const char *filename, FILE *out_file)
         }
 
         fwrite(bitmap.memory, bitmap_size, 1, out_file);
-    } else {
+    } 
+    else 
+    {
         printf("Couldn't open filename %s\n.", filename);
     }
 
@@ -328,132 +331,158 @@ error_handling(const char *str)
 }
 
 static void
-bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_height) 
+bake_font(const char *filename, const char *fontname, FILE* out, s32 cheese_height)
 {
     s32 bi_width        = 1024;
     s32 bi_height       = 1024;
-    static HDC hdc      = 0;
+    HDC hdc             = 0;
     TEXTMETRIC metric   = {};
     ABC *ABCs           = 0;
     void *bits          = 0;
     u32 lo              = ' ';
     u32 hi              = '~';
-    if (!hdc) 
-    {
-        // add font file to resource pool.
-        if (!AddFontResourceExA(filename, FR_PRIVATE, 0)) 
-        {
-            error_handling("ERROR: Couldn't add font resource.");
-        }
 
+    // add font file to resource pool.
+    if (AddFontResourceExA(filename, FR_PRIVATE, 0)) 
+    {
         // create font.
         HFONT font = CreateFontA(cheese_height, 0, 0, 0,
                                  FW_NORMAL, FALSE, FALSE, FALSE,
                                  DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
                                  CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
                                  DEFAULT_PITCH|FF_DONTCARE, fontname);
-        if (!font) 
+        if (font) 
         { 
+            hdc = CreateCompatibleDC(0);
+            if (hdc)
+            {
+                char temp[30];
+                GetTextFaceA(hdc, array_count(temp), temp);
+                BITMAPINFO info = {};
+                info.bmiHeader.biSize           = sizeof(info.bmiHeader);
+                info.bmiHeader.biWidth          = bi_width;
+                info.bmiHeader.biHeight         = bi_height;
+                info.bmiHeader.biPlanes         = 1;
+                info.bmiHeader.biBitCount       = 32;
+                info.bmiHeader.biCompression    = BI_RGB;
+                info.bmiHeader.biSizeImage      = 0;
+                info.bmiHeader.biXPelsPerMeter  = 0;
+                info.bmiHeader.biYPelsPerMeter  = 0;
+                info.bmiHeader.biClrUsed        = 0;
+                info.bmiHeader.biClrImportant   = 0;
+                HBITMAP bitmap = CreateDIBSection(hdc, &info, DIB_RGB_COLORS, &bits, 0, 0);
+                SelectObject(hdc, bitmap);
+                SelectObject(hdc, font);
+                SetBkColor(hdc, RGB(0, 0, 0));
+
+                GetTextMetrics(hdc, &metric);
+
+                // kerning.
+                s32 kern_count = GetKerningPairsA(hdc, 0, 0);
+                KERNINGPAIR *kern_pairs = push_array(KERNINGPAIR, kern_count);
+                GetKerningPairsA(hdc, kern_count, kern_pairs);
+
+                // font header.
+                Asset_Font_Header font_header = {};
+                font_header.kerning_pair_count = kern_count;
+                font_header.vertical_advance = (metric.tmHeight + metric.tmInternalLeading + metric.tmExternalLeading);
+                font_header.ascent = (f32)metric.tmAscent;
+                font_header.descent = (f32)metric.tmDescent;
+                font_header.max_width = (f32)metric.tmMaxCharWidth;
+
+                Asset_Kerning *asset_kern_pairs = push_array(Asset_Kerning, kern_count);
+                for (s32 idx = 0;
+                     idx < kern_count;
+                     ++idx) 
+                {
+                    KERNINGPAIR *kern_pair = kern_pairs + idx;
+                    Asset_Kerning *asset_kern_pair = asset_kern_pairs + idx;
+                    asset_kern_pair->first = kern_pair->wFirst;
+                    asset_kern_pair->second = kern_pair->wSecond;
+                    asset_kern_pair->value = kern_pair->iKernAmount;
+                }
+
+                // ABC. What a convenient name.
+                ABCs = push_array(ABC, hi - lo + 1);
+                GetCharABCWidthsA(hdc, lo, hi, ABCs);
+
+                // write font header.
+                fwrite(&font_header, sizeof(font_header), 1, out);
+
+                // write kerning pairs.
+                fwrite(asset_kern_pairs, sizeof(*asset_kern_pairs) * kern_count, 1, out);
+
+                // write glyphs.
+                for (u32 ch = lo;
+                     ch <= hi;
+                     ++ch) 
+                {
+                    Asset_Glyph *glyph = bake_glyph(hdc, ch, bits, bi_width, bi_height, metric);
+                    glyph->A = ABCs[ch - lo].abcA;
+                    glyph->B = ABCs[ch - lo].abcB;
+                    glyph->C = ABCs[ch - lo].abcC;
+                    fwrite(glyph, sizeof(*glyph), 1, out);
+                    fwrite(glyph->bitmap.memory, glyph->bitmap.size, 1, out);
+                }
+
+                ReleaseDC(GetActiveWindow(), hdc);
+                flush(&g_main_arena);
+            }
+            else
+            {
+                error_handling("ERROR: Couldn't create compatible HDC.");
+            }
+        }
+        else
+        {
             error_handling("ERROR: Couldn't create a font."); 
         }
-
-        hdc = CreateCompatibleDC(0);
-        char temp[30];
-        GetTextFaceA(hdc, 30, temp);
-        BITMAPINFO info = {};
-        info.bmiHeader.biSize           = sizeof(info.bmiHeader);
-        info.bmiHeader.biWidth          = bi_width;
-        info.bmiHeader.biHeight         = bi_height;
-        info.bmiHeader.biPlanes         = 1;
-        info.bmiHeader.biBitCount       = 32;
-        info.bmiHeader.biCompression    = BI_RGB;
-        info.bmiHeader.biSizeImage      = 0;
-        info.bmiHeader.biXPelsPerMeter  = 0;
-        info.bmiHeader.biYPelsPerMeter  = 0;
-        info.bmiHeader.biClrUsed        = 0;
-        info.bmiHeader.biClrImportant   = 0;
-        HBITMAP bitmap = CreateDIBSection(hdc, &info, DIB_RGB_COLORS, &bits, 0, 0);
-        SelectObject(hdc, bitmap);
-        SelectObject(hdc, font);
-        SetBkColor(hdc, RGB(0, 0, 0));
-
-        GetTextMetrics(hdc, &metric);
-
-        // kerning.
-        s32 kern_count = GetKerningPairsA(hdc, 0, 0);
-        KERNINGPAIR *kern_pairs = push_array(KERNINGPAIR, kern_count);
-        GetKerningPairsA(hdc, kern_count, kern_pairs);
-
-        // font header.
-        Asset_Font_Header font_header = {};
-        font_header.kerning_pair_count = kern_count;
-        font_header.vertical_advance = (metric.tmHeight + metric.tmInternalLeading + metric.tmExternalLeading);
-        font_header.ascent = (f32)metric.tmAscent;
-        font_header.descent = (f32)metric.tmDescent;
-        font_header.max_width = (f32)metric.tmMaxCharWidth;
-
-        Asset_Kerning *asset_kern_pairs = push_array(Asset_Kerning, kern_count);
-        for (s32 idx = 0;
-                idx < kern_count;
-                ++idx) 
-        {
-            KERNINGPAIR *kern_pair = kern_pairs + idx;
-            Asset_Kerning *asset_kern_pair = asset_kern_pairs + idx;
-            asset_kern_pair->first = kern_pair->wFirst;
-            asset_kern_pair->second = kern_pair->wSecond;
-            asset_kern_pair->value = kern_pair->iKernAmount;
-        }
-
-        // ABC. What a convenient name.
-        ABCs = push_array(ABC, hi - lo + 1);
-        GetCharABCWidthsA(hdc, lo, hi, ABCs);
-
-        // write font header.
-        fwrite(&font_header, sizeof(font_header), 1, out);
-        
-        // write kerning pairs.
-        fwrite(asset_kern_pairs, sizeof(*asset_kern_pairs) * kern_count, 1, out);
     }
-
-    // write glyphs.
-    for (u32 ch = lo;
-            ch <= hi;
-            ++ch) 
+    else
     {
-        Asset_Glyph *glyph = bake_glyph(hdc, ch, bits, bi_width, bi_height, metric);
-        glyph->A = ABCs[ch - lo].abcA;
-        glyph->B = ABCs[ch - lo].abcB;
-        glyph->C = ABCs[ch - lo].abcC;
-        fwrite(glyph, sizeof(*glyph), 1, out);
-        fwrite(glyph->bitmap.memory, glyph->bitmap.size, 1, out);
+        error_handling("ERROR: Couldn't add font resource.");
     }
-    
-    flush(&g_main_arena); // IMPORTANT: danger if you will use multi-threading.
 }
 
-int
-main(int argc, char **argv) 
+int main(void) 
 {
     init_memory();
 
-    Package package = {};
-    package.header.magic = MAGIC;
-    package.header.file_version = FILE_VERSION;
-    package.header.flags = 0;
-    package.header.table_of_contents_offset = sizeof(package.header);
+    char *in_files[] = {
+        "C:/Windows/Fonts/cour.ttf",
+        "../data/Gill Sans Bold.otf",
+    };
+    char *font_names[] = {
+        "Courier New",
+        "Gill Sans",
+    };
+    char *out_files[] = {
+        "../data/font/courier_new.sfnt",
+        "../data/font/gill_sans.sfnt",
+    };
+    int heights[] = {
+        30,
+        150,
+    };
 
-
-    FILE *out = fopen("../data/asset.pack", "wb");
-    if (out) 
+    for (u32 idx = 0; 
+         idx < array_count(in_files);
+         ++idx)
     {
-        bake_font("C:/Windows/Fonts/cour.ttf", "Courier New", out, 30);
-        fclose(out);
-        printf("*** SUCCESSFUL! ***\n");
-    } 
-    else 
-    {
-        printf("ERROR: Couldn't open file.\n");
+        FILE *out = fopen(out_files[idx], "wb");
+        if (out) 
+        {
+            printf("%s ---> %s\n", in_files[idx], out_files[idx]);
+            bake_font(in_files[idx], font_names[idx], out, heights[idx]);
+            printf("OK\n");
+            fclose(out);
+        } 
+        else 
+        {
+            printf("ERROR: Couldn't open file.\n");
+        }
     }
 
+    printf("*** SUCCESSFUL! ***\n");
     free_memory();
 }

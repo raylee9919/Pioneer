@@ -111,13 +111,12 @@ enum String_Op : u8
 internal Rect2
 string_op(u8 flag, Render_Group *render_group,
           v3 left_bottom,
-          const char *str, Font *font, v4 color = _v4_(1, 1, 1, 1))
+          const char *str, Font *font, v4 color = v4{1, 1, 1, 1})
 {
     Rect2 result = rect2_inv_inf();
 
     f32 left_x  = left_bottom.x;
     f32 kern    = 0.0f;
-    f32 C       = 0.0f;
     f32 A       = 0.0f;
 
     for (const char *ch = str;
@@ -127,15 +126,16 @@ string_op(u8 flag, Render_Group *render_group,
         Asset_Glyph *glyph = font->glyphs[*ch];
         if (glyph)
         {
-            C = (f32)font->glyphs[*ch]->C;
-
+            f32 B = (f32)font->glyphs[*ch]->B;
+            f32 C = (f32)font->glyphs[*ch]->C;
+    
             if (*ch != ' ')
             {
                 Bitmap *bitmap = &glyph->bitmap;
                 f32 w = (f32)bitmap->width;
                 f32 h = (f32)bitmap->height;
-                v3 max = _v3_(left_x + w, left_bottom.y + glyph->ascent, left_bottom.z);
-                v3 min = max - _v3_(w, h, 0);
+                v3 max = v3{left_x + w, left_bottom.y + glyph->ascent, left_bottom.z};
+                v3 min = max - v3{w, h, 0};
 
                 if (flag & String_Op::DRAW)
                 {
@@ -153,10 +153,22 @@ string_op(u8 flag, Render_Group *render_group,
                     if (result.max.y < max.y)
                         result.max.y = max.y;
                 }
+
+                left_x += w;
             }
-            else if(flag & String_Op::GET_RECT)
+            else
             {
-                result.max.x += (glyph->B + C);
+                f32 max_x = left_x + B;
+                f32 min_x = left_x;
+                left_x += B;
+
+                if (flag & String_Op::GET_RECT)
+                {
+                    if (result.min.x > min_x)
+                        result.min.x = min_x;
+                    if (result.max.x < max_x)
+                        result.max.x = max_x;
+                }
             }
 
             if (*(ch + 1))
@@ -166,19 +178,10 @@ string_op(u8 flag, Render_Group *render_group,
                 {
                     A = (f32)font->glyphs[*(ch + 1)]->A;
                 }
-                f32 advance_x = (glyph->B + C + A + kern);
+                f32 advance_x = (C + A + kern);
                 left_x += advance_x;
             }
         } 
-        else if (*ch == ' ')
-        {
-            // TODO: horizontal advance info in asset.
-            left_x += (C + 10.0f);
-        } 
-        else 
-        {
-
-        }
     }
 
     if (result.min.x == F32_MAX)
