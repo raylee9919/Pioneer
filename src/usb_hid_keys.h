@@ -64,16 +64,16 @@
 #define KEY_Y 0x1c // Keyboard y and Y
 #define KEY_Z 0x1d // Keyboard z and Z
 
-#define KEY_1 0x1e // Keyboard 1 and !
-#define KEY_2 0x1f // Keyboard 2 and @
-#define KEY_3 0x20 // Keyboard 3 and #
-#define KEY_4 0x21 // Keyboard 4 and $
-#define KEY_5 0x22 // Keyboard 5 and %
-#define KEY_6 0x23 // Keyboard 6 and ^
-#define KEY_7 0x24 // Keyboard 7 and &
-#define KEY_8 0x25 // Keyboard 8 and *
-#define KEY_9 0x26 // Keyboard 9 and (
-#define KEY_0 0x27 // Keyboard 0 and )
+#define KEY_0 0x1e // Keyboard 0 and )
+#define KEY_1 0x1f // Keyboard 1 and !
+#define KEY_2 0x20 // Keyboard 2 and @
+#define KEY_3 0x21 // Keyboard 3 and #
+#define KEY_4 0x22 // Keyboard 4 and $
+#define KEY_5 0x23 // Keyboard 5 and %
+#define KEY_6 0x24 // Keyboard 6 and ^
+#define KEY_7 0x25 // Keyboard 7 and &
+#define KEY_8 0x26 // Keyboard 8 and *
+#define KEY_9 0x27 // Keyboard 9 and (
 
 #define KEY_ENTER 0x28 // Keyboard Return (ENTER)
 #define KEY_ESC 0x29 // Keyboard ESCAPE

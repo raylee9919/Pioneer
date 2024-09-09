@@ -189,7 +189,7 @@ recalc_pos(Chunk_Position *pos, v3 chunk_dim)
 }
 
 internal void
-MapEntityToChunk(Memory_Arena *arena, Chunk_Hashmap *hashmap, Entity *entity,
+map_entity_to_chunk(Memory_Arena *arena, Chunk_Hashmap *hashmap, Entity *entity,
                  Chunk_Position oldPos, Chunk_Position newPos) 
 {
     TIMED_FUNCTION();
@@ -230,6 +230,7 @@ internal v3
 subtract(Chunk_Position A, Chunk_Position B, v3 chunk_dim) 
 {
     TIMED_FUNCTION();
+
     v3 diff = {};
     diff.x = (f32)(A.x - B.x) * chunk_dim.x;
     diff.y = (f32)(A.y - B.y) * chunk_dim.y;
@@ -243,6 +244,7 @@ internal void
 update_entity_position(Game_State *game_state, Entity *self, f32 dt)
 {
     TIMED_FUNCTION();
+
     Chunk_Position old_chunk_pos = self->chunk_pos;
     Chunk_Position new_chunk_pos = self->chunk_pos;
 
@@ -257,9 +259,9 @@ update_entity_position(Game_State *game_state, Entity *self, f32 dt)
     self->chunk_pos = new_chunk_pos;
     if (!is_same_chunk(old_chunk_pos, new_chunk_pos)) 
     {
-        MapEntityToChunk(&game_state->world_arena,
-                         &game_state->world->chunkHashmap,
-                         self, old_chunk_pos, new_chunk_pos);
+        map_entity_to_chunk(&game_state->world_arena,
+                            &game_state->world->chunkHashmap,
+                            self, old_chunk_pos, new_chunk_pos);
     }
 }
 

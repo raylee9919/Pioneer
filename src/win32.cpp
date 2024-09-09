@@ -267,6 +267,13 @@ win32_load_gl_extensions()
             WGL_GET_PROC_ADDRESS(glDrawElementsInstanced);
             WGL_GET_PROC_ADDRESS(glUniform1f);
             WGL_GET_PROC_ADDRESS(glUniform1fv);
+            WGL_GET_PROC_ADDRESS(glGenFramebuffers);
+            WGL_GET_PROC_ADDRESS(glBindFramebuffer);
+            WGL_GET_PROC_ADDRESS(glFramebufferTexture2D);
+            WGL_GET_PROC_ADDRESS(glTexStorage3D);
+            WGL_GET_PROC_ADDRESS(glTexSubImage3D);
+            WGL_GET_PROC_ADDRESS(glGenerateMipmap);
+            WGL_GET_PROC_ADDRESS(glBindImageTexture);
 
             gl_init_info();
 
@@ -1245,12 +1252,15 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
     win32_keycode_map[VK_LMENU]     = KEY_LEFTALT;
     win32_keycode_map[VK_ESCAPE]    = KEY_ESC;
     win32_keycode_map[VK_SPACE]     = KEY_SPACE;
+    win32_keycode_map[VK_OEM_3]     = KEY_HASHTILDE;
     win32_keycode_map[VK_LEFT]      = KEY_LEFT;
     win32_keycode_map[VK_RIGHT]     = KEY_RIGHT;
     win32_keycode_map[VK_UP]        = KEY_UP;
     win32_keycode_map[VK_DOWN]      = KEY_DOWN;
     for (char c = 'A'; c <= 'Z'; ++c)
         win32_keycode_map[c] = KEY_A + (c - 'A');
+    for (char c = 0x30; c <= 0x39; ++c) // 0~9
+        win32_keycode_map[c] = KEY_0 + (c - 0x30);
     for (char c = VK_F1; c <= VK_F12; ++c)
         win32_keycode_map[c] = KEY_F1 + (c - VK_F1);
 

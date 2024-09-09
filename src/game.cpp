@@ -7,8 +7,6 @@
    ======================================================================== */
 
 
-#define MESH_DIR "mesh/"
-
 #include "types.h"
 #include "game.h"
 #include "memory.cpp"
@@ -37,7 +35,7 @@ init_console(Console *console, f32 screen_height, f32 screen_width, Font *font) 
     console->dt         = 0.0f;
     console->bg_color   = v4{0.02f, 0.02f, 0.02f, 0.9f};
     console->font       = font;
-    console->text_color = v4{1.0f, 0.0f, 1.0f, 1.0f};
+    console->text_color = v4{1.0f, 1.0f, 1.0f, 1.0f};
 
     console->input_baseline_offset = v2{5.0f, 2.0f + font->descent};
 
@@ -81,12 +79,11 @@ interpolate(Model *model, Animation *anim1, f32 dt1, f32 t, Animation *anim2, f3
 extern "C"
 GAME_UPDATE(game_update)
 {
-
 #if __DEVELOPER
     g_debug_memory = game_memory;
 #endif
 
-    if (!game_state->init) 
+    if (!game_state->initted)
     {
         init_arena(&game_state->world_arena,
                    game_memory->permanent_memory_size - sizeof(Game_State),
@@ -117,8 +114,13 @@ GAME_UPDATE(game_update)
                 tile_pos.offset.x += dim.x * X;
                 tile_pos.offset.z += dim.z * Z;
                 recalc_pos(&tile_pos, game_state->world->chunk_dim);
-                Entity *tile1 = push_entity(world_arena, chunk_hashmap,
-                                            Entity_Type::TILE, tile_pos, world->chunk_dim);
+                Entity *tile1 = push_entity(world_arena, chunk_hashmap, Entity_Type::TILE, tile_pos, world->chunk_dim);
+                if (X == -hX || X == hX || Z == -hZ || Z == hZ)
+                {
+                    tile_pos.offset.y += 0.5f;
+                    recalc_pos(&tile_pos, game_state->world->chunk_dim);
+                    Entity *tile2 = push_entity(world_arena, chunk_hashmap, Entity_Type::TILE, tile_pos, world->chunk_dim);
+                }
 #if 1
                 for (s32 z = -GRASS_DENSITY; z <= GRASS_DENSITY; ++z)
                 {
@@ -147,36 +149,32 @@ GAME_UPDATE(game_update)
             }
         }
 
-
         Entity *xbot = push_entity(world_arena, chunk_hashmap, Entity_Type::XBOT, Chunk_Position{0, 0, 0}, world->chunk_dim);
         game_state->player = xbot;
-
 
         f32 T = pi32 * 0.1f;
         f32 Dpc = 5;
         f32 Dfc = 10;
         // @TODO: is it too janky?
-        game_state->free_camera = push_camera( &game_state->world_arena,
-                                                eCamera_Type_Perspective,
-                                                (f32)game_screen_buffer->width, (f32)game_screen_buffer->height,
-                                                0.5f,
-                                                _v3_(0, Dfc * sin(T * 2.0f), Dfc * cos(T * 2.0f)),
-                                                _qt_(cos(T), -sin(T), 0, 0) );
+        game_state->free_camera = push_camera(&game_state->world_arena,
+                                              eCamera_Type_Perspective,
+                                              (f32)game_screen_buffer->width, (f32)game_screen_buffer->height,
+                                              0.5f,
+                                              _v3_(0, Dfc * sin(T * 2.0f), Dfc * cos(T * 2.0f)),
+                                              _qt_(cos(T), -sin(T), 0, 0) );
 
-        game_state->player_camera = push_camera( &game_state->world_arena,
+        game_state->player_camera = push_camera(&game_state->world_arena,
                                                 eCamera_Type_Perspective,
                                                 (f32)game_screen_buffer->width, (f32)game_screen_buffer->height,
                                                 0.5f,
                                                 _v3_(0, Dpc * sin(T * 2.0f), Dpc * cos(T * 2.0f)),
                                                 _qt_(cos(T), -sin(T), 0, 0) );
 
-        game_state->orthographic_camera = push_camera( &game_state->world_arena,
-                                                       eCamera_Type_Orthographic,
-                                                       (f32)game_screen_buffer->width, (f32)game_screen_buffer->height);
+        game_state->orthographic_camera = push_camera(&game_state->world_arena,
+                                                      eCamera_Type_Orthographic,
+                                                      (f32)game_screen_buffer->width, (f32)game_screen_buffer->height);
 
         game_state->using_camera = game_state->player_camera;
-
-
 
 
         // Star
@@ -200,11 +198,10 @@ GAME_UPDATE(game_update)
             game_state->star_world_transforms[game_state->star_count++] = transpose(trs_to_transform(translation, rotation, scaling));
         }
 
-
-        // @TEMPORARY
+        // @Temporary
         game_state->light = push_entity(world_arena, chunk_hashmap, Entity_Type::LIGHT, Chunk_Position{0, 0, 0, v3{0, 2.0f, 0}}, world->chunk_dim);
 
-        game_state->init = true;
+        game_state->initted = true;
     }
 
     f32 dt = input->dt;
@@ -257,6 +254,7 @@ GAME_UPDATE(game_update)
         assets->octahedral_model = push_struct(&transient_state->asset_arena, Model);
         assets->sphere_model = push_struct(&transient_state->asset_arena, Model);
         assets->grass_model = push_struct(&transient_state->asset_arena, Model);
+        assets->rifle_model = push_struct(&transient_state->asset_arena, Model);
 
         assets->xbot_idle = push_struct(&transient_state->asset_arena, Animation);
         load_animation(assets->xbot_idle, "animation/xbot_idle.sanm", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
@@ -267,17 +265,18 @@ GAME_UPDATE(game_update)
         // @Temporary
         // @Temporary
         // @Temporary
-        load_model(assets->xbot_model, MESH_DIR"xbot.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        load_model(assets->xbot_model, "mesh/xbot.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
         player->animation_transform = push_array(&transient_state->transient_arena, m4x4, assets->xbot_model->node_count);
         f32 xbot_scale = 0.01f;
         assets->xbot_model->nodes[0].base_transform =
             scale(assets->xbot_model->nodes[0].base_transform, xbot_scale * v3{1, 1, 1});
         player->animation_channels[0].animation = assets->xbot_idle;
 
-        load_model(assets->cube_model, MESH_DIR"cube.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
-        load_model(assets->octahedral_model, MESH_DIR"octahedral.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
-        load_model(assets->sphere_model, MESH_DIR"sphere.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
-        load_model(assets->grass_model, MESH_DIR"grass.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        load_model(assets->cube_model, "mesh/cube.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        load_model(assets->octahedral_model, "mesh/octahedral.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        load_model(assets->sphere_model, "mesh/sphere.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        load_model(assets->rifle_model, "mesh/Rifle.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        load_model(assets->grass_model, "mesh/grass.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
         for (u32 vertex_idx = 0;
              vertex_idx < assets->grass_model->meshes[0].vertex_count;
              ++vertex_idx)
@@ -314,17 +313,26 @@ GAME_UPDATE(game_update)
 
     Temporary_Memory render_memory = begin_temporary_memory(&transient_state->transient_arena);
 
+    Render_Group *render_group = alloc_render_group(&transient_state->transient_arena, MB(16), game_state->using_camera);
+    Render_Group *orthographic_group = alloc_render_group(&transient_state->transient_arena, MB(16), game_state->orthographic_camera);
+
     //
-    //
+    // Input
     //
 
+    // Consume items in input queue.
     while (event_queue->next_idx != 0)
     {
         Event ev = event_queue->events[--event_queue->next_idx];
+
         if (ev.flag & Event_Flag::PRESSED)
+        {
             input->keys[ev.key].is_down = true;
+        }
         else if (ev.flag & Event_Flag::RELEASED)
+        {
             input->keys[ev.key].is_down = false;
+        }
         
         switch (game_state->mode)
         {
@@ -338,7 +346,7 @@ GAME_UPDATE(game_update)
                             game_state->mode = Game_Mode::MENU;
                     } break;
 
-                    case KEY_F1:
+                    case KEY_HASHTILDE:
                     {
                         if (ev.flag & Event_Flag::PRESSED)
                             game_state->mode = Game_Mode::CONSOLE;
@@ -354,7 +362,7 @@ GAME_UPDATE(game_update)
             {
                 switch (ev.key)
                 {
-                    case KEY_F1:
+                    case KEY_HASHTILDE:
                     {
                         if (ev.flag & Event_Flag::PRESSED)
                             game_state->mode = Game_Mode::GAME;
@@ -381,11 +389,10 @@ GAME_UPDATE(game_update)
                     {
                         if (string_equal(console->cbuf, console->cbuf_at, "freecam", string_length("freecam")))
                         {
-                            game_state->using_camera = game_state->free_camera;
-                        }
-                        else if (string_equal(console->cbuf, console->cbuf_at, "playercam", string_length("playercam")))
-                        {
-                            game_state->using_camera = game_state->player_camera;
+                            if (game_state->using_camera == game_state->free_camera)
+                                game_state->using_camera = game_state->player_camera;
+                            else
+                                game_state->using_camera = game_state->free_camera;
                         }
                         else
                         {
@@ -412,6 +419,11 @@ GAME_UPDATE(game_update)
                                     console->cbuf[console->cbuf_at] = 0;
                                 }
                             }
+                            if (ev.key >= KEY_0 && ev.key <= KEY_9)
+                            {
+                                console->cbuf[console->cbuf_at++] = '0' + (ev.key - KEY_0);
+                                console->cbuf[console->cbuf_at] = 0;
+                            }
                         }
                     } break;
                 }
@@ -436,9 +448,10 @@ GAME_UPDATE(game_update)
             INVALID_DEFAULT_CASE;
         }
     }
+
     Assert(event_queue->next_idx == 0);
 
-
+    // Update things based on current key state.
     if (game_state->mode == Game_Mode::GAME)
     {
         if (game_state->using_camera == game_state->free_camera)
@@ -493,19 +506,22 @@ GAME_UPDATE(game_update)
                 player->world_rotation = _qt_(cos(dt), 0, sin(dt), 0) * player->world_rotation;
             }
         }
+
+        if (input->mouse.is_down[eMouse_Left])
+        {
+            push_rect(orthographic_group, rect2_cen_half_dim(v2{100, 100}, v2{100, 100}), 0.0f, v4{1.0f, 1.0f, 1.0f, 1.0f});
+            Camera *cam = game_state->using_camera;
+            v3 ray_origin = cam->world_translation;
+            v3 ray_direction = normalize(to_m4x4(cam->world_rotation) * v3{0, 0, -1});
+            f32 hit_dist = F32_MAX;
+        }
+
     }
 
 
     //
     //
     //
-
-    Render_Group *render_group = alloc_render_group(&transient_state->transient_arena, MB(16),
-                                                    game_state->using_camera);
-
-
-    Render_Group *orthographic_group = alloc_render_group(&transient_state->transient_arena, MB(16),
-                                                          game_state->orthographic_camera);
 
     // @Developer
     // Drop-down console.
@@ -542,7 +558,6 @@ GAME_UPDATE(game_update)
     //
     //
 
-
     if (game_state->mode == GAME ||
         game_state->mode == CONSOLE)
     {
@@ -560,6 +575,8 @@ GAME_UPDATE(game_update)
         // Update entities
         //
         update_entities(game_state, dt, min_pos, max_pos);
+
+        game_state->player_camera->world_translation = game_state->player->world_translation + v3{0.0f, 5.0f, 5.0f};
 
 
         //
@@ -629,17 +646,11 @@ GAME_UPDATE(game_update)
                                         f32 t = (scalar - lo) / (hi - lo);
                                         if (channel->animation == assets->xbot_idle)
                                         {
-                                            interpolate(model,
-                                                        channel->animation, channel->dt,
-                                                        t,
-                                                        assets->xbot_run, 0.0f);
+                                            interpolate(model, channel->animation, channel->dt, t, assets->xbot_run, 0.0f);
                                         }
                                         else
                                         {
-                                            interpolate(model,
-                                                        assets->xbot_idle, 0.0f,
-                                                        t,
-                                                        channel->animation, channel->dt);
+                                            interpolate(model, assets->xbot_idle, 0.0f, t, channel->animation, channel->dt);
                                         }
                                         eval(model, 0, 0, entity->animation_transform, false);
                                     }

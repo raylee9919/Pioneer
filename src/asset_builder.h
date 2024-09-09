@@ -18,6 +18,7 @@ Memory_Arena g_main_arena;
 
 #define push_array(STRUCT, COUNT) (STRUCT *)push_size(sizeof(STRUCT) * COUNT)
 #define push_struct(STRUCT) (STRUCT *)push_size(sizeof(STRUCT))
+
 static void *
 push_size(size_t size) 
 {

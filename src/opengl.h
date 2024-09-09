@@ -16,6 +16,8 @@ enum GL_Extensions
 };
 #undef X
 
+#define VOXEL_SIZE 64
+
 struct GL_Info 
 {
     b32     modern;
@@ -73,12 +75,29 @@ struct Sprite_Program
     s32     texture;
 };
 
+struct Voxelization_Program
+{
+    s32     id;
+};
+
+struct Voxel_Map
+{
+    u32     id;
+    u32     width;
+    u32     height;
+    u32     depth;
+    u8      *data;
+};
+
 struct GL 
 {
     Mesh_Program            mesh_program;
     Grass_Program           grass_program;
     Sprite_Program          sprite_program;
     Star_Program            star_program;
+    Voxelization_Program    voxelization_program;
+
+    Voxel_Map voxel_map;
 
     GLuint  vao;
     GLuint  vbo;
@@ -86,6 +105,9 @@ struct GL
 
     GLuint  grass_vbo;
     GLuint  star_vbo;
+
+    u32     shadow_map_fbo;
+    u32     shadow_map;
 
     Bitmap  white_bitmap;
     u32     white[4][4];

@@ -22,7 +22,7 @@ void main()
     C = texture(texture_sampler, fUV) * fC;
 
     //v3 light_pos        = v3(0.0f, 2.0f, 0.0f);
-    v3 light_color      = v3(1.0f);
+    v3 light_color      = v3(1.0f, 1.0f, 1.0f) * 3.0f;
     f32 light_diffuse   = 0.5f;
     f32 light_specular  = 1.0f;
     v3 light_sum;

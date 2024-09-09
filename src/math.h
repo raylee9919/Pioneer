@@ -189,14 +189,14 @@ hadamard(v2 A, v2 B)
 }
 
 inline f32
-len_square(v2 A) 
+length_square(v2 A) 
 {
     f32 result = dot(A, A);
     return result;
 }
 
 inline f32
-inv_len_square(v2 A) 
+inv_length_square(v2 A) 
 {
     f32 result = 1.0f / dot(A, A);
     return result;
@@ -205,7 +205,7 @@ inv_len_square(v2 A)
 inline f32
 len(v2 A) 
 {
-    f32 result = sqrt(len_square(A));
+    f32 result = sqrt(length_square(A));
     return result;
 }
 
@@ -353,7 +353,7 @@ cross(v3 A, v3 B)
 }
 
 inline f32
-len_square(v3 A) 
+length_square(v3 A) 
 {
     f32 result = dot(A, A);
     return result;
@@ -362,7 +362,7 @@ len_square(v3 A)
 inline f32
 len(v3 A) 
 {
-    f32 result = sqrt(len_square(A));
+    f32 result = sqrt(length_square(A));
     return result;
 }
 
@@ -373,6 +373,20 @@ normalize(v3 a)
     f32 inv_len = (1.0f / len(r));
     r *= inv_len;
     return r;
+}
+
+inline v3
+noz(v3 a)
+{
+    v3 result = {};
+
+    f32 lensq = length_square(a);
+    if (lensq > square(0.0001f))
+    {
+        result = (1.0f / sqrt(lensq)) * a;
+    }
+    
+    return result;
 }
 
 inline v3
@@ -961,4 +975,3 @@ rotate(qt q, v3 axis, f32 t)
     qt result = _qt_(c, n.x, n.y, n.z) * q;
     return result;
 }
-

@@ -294,6 +294,8 @@ struct Game_Assets
     Model               *sphere_model;
     Model               *octahedral_model;
 
+    Model               *rifle_model;
+
     Model               *grass_model;
     f32                 grass_max_vertex_y;
     Bitmap              *turbulence_map;
@@ -351,7 +353,7 @@ enum Game_Mode
 };
 struct Game_State 
 {
-    b32                 init;
+    b32                 initted;
     f32                 time;
 
     Game_Mode           mode;

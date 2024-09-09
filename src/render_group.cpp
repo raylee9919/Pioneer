@@ -158,9 +158,9 @@ string_op(u8 flag, Render_Group *render_group,
             }
             else
             {
-                f32 max_x = left_x + B;
+                f32 max_x = left_x + B + C;
                 f32 min_x = left_x;
-                left_x += B;
+                left_x += (B + C);
 
                 if (flag & String_Op::GET_RECT)
                 {
@@ -178,7 +178,7 @@ string_op(u8 flag, Render_Group *render_group,
                 {
                     A = (f32)font->glyphs[*(ch + 1)]->A;
                 }
-                f32 advance_x = (C + A + kern);
+                f32 advance_x = (A + kern);
                 left_x += advance_x;
             }
         } 
