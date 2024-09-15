@@ -5,13 +5,14 @@ R"MULTILINE(
 
 uniform m4x4  world_transform;
 uniform m4x4  V;
-uniform m4x4  VP;
+uniform m4x4  persp_P;
+uniform m4x4  ortho_P;
 uniform s32   is_skeletal;
 
 layout (location = 0) in v3 vP;
 layout (location = 1) in v3 vN;
 
-uniform m4x4                    bone_transforms[MAX_BONE_PER_MESH];
+uniform mat4x4                  bone_transforms[MAX_BONE_PER_MESH];
 layout (location = 4) in s32    bone_ids[MAX_BONE_PER_VERTEX];
 layout (location = 5) in f32    bone_weights[MAX_BONE_PER_VERTEX];
 
@@ -23,7 +24,7 @@ void main()
     m4x4 final_transform;
     if (is_skeletal != 0)
     {
-        m4x4 bone_transform;
+        mat4x4 bone_transform;
         if (bone_ids[0] != -1)
         {
             bone_transform = bone_transforms[bone_ids[0]] * bone_weights[0];
@@ -54,15 +55,14 @@ void main()
         final_transform = world_transform;
     }
 
+    v4 result_pos = final_transform * v4(vP, 1.0f);
+
     //
     //
     //
 
-    v4 result_pos = final_transform * v4(vP, 1.0f); // World Coord.
-
-    clip_P = VP * result_pos;
+    clip_P = ortho_P * V * result_pos;
     gl_Position = clip_P; // Orthoganally projected clip coord.
 }
-
 
 )MULTILINE"

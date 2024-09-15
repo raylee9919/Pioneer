@@ -1,6 +1,6 @@
 R"MULTILINE(
 
-uniform mat4x4      mvp;
+uniform m4x4        mvp;
 uniform f32         time;
 uniform f32         grass_max_vertex_y;
 uniform sampler2D   turbulence_map;

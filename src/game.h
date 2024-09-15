@@ -351,6 +351,7 @@ enum Game_Mode
     CONSOLE,
     MENU,
 };
+
 struct Game_State 
 {
     b32                 initted;

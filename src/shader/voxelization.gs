@@ -9,35 +9,36 @@ in v3 gN[];
 out v3 fP;
 out v3 fN;
 
-void main()
+void main() 
 {
-    v3 face_normal = abs(cross(gP[1] - gP[0], gP[2] - gP[0]));
-    f32 dominant_axis = max(face_normal.x, face_normal.y, face_normal.z);
+    v3 tN = abs(cross(gP[0] - gP[1], gP[0] - gP[2]));
 
-    for (u32 i = 0;
-        i < 3;
-        ++i)
+	f32 dominant_axis = max(max(tN.x, tN.y), tN.z);
+	
+	for (u32 i = 0;
+         i < 3;
+         i++) 
     {
-        fP = gP[i];
-        fN = gN[1];
+        fP = gP[i]; // Camera Coord.
+        fN = gN[i]; // Camera Coord.
 
-        if (dominant_axis == face_normal.x)
+		if (dominant_axis == tN.x)
         {
-            gl_Position = v4(fP.zyx, 1.0f);
+            gl_Position = v4(fP.zyx, 1); // Camera Coord.
         }
-        else if (dominant_axis == face_normal.y)
+		else if (dominant_axis == tN.y)
         {
-            gl_Position = v4(fP.xzy, 1.0f);
+            gl_Position = v4(fP.xzy, 1);
         }
-        else
+		else if (dominant_axis == tN.z)
         {
-            gl_Position = v4(fP.xyz, 1.0f);
+            gl_Position = v4(fP.xyz, 1);
         }
 
-        EmitVertex();
-    }
+		EmitVertex();
+	}
 
-    EndPrimitive();
+	EndPrimitive();
 }
 
 

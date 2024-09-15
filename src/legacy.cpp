@@ -507,3 +507,20 @@ draw_text(Bitmap *buffer, Render_Text *info)
         }
     }
 #endif
+
+#if 0 // @NOTE: It is... WRONG!
+        f32 f = camera->focal_length;
+        //f32 N = 0.1f;
+        f32 N = f;
+        f32 F = 500.0f;
+        f32 a = safe_ratio(camera->width, camera->height) * f;
+        f32 b = (N + F) / (N - F);
+        f32 c = (2 * N * F) / (N - F);
+        m4x4 P = {{
+                { f,  0,  0,  0},
+                { 0,  a,  0,  0},
+                { 0,  0,  b,  c},
+                { 0,  0, -1,  0}
+        }};
+        camera->projection = P*V;
+#endif

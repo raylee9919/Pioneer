@@ -80,6 +80,7 @@ typedef void (APIENTRY  *GLDEBUGPROCARB)(GLenum source,GLenum type,GLuint id,GLe
 #define GL_TEXTURE_3D                       0x806F
 #define GL_TEXTURE_WRAP_R                   0x8072
 #define GL_WRITE_ONLY                       0x88B9
+#define GL_GEOMETRY_SHADER                  0x8DD9
 
 typedef BOOL        Type_wglSwapIntervalEXT(int interval);
 typedef GLuint      Type_glCreateShader(GLenum shaderType);
@@ -122,6 +123,8 @@ typedef void        Type_glTexStorage3D (GLenum target, GLsizei levels, GLenum i
 typedef void        Type_glTexSubImage3D (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void *pixels);
 typedef void        Type_glGenerateMipmap (GLenum target);
 typedef void        Type_glBindImageTexture (GLuint unit, GLuint texture, GLint level, GLboolean layered, GLint layer, GLenum access, GLenum format);
+typedef void        Type_glClearTexImage (GLuint texture, GLint level, GLenum format, GLenum type, const void *data);
+
 
 #define GL_DECLARE_GLOBAL_FUNCTION(Name) global_var Type_##Name *Name
 GL_DECLARE_GLOBAL_FUNCTION(wglSwapIntervalEXT);
@@ -164,6 +167,7 @@ GL_DECLARE_GLOBAL_FUNCTION(glTexStorage3D);
 GL_DECLARE_GLOBAL_FUNCTION(glTexSubImage3D);
 GL_DECLARE_GLOBAL_FUNCTION(glGenerateMipmap);
 GL_DECLARE_GLOBAL_FUNCTION(glBindImageTexture);
+GL_DECLARE_GLOBAL_FUNCTION(glClearTexImage);
 
 
 global_var GL gl;
@@ -369,6 +373,76 @@ gl_create_program(const char *header,
     return program;
 }
 
+internal GLuint
+gl_create_program(const char *header,
+                  const char *vsrc,
+                  const char *gsrc,
+                  const char *fsrc)
+{
+    GLuint program = 0;
+
+    if (glCreateShader) 
+    {
+        GLuint vshader = glCreateShader(GL_VERTEX_SHADER);
+        const GLchar *vunit[] = {
+            header,
+            vsrc
+        };
+        glShaderSource(vshader, array_count(vunit), (const GLchar **)vunit, 0);
+        glCompileShader(vshader);
+
+        GLuint gshader = glCreateShader(GL_GEOMETRY_SHADER);
+        const GLchar *gunit[] = {
+            header,
+            gsrc
+        };
+        glShaderSource(gshader, array_count(gunit), (const GLchar **)gunit, 0);
+        glCompileShader(gshader);
+
+        GLuint fshader = glCreateShader(GL_FRAGMENT_SHADER);
+        const GLchar *funit[] = {
+            header,
+            fsrc
+        };
+        glShaderSource(fshader, array_count(funit), (const GLchar **)funit, 0);
+        glCompileShader(fshader);
+
+        program = glCreateProgram();
+        glAttachShader(program, vshader);
+        glAttachShader(program, gshader);
+        glAttachShader(program, fshader);
+        glLinkProgram(program);
+
+        glValidateProgram(program);
+        GLint linked = false;
+        glGetProgramiv(program, GL_LINK_STATUS, &linked);
+        if (!linked) 
+        {
+            GLsizei stub;
+
+            GLchar vlog[1024];
+            glGetShaderInfoLog(vshader, sizeof(vlog), &stub, vlog);
+
+            GLchar glog[1024];
+            glGetShaderInfoLog(gshader, sizeof(glog), &stub, glog);
+
+            GLchar flog[1024];
+            glGetShaderInfoLog(fshader, sizeof(flog), &stub, flog);
+
+            GLchar plog[1024];
+            glGetProgramInfoLog(program, sizeof(plog), &stub, plog);
+
+            Assert(!"compile/link error.");
+        }
+    } 
+    else 
+    {
+        // TODO: handling.
+    }
+    
+    return program;
+}
+
 internal void
 gl_alloc_texture(Bitmap *bitmap)
 {
@@ -406,14 +480,145 @@ gl_bind_texture(Bitmap *bitmap)
     }
 }
 
-static b32 DEBUG_voxelized = 0;
-
 internal void
 gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 {
     TIMED_FUNCTION();
 
+    //
+    // Voxelization
+    //
+    Voxel_Map *vm = &gl.voxel_map;
+
+    // Settings
+    glViewport(0, 0, vm->voxel_size, vm->voxel_size);
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_BLEND);
+    glDisable(GL_SCISSOR_TEST);
+
+    for (Render_Group *group = (Render_Group *)batch->base;
+         (u8 *)group < (u8 *)batch->base + batch->used;
+         ++group)
+    {
+        for (u8 *at = group->base;
+             at < group->base + group->used;
+            at += ((Render_Entity_Header *)at)->size)
+        {
+            Render_Entity_Header *entity = (Render_Entity_Header *)at;
+            switch (entity->type)
+            {
+                case eRender_Mesh:
+                {
+#if 1
+                    Render_Mesh *piece = (Render_Mesh *)entity;
+                    Mesh *mesh            = piece->mesh;
+                    Material *mat         = piece->material;
+
+                    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+
+                    // Use voxelization program.
+                    Voxelization_Program *program = &gl.voxelization_program;
+                    s32 pid = program->id;
+                    glUseProgram(pid);
+
+                    // Bind to image unit.
+                    glBindTexture(GL_TEXTURE_3D, vm->id);
+                    glUniform1i(program->voxel_map, 0);
+                    glBindImageTexture(0, vm->id, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA8);
+
+                    glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
+
+                    // @TEMPORARY...?
+                    Camera *camera = group->camera;
+                    m4x4 camera_rotation = to_m4x4(camera->world_rotation);
+                    m4x4 V = camera_transform(get_column(camera_rotation, 0),
+                                              get_column(camera_rotation, 1),
+                                              get_column(camera_rotation, 2),
+                                              camera->world_translation);
+                    f32 f = camera->focal_length;
+                    f32 N = f;
+                    f32 F = 500.0f;
+                    f32 w = safe_ratio(2.0f, camera->width);
+                    f32 h = safe_ratio(2.0f, camera->height);
+                    f32 a = safe_ratio(2.0f, N-F);
+                    f32 b = safe_ratio(N+F, N-F);
+                    m4x4 P = m4x4{{
+                            { w,  0,  0,  0},
+                            { 0,  h,  0,  0},
+                            { 0,  0,  a,  b},
+                            { 0,  0,  0,  1}
+                    }};
+                    m4x4 VP = P*V;
+
+                    glUniformMatrix4fv(program->V, 1, GL_TRUE, &V.e[0][0]);
+                    glUniformMatrix4fv(program->P, 1, GL_TRUE, &P.e[0][0]);
+                    glUniformMatrix4fv(program->VP, 1, GL_TRUE, &VP.e[0][0]);
+                    glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0);
+
+                    glEnableVertexAttribArray(0);
+                    glEnableVertexAttribArray(1);
+                    glEnableVertexAttribArray(4);
+                    glEnableVertexAttribArray(5);
+
+                    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, pos)));
+                    glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, normal)));
+                    glVertexAttribIPointer(4, MAX_BONE_PER_VERTEX, GL_INT, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_ids)));
+                    glVertexAttribPointer(5, MAX_BONE_PER_VERTEX, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_weights)));
+
+                    glBufferData(GL_ARRAY_BUFFER,
+                                 mesh->vertex_count * sizeof(Vertex),
+                                 mesh->vertices,
+                                 GL_DYNAMIC_DRAW);
+
+                    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                                 mesh->index_count * sizeof(u32),
+                                 mesh->indices,
+                                 GL_DYNAMIC_DRAW);
+
+                    if (piece->animation_transforms)
+                        glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
+
+                    glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0);
+
+                    glDisableVertexAttribArray(0);
+                    glDisableVertexAttribArray(1);
+                    glDisableVertexAttribArray(4);
+                    glDisableVertexAttribArray(5);
+
+
+#endif
+                } break;
+
+                case eRender_Grass:
+                {
+                } break;
+
+                case eRender_Star:
+                {
+                } break;
+
+                case eRender_Bitmap:
+                {
+                } break;
+
+                INVALID_DEFAULT_CASE;
+            }
+        }
+    }
+
+
+
+    //
+    //
+    //
+
+
+
     glViewport(0, 0, win_w, win_h);
+
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
@@ -445,112 +650,145 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     {
         for (u8 *at = group->base;
              at < group->base + group->used;
-            )
+             at += ((Render_Entity_Header *)at)->size)
         {
             Render_Entity_Header *entity = (Render_Entity_Header *)at;
             switch (entity->type)
             {
                 case eRender_Mesh:
                 {
+#if 0
                     Render_Mesh *piece = (Render_Mesh *)entity;
-
                     Mesh *mesh            = piece->mesh;
                     Material *mat         = piece->material;
 
                     glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
 
-                    if (!DEBUG_voxelized)
-                    {
-                        // Use voxelization program.
-                        Voxelization_Program *program = &gl.voxelization_program;
-                        s32 pid = program->id;
-                        glUseProgram(pid);
-
-                        // Settings
-                        glViewport(0, 0, VOXEL_SIZE, VOXEL_SIZE);
-                        glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-                        glDisable(GL_CULL_FACE);
-                        glDisable(GL_DEPTH_TEST);
-                        glDisable(GL_BLEND);
-                        glDisable(GL_SCISSOR_TEST);
-
-                        // Bind to image unit.
-                        Voxel_Map *vm = &gl.voxel_map;
-                        glBindTexture(GL_TEXTURE_3D, vm->id);
-                        glUniform1i(glGetUniformLocation(pid, "voxel_map"), 0);
-                        glBindImageTexture(0, vm->id, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA8);
-
-                        glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->projection.e[0][0]);
-                        glEnableVertexAttribArray(0);
-                        glEnableVertexAttribArray(1);
-                        glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, pos)));
-                        glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, normal)));
-                        glDisableVertexAttribArray(0);
-                        glDisableVertexAttribArray(1);
-
-                        // Revert settings
-                        glViewport(0, 0, win_w, win_h);
-                        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-                        glEnable(GL_CULL_FACE);
-                        glEnable(GL_DEPTH_TEST);
-                        glEnable(GL_BLEND);
-                        glEnable(GL_SCISSOR_TEST);
-
-                        DEBUG_voxelized = true;
-                    }
-                    else
-                    {
-                        Mesh_Program *program = &gl.mesh_program;
-                        s32 pid = program->id;
-                        glUseProgram(pid);
-
-                        glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->projection.e[0][0]);
-                        glUniform3fv(program->cam_pos, 1, (GLfloat *)&group->camera->world_translation);
-                        glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0);
-
-                        glEnableVertexAttribArray(0);
-                        glEnableVertexAttribArray(1);
-                        glEnableVertexAttribArray(2);
-                        glEnableVertexAttribArray(3);
-                        glEnableVertexAttribArray(4);
-                        glEnableVertexAttribArray(5);
-
-                        glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, pos)));
-                        glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, normal)));
-                        glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, uv)));
-                        glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Vertex), (GLvoid *)(offset_of(Vertex, color)));
-                        glVertexAttribIPointer(4, MAX_BONE_PER_VERTEX, GL_INT, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_ids)));
-                        glVertexAttribPointer(5, MAX_BONE_PER_VERTEX, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_weights)));
+                    Mesh_Program *program = &gl.mesh_program;
+                    s32 pid = program->id;
+                    glUseProgram(pid);
 
 
-                        glBufferData(GL_ARRAY_BUFFER,
-                                     mesh->vertex_count * sizeof(Vertex),
-                                     mesh->vertices,
-                                     GL_DYNAMIC_DRAW);
+                    Camera *camera = group->camera;
+                    m4x4 camera_rotation = to_m4x4(camera->world_rotation);
+                    m4x4 V = camera_transform(get_column(camera_rotation, 0),
+                                              get_column(camera_rotation, 1),
+                                              get_column(camera_rotation, 2),
+                                              camera->world_translation);
 
-                        glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                                     mesh->index_count * sizeof(u32),
-                                     mesh->indices,
-                                     GL_DYNAMIC_DRAW);
+                    glUniformMatrix4fv(program->VP, 1, GL_TRUE, &group->camera->VP.e[0][0]);
+                    glUniform3fv(program->cam_pos, 1, (GLfloat *)&group->camera->world_translation);
+                    glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0);
 
-                        glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
-                        if (piece->animation_transforms)
-                            glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
-                        glUniform3fv(program->color_ambient, 1, (GLfloat *)&mat->color_ambient);
-                        glUniform3fv(program->color_diffuse, 1, (GLfloat *)&mat->color_diffuse);
-                        glUniform3fv(program->color_specular, 1, (GLfloat *)&mat->color_specular);
+                    glEnableVertexAttribArray(0);
+                    glEnableVertexAttribArray(1);
+                    glEnableVertexAttribArray(2);
+                    glEnableVertexAttribArray(3);
+                    glEnableVertexAttribArray(4);
+                    glEnableVertexAttribArray(5);
 
-                        glUniform3fv(program->light_pos, 1, (GLfloat *)&piece->light_pos);
+                    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, pos)));
+                    glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, normal)));
+                    glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, uv)));
+                    glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Vertex), (GLvoid *)(offset_of(Vertex, color)));
+                    glVertexAttribIPointer(4, MAX_BONE_PER_VERTEX, GL_INT, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_ids)));
+                    glVertexAttribPointer(5, MAX_BONE_PER_VERTEX, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_weights)));
 
-                        glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0);
 
-                        glDisableVertexAttribArray(0);
-                        glDisableVertexAttribArray(1);
-                        glDisableVertexAttribArray(2);
-                        glDisableVertexAttribArray(3);
-                        glDisableVertexAttribArray(4);
-                        glDisableVertexAttribArray(5);
-                    }
+                    glBufferData(GL_ARRAY_BUFFER,
+                                 mesh->vertex_count * sizeof(Vertex),
+                                 mesh->vertices,
+                                 GL_DYNAMIC_DRAW);
+
+                    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                                 mesh->index_count * sizeof(u32),
+                                 mesh->indices,
+                                 GL_DYNAMIC_DRAW);
+
+                    glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
+                    if (piece->animation_transforms)
+                        glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
+                    glUniform3fv(program->color_ambient, 1, (GLfloat *)&mat->color_ambient);
+                    glUniform3fv(program->color_diffuse, 1, (GLfloat *)&mat->color_diffuse);
+                    glUniform3fv(program->color_specular, 1, (GLfloat *)&mat->color_specular);
+
+                    glUniform3fv(program->light_pos, 1, (GLfloat *)&piece->light_pos);
+
+                    glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0);
+
+                    glDisableVertexAttribArray(0);
+                    glDisableVertexAttribArray(1);
+                    glDisableVertexAttribArray(2);
+                    glDisableVertexAttribArray(3);
+                    glDisableVertexAttribArray(4);
+                    glDisableVertexAttribArray(5);
+#else
+                    Render_Mesh *piece = (Render_Mesh *)entity;
+                    Mesh *mesh            = piece->mesh;
+                    Material *mat         = piece->material;
+
+                    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+
+                    Voxel_Program *program = &gl.voxel_program;
+                    s32 pid = program->id;
+                    glUseProgram(pid);
+
+                    // @TEMPORARY...?
+                    Camera *camera = group->camera;
+                    f32 f = camera->focal_length;
+                    f32 N = f;
+                    f32 F = 500.0f;
+                    f32 w = safe_ratio(2.0f, camera->width);
+                    f32 h = safe_ratio(2.0f, camera->height);
+                    f32 a = safe_ratio(2.0f, N-F);
+                    f32 b = safe_ratio(N+F, N-F);
+                    m4x4 ortho_P = m4x4{{
+                            { w,  0,  0,  0},
+                            { 0,  h,  0,  0},
+                            { 0,  0,  a,  b},
+                            { 0,  0,  0,  1}
+                    }};
+
+                    glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
+                    glUniformMatrix4fv(program->V, 1, GL_TRUE, &camera->V.e[0][0]);
+                    glUniformMatrix4fv(program->persp_P, 1, GL_TRUE, &camera->P.e[0][0]);
+                    glUniformMatrix4fv(program->ortho_P, 1, GL_TRUE, &ortho_P.e[0][0]);
+                    glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0);
+                    if (piece->animation_transforms)
+                        glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
+
+                    glBindTexture(GL_TEXTURE_3D, vm->id);
+                    glUniform1i(program->voxel_map, 0);
+                    glBindImageTexture(0, vm->id, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA8);
+
+                    glEnableVertexAttribArray(0);
+                    glEnableVertexAttribArray(1);
+                    glEnableVertexAttribArray(4);
+                    glEnableVertexAttribArray(5);
+
+                    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, pos)));
+                    glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, normal)));
+                    glVertexAttribIPointer(4, MAX_BONE_PER_VERTEX, GL_INT, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_ids)));
+                    glVertexAttribPointer(5, MAX_BONE_PER_VERTEX, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_weights)));
+
+                    glBufferData(GL_ARRAY_BUFFER,
+                                 mesh->vertex_count * sizeof(Vertex),
+                                 mesh->vertices,
+                                 GL_DYNAMIC_DRAW);
+
+                    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                                 mesh->index_count * sizeof(u32),
+                                 mesh->indices,
+                                 GL_DYNAMIC_DRAW);
+
+
+                    glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0);
+
+                    glDisableVertexAttribArray(0);
+                    glDisableVertexAttribArray(1);
+                    glDisableVertexAttribArray(4);
+                    glDisableVertexAttribArray(5);
+#endif
 
                 } break;
 
@@ -567,7 +805,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     s32 pid = program->id;
                     glUseProgram(pid);
 
-                    glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->projection.e[0][0]);
+                    glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->VP.e[0][0]);
 
                     glEnableVertexAttribArray(0);
                     glEnableVertexAttribArray(1);
@@ -645,7 +883,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     s32 pid = program->id;
                     glUseProgram(pid);
 
-                    glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->projection.e[0][0]);
+                    glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->VP.e[0][0]);
                     glUniform1f(program->time, piece->time);
 
                     glEnableVertexAttribArray(0);
@@ -705,7 +943,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     s32 pid = program->id;
                     glUseProgram(pid);
 
-                    glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->projection.e[0][0]);
+                    glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->VP.e[0][0]);
                     glUniform4fv(program->color, 1, &piece->color.r);
 
                     glEnableVertexAttribArray(0);
@@ -741,7 +979,6 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     glDisableVertexAttribArray(2);
                 } break;
             }
-            at += entity->size;
         }
     }
             
@@ -774,11 +1011,11 @@ gl_init()
     ;
 
     const char *mesh_vshader = 
-    #include "shader/skeletal_mesh.vert"
+    #include "shader/mesh.vs"
     ;
 
     const char *mesh_fshader = 
-    #include "shader/mesh.frag"
+    #include "shader/mesh.fs"
     ;
 
     const char *grass_vshader = 
@@ -813,48 +1050,59 @@ gl_init()
     #include "shader/voxelization.fs"
     ;
 
+    const char *voxel_vs = 
+    #include "shader/voxel_visual.vs"
+    ;
+    const char *voxel_fs = 
+    #include "shader/voxel_visual.fs"
+    ;
 
-    gl.mesh_program.id = gl_create_program(header,
-                                           mesh_vshader,
-                                           mesh_fshader);
-    gl.mesh_program.world_transform  = glGetUniformLocation(gl.mesh_program.id, "world_transform");
-    gl.mesh_program.mvp              = glGetUniformLocation(gl.mesh_program.id, "mvp");
-    gl.mesh_program.is_skeletal      = glGetUniformLocation(gl.mesh_program.id, "is_skeletal");
-    gl.mesh_program.texture_sampler  = glGetUniformLocation(gl.mesh_program.id, "texture_sampler");
-    gl.mesh_program.cam_pos          = glGetUniformLocation(gl.mesh_program.id, "cam_pos");
-    gl.mesh_program.bone_transforms  = glGetUniformLocation(gl.mesh_program.id, "bone_transforms");
-    gl.mesh_program.color_ambient    = glGetUniformLocation(gl.mesh_program.id, "color_ambient");
-    gl.mesh_program.color_diffuse    = glGetUniformLocation(gl.mesh_program.id, "color_diffuse");
-    gl.mesh_program.color_specular   = glGetUniformLocation(gl.mesh_program.id, "color_specular");
-    gl.mesh_program.light_pos        = glGetUniformLocation(gl.mesh_program.id, "light_pos");
 
-    gl.grass_program.id = gl_create_program(header,
-                                            grass_vshader,
-                                            grass_fshader);
-    gl.grass_program.mvp                = glGetUniformLocation(gl.grass_program.id, "mvp");
-    gl.grass_program.time               = glGetUniformLocation(gl.grass_program.id, "time");
-    gl.grass_program.grass_max_vertex_y = glGetUniformLocation(gl.grass_program.id, "grass_max_vertex_y");
-    gl.grass_program.turbulence_map     = glGetUniformLocation(gl.grass_program.id, "turbulence_map");
+#define GET_UNIFORM_LOCATION(program, name) gl.program.name = glGetUniformLocation(gl.program.id, #name);
+    gl.mesh_program.id = gl_create_program(header, mesh_vshader, mesh_fshader);
+    GET_UNIFORM_LOCATION(mesh_program, world_transform);
+    GET_UNIFORM_LOCATION(mesh_program, VP);
+    GET_UNIFORM_LOCATION(mesh_program, is_skeletal);
+    GET_UNIFORM_LOCATION(mesh_program, texture_sampler);
+    GET_UNIFORM_LOCATION(mesh_program, cam_pos);
+    GET_UNIFORM_LOCATION(mesh_program, bone_transforms);
+    GET_UNIFORM_LOCATION(mesh_program, color_ambient);
+    GET_UNIFORM_LOCATION(mesh_program, color_diffuse);
+    GET_UNIFORM_LOCATION(mesh_program, color_specular);
+    GET_UNIFORM_LOCATION(mesh_program, light_pos);
 
-    gl.sprite_program.id = gl_create_program(header,
-                                             sprite_vshader,
-                                             sprite_fshader);
-    gl.sprite_program.mvp                = glGetUniformLocation(gl.sprite_program.id, "mvp");
-    gl.sprite_program.color              = glGetUniformLocation(gl.sprite_program.id, "color");
-    gl.sprite_program.texture            = glGetUniformLocation(gl.sprite_program.id, "texture");
+    gl.grass_program.id = gl_create_program(header, grass_vshader, grass_fshader);
+    GET_UNIFORM_LOCATION(grass_program, mvp);
+    GET_UNIFORM_LOCATION(grass_program, time);
+    GET_UNIFORM_LOCATION(grass_program, grass_max_vertex_y);
+    GET_UNIFORM_LOCATION(grass_program, turbulence_map);
 
-    gl.star_program.id = gl_create_program(header,
-                                           star_vshader,
-                                           star_fshader);
-    gl.star_program.mvp                = glGetUniformLocation(gl.star_program.id, "mvp");
-    gl.star_program.time               = glGetUniformLocation(gl.star_program.id, "time");
+    gl.sprite_program.id = gl_create_program(header, sprite_vshader, sprite_fshader);
+    GET_UNIFORM_LOCATION(sprite_program, mvp);
+    GET_UNIFORM_LOCATION(sprite_program, color);
+    GET_UNIFORM_LOCATION(sprite_program, texture);
 
-#if 0
-    gl.voxelization_program.id      = gl_create_program(header,
-                                                        voxelization_vs,
-                                                        //voxelization_gs,
-                                                        voxelization_fs);
-#endif
+    gl.star_program.id = gl_create_program(header, star_vshader, star_fshader);
+    GET_UNIFORM_LOCATION(star_program, mvp);
+    GET_UNIFORM_LOCATION(star_program, time);
+
+    gl.voxelization_program.id = gl_create_program(header, voxelization_vs, voxelization_fs);
+    GET_UNIFORM_LOCATION(voxelization_program, world_transform);
+    GET_UNIFORM_LOCATION(voxelization_program, V);
+    //GET_UNIFORM_LOCATION(voxelization_program, P);
+    GET_UNIFORM_LOCATION(voxelization_program, VP);
+    GET_UNIFORM_LOCATION(voxelization_program, is_skeletal);
+    GET_UNIFORM_LOCATION(voxelization_program, bone_transforms);
+    GET_UNIFORM_LOCATION(voxelization_program, voxel_map);
+
+    gl.voxel_program.id = gl_create_program(header, voxel_vs, voxel_fs);
+    GET_UNIFORM_LOCATION(voxel_program, world_transform);
+    GET_UNIFORM_LOCATION(voxel_program, V);
+    GET_UNIFORM_LOCATION(voxel_program, persp_P);
+    GET_UNIFORM_LOCATION(voxel_program, ortho_P);
+    GET_UNIFORM_LOCATION(voxel_program, is_skeletal);
+    GET_UNIFORM_LOCATION(voxel_program, bone_transforms);
+    GET_UNIFORM_LOCATION(voxel_program, voxel_map);
 
 
     gl.white_bitmap.width   = 4;
@@ -872,34 +1120,36 @@ gl_init()
     gl_alloc_texture(&gl.white_bitmap);
 
     
+    //
     // Radiance Voxel-Map
+    //
+#if 1
     Voxel_Map *vm = &gl.voxel_map;
-    s32 levels  = 7;
-    vm->width   = VOXEL_SIZE;
-    vm->height  = VOXEL_SIZE;
-    vm->depth   = VOXEL_SIZE;
+    vm->voxel_size = 64;
+    vm->data = VirtualAlloc(0, vm->voxel_size * vm->voxel_size * vm->voxel_size * sizeof(u32),
+                            MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
     glGenTextures(1, &vm->id);
     glBindTexture(GL_TEXTURE_3D, vm->id);
-
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    glTexStorage3D(GL_TEXTURE_3D, levels, GL_RGBA8, vm->width, vm->height, vm->depth);
-
-    vm->data = push_array(u8, vm->width * vm->height * vm->depth * sizeof(u32));
-    glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, vm->width, vm->height, vm->depth, GL_RGBA, GL_UNSIGNED_BYTE, vm->data);
+    s32 levels  = 7;
+    u32 res = vm->voxel_size;
+    glTexStorage3D(GL_TEXTURE_3D, levels, GL_RGBA8, res, res, res);
+    glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, res, res, res, GL_RGBA, GL_UNSIGNED_BYTE, vm->data);
     glGenerateMipmap(GL_TEXTURE_3D);
-    glBindTexture(GL_TEXTURE_3D, 0);
 
+    glBindTexture(GL_TEXTURE_3D, 0);
+#endif
     
 
 
-    // Dummy.
+    //
+    // Dummy
+    //
     glGenVertexArrays(1, &gl.vao);
     glBindVertexArray(gl.vao);
 

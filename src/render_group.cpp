@@ -202,29 +202,45 @@ set_camera_projection(Camera *camera)
                                   camera->world_translation);
 
         f32 f = camera->focal_length;
-        f32 a = safe_ratio(camera->width, camera->height) * f;
-        f32 N = 0.1f;
+        f32 N = f;
         f32 F = 500.0f;
-        f32 b = (N + F) / (N - F);
-        f32 c = (2 * N * F) / (N - F);
+        f32 a = safe_ratio(2.0f * f, camera->width);
+        f32 b = safe_ratio(2.0f * f, camera->height);
+        f32 c = (N + F) / (N - F);
+        f32 d = (2 * N * F) / (N - F);
         m4x4 P = {{
-                { f,  0,  0,  0},
-                { 0,  a,  0,  0},
-                { 0,  0,  b,  c},
+                { a,  0,  0,  0},
+                { 0,  b,  0,  0},
+                { 0,  0,  c,  d},
                 { 0,  0, -1,  0}
         }};
-        camera->projection = P * V;
+
+        camera->V   = V;
+        camera->P   = P;
+        camera->VP  = P*V;
     } 
-    else
+    else // @TODO: this is busted asf.
     {
-        f32 a = 2 * safe_ratio(camera->width, camera->height);
-        f32 w = camera->width;
-        camera->projection = m4x4{{
-                { 2,  0,  0, -w},
-                { 0,  a,  0, -w},
-                { 0,  0,  w,  0},
-                { 0,  0,  0,  w}
+        m4x4 camera_rotation = to_m4x4(camera->world_rotation);
+        m4x4 V = camera_transform(get_column(camera_rotation, 0),
+                                  get_column(camera_rotation, 1),
+                                  get_column(camera_rotation, 2),
+                                  camera->world_translation);
+
+        f32 w = safe_ratio(2.0f, camera->width);
+        f32 h = safe_ratio(2.0f, camera->height);
+        f32 N = camera->focal_length;
+        f32 F = 500.0f;
+        f32 a = safe_ratio(2.0f, N-F);
+        f32 b = safe_ratio(N+F, N-F);
+        m4x4 P = m4x4{{
+                { w,  0,  0, -1},
+                { 0,  h,  0, -1},
+                { 0,  0,  a,  b},
+                { 0,  0,  0,  1}
         }};
+
+        camera->VP = P*V;
     }
 }
 

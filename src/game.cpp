@@ -155,18 +155,20 @@ GAME_UPDATE(game_update)
         f32 T = pi32 * 0.1f;
         f32 Dpc = 5;
         f32 Dfc = 10;
+        f32 h_over_w = (f32)game_screen_buffer->height / (f32)game_screen_buffer->width;
+        f32 w = 2.0f;
+        f32 h = w * h_over_w;
+        f32 focal_length = 0.5f;
         // @TODO: is it too janky?
         game_state->free_camera = push_camera(&game_state->world_arena,
                                               eCamera_Type_Perspective,
-                                              (f32)game_screen_buffer->width, (f32)game_screen_buffer->height,
-                                              0.5f,
+                                              w, h, focal_length,
                                               _v3_(0, Dfc * sin(T * 2.0f), Dfc * cos(T * 2.0f)),
                                               _qt_(cos(T), -sin(T), 0, 0) );
 
         game_state->player_camera = push_camera(&game_state->world_arena,
                                                 eCamera_Type_Perspective,
-                                                (f32)game_screen_buffer->width, (f32)game_screen_buffer->height,
-                                                0.5f,
+                                                w, h, focal_length,
                                                 _v3_(0, Dpc * sin(T * 2.0f), Dpc * cos(T * 2.0f)),
                                                 _qt_(cos(T), -sin(T), 0, 0) );
 
@@ -738,8 +740,6 @@ GAME_UPDATE(game_update)
         char *menu3 = "Exit Game";
         r = string_op(String_Op::GET_RECT, 0, v3{}, menu3, &assets->menu_font);
         r = string_op(String_Op::GET_RECT | String_Op::DRAW, orthographic_group, v3{0.5f*(width-r.max.x+r.min.x), height*0.3f, 0.0f}, menu3, &assets->menu_font, v4{1.0f, 0.5f, 0.5f, 1.0f});
-
-        //push_rect(orthographic_group, r, 0.0f, v4{1.0f, 1.0f, 1.0f, 0.3f});
     }
 
 

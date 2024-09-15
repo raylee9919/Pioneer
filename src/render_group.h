@@ -82,7 +82,7 @@ enum Camera_Type
     eCamera_Type_Orthographic,
 };
 
-#define DEFAULT_FOCAL_LENGTH 0.5f
+#define DEFAULT_FOCAL_LENGTH 0.0f
 struct Camera 
 {
     Camera_Type     type;
@@ -94,7 +94,9 @@ struct Camera
     v3              world_translation;
     qt              world_rotation;
 
-    m4x4            projection;
+    m4x4            V;
+    m4x4            P;
+    m4x4            VP;
 };
 
 #if 0

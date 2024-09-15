@@ -274,6 +274,7 @@ win32_load_gl_extensions()
             WGL_GET_PROC_ADDRESS(glTexSubImage3D);
             WGL_GET_PROC_ADDRESS(glGenerateMipmap);
             WGL_GET_PROC_ADDRESS(glBindImageTexture);
+            WGL_GET_PROC_ADDRESS(glClearTexImage);
 
             gl_init_info();
 
@@ -296,19 +297,19 @@ win32_init_opengl(HDC dc)
     // create context.
     gl_info.modern = true;
 
-const int context_attrib_list[] = 
-{
-    WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
-    WGL_CONTEXT_MINOR_VERSION_ARB, 3,
-    WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
+    const int context_attrib_list[] = 
+    {
+        WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
+        WGL_CONTEXT_MINOR_VERSION_ARB, 5,
+        WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
 #if __DEVELOPER
-        | WGL_CONTEXT_DEBUG_BIT_ARB
+            | WGL_CONTEXT_DEBUG_BIT_ARB
 #endif
-        ,
-    //WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
-    WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
-    0,
-};
+            ,
+        //WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+        WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+        0,
+    };
 
     HGLRC glrc = 0;
     if (wglCreateContextAttribsARB) 

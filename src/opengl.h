@@ -16,8 +16,6 @@ enum GL_Extensions
 };
 #undef X
 
-#define VOXEL_SIZE 64
-
 struct GL_Info 
 {
     b32     modern;
@@ -37,7 +35,7 @@ struct Mesh_Program
     s32     id;
 
     s32     world_transform;
-    s32     mvp;
+    s32     VP;
     s32     is_skeletal;
     s32     texture_sampler;
     s32     cam_pos;
@@ -78,16 +76,36 @@ struct Sprite_Program
 struct Voxelization_Program
 {
     s32     id;
+
+    s32     world_transform;
+    s32     V;
+    s32     P;
+    s32     VP;
+    s32     is_skeletal;
+    s32     bone_transforms;
+    s32     voxel_map;
+};
+
+struct Voxel_Program
+{
+    s32     id;
+
+    s32     world_transform;
+    s32     V;
+    s32     persp_P;
+    s32     ortho_P;
+    s32     is_skeletal;
+    s32     bone_transforms;
+    s32     voxel_map;
 };
 
 struct Voxel_Map
 {
+    void    *data;
+    u32     voxel_size;
     u32     id;
-    u32     width;
-    u32     height;
-    u32     depth;
-    u8      *data;
 };
+
 
 struct GL 
 {
@@ -96,8 +114,9 @@ struct GL
     Sprite_Program          sprite_program;
     Star_Program            star_program;
     Voxelization_Program    voxelization_program;
+    Voxel_Program           voxel_program;
 
-    Voxel_Map voxel_map;
+    Voxel_Map               voxel_map;
 
     GLuint  vao;
     GLuint  vbo;
