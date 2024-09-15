@@ -480,6 +480,8 @@ gl_bind_texture(Bitmap *bitmap)
     }
 }
 
+#define DEBUG_VOXEL_FAR     100.0f
+
 internal void
 gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 {
@@ -539,9 +541,9 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                                               camera->world_translation);
                     f32 f = camera->focal_length;
                     f32 N = f;
-                    f32 F = 500.0f;
-                    f32 w = safe_ratio(2.0f, camera->width);
-                    f32 h = safe_ratio(2.0f, camera->height);
+                    f32 F = DEBUG_VOXEL_FAR;
+                    f32 w = safe_ratio(2.0f*f, camera->width*(F-N+f));
+                    f32 h = safe_ratio(2.0f*f, camera->height*(F-N+f));
                     f32 a = safe_ratio(2.0f, N-F);
                     f32 b = safe_ratio(N+F, N-F);
                     m4x4 P = m4x4{{
@@ -737,9 +739,9 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     Camera *camera = group->camera;
                     f32 f = camera->focal_length;
                     f32 N = f;
-                    f32 F = 500.0f;
-                    f32 w = safe_ratio(2.0f, camera->width);
-                    f32 h = safe_ratio(2.0f, camera->height);
+                    f32 F = DEBUG_VOXEL_FAR;
+                    f32 w = safe_ratio(2.0f*f, camera->width*(F-N+f));
+                    f32 h = safe_ratio(2.0f*f, camera->height*(F-N+f));
                     f32 a = safe_ratio(2.0f, N-F);
                     f32 b = safe_ratio(N+F, N-F);
                     m4x4 ortho_P = m4x4{{
