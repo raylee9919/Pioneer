@@ -149,6 +149,9 @@ GAME_UPDATE(game_update)
             }
         }
 
+        Entity *red_wall = push_entity(world_arena, chunk_hashmap, Entity_Type::RED_WALL, Chunk_Position{0, 0, 0, v3{-3, 0, 0}}, world->chunk_dim);
+        Entity *green_wall = push_entity(world_arena, chunk_hashmap, Entity_Type::GREEN_WALL, Chunk_Position{0, 0, 0, v3{3, 0, 0}}, world->chunk_dim);
+
         Entity *xbot = push_entity(world_arena, chunk_hashmap, Entity_Type::XBOT, Chunk_Position{0, 0, 0}, world->chunk_dim);
         game_state->player = xbot;
 
@@ -158,23 +161,23 @@ GAME_UPDATE(game_update)
         f32 h_over_w = (f32)game_screen_buffer->height / (f32)game_screen_buffer->width;
         f32 w = 2.0f;
         f32 h = w * h_over_w;
-        f32 focal_length = 0.5f;
         // @TODO: is it too janky?
         game_state->free_camera = push_camera(&game_state->world_arena,
                                               eCamera_Type_Perspective,
-                                              w, h, focal_length,
+                                              w, h, 0.5f, 0.5f, 500.0f,
                                               _v3_(0, Dfc * sin(T * 2.0f), Dfc * cos(T * 2.0f)),
                                               _qt_(cos(T), -sin(T), 0, 0) );
 
         game_state->player_camera = push_camera(&game_state->world_arena,
                                                 eCamera_Type_Perspective,
-                                                w, h, focal_length,
+                                                w, h, 0.5f, 0.5f, 500.0f,
                                                 _v3_(0, Dpc * sin(T * 2.0f), Dpc * cos(T * 2.0f)),
                                                 _qt_(cos(T), -sin(T), 0, 0) );
 
         game_state->orthographic_camera = push_camera(&game_state->world_arena,
                                                       eCamera_Type_Orthographic,
-                                                      (f32)game_screen_buffer->width, (f32)game_screen_buffer->height);
+                                                      (f32)game_screen_buffer->width, (f32)game_screen_buffer->height,
+                                                      0.0f, 0.0f, 500.0f);
 
         game_state->using_camera = game_state->player_camera;
 
@@ -256,7 +259,8 @@ GAME_UPDATE(game_update)
         assets->octahedral_model = push_struct(&transient_state->asset_arena, Model);
         assets->sphere_model = push_struct(&transient_state->asset_arena, Model);
         assets->grass_model = push_struct(&transient_state->asset_arena, Model);
-        assets->rifle_model = push_struct(&transient_state->asset_arena, Model);
+        assets->red_wall_model = push_struct(&transient_state->asset_arena, Model);
+        assets->green_wall_model = push_struct(&transient_state->asset_arena, Model);
 
         assets->xbot_idle = push_struct(&transient_state->asset_arena, Animation);
         load_animation(assets->xbot_idle, "animation/xbot_idle.sanm", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
@@ -277,8 +281,11 @@ GAME_UPDATE(game_update)
         load_model(assets->cube_model, "mesh/cube.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
         load_model(assets->octahedral_model, "mesh/octahedral.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
         load_model(assets->sphere_model, "mesh/sphere.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
-        load_model(assets->rifle_model, "mesh/Rifle.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
         load_model(assets->grass_model, "mesh/grass.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        load_model(assets->red_wall_model, "mesh/red_wall.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        assets->red_wall_model->materials->color_diffuse = v3{1, 0, 0};
+        load_model(assets->green_wall_model, "mesh/green_wall.smsh", &transient_state->asset_arena, game_memory->platform.debug_platform_read_file);
+        assets->green_wall_model->materials->color_diffuse = v3{0, 1, 0};
         for (u32 vertex_idx = 0;
              vertex_idx < assets->grass_model->meshes[0].vertex_count;
              ++vertex_idx)
@@ -689,6 +696,40 @@ GAME_UPDATE(game_update)
                             case Entity_Type::LIGHT:
                             {
                                 Model *model = assets->sphere_model;
+                                if (model)
+                                {
+                                    for (u32 mesh_idx = 0;
+                                         mesh_idx < model->mesh_count;
+                                         ++mesh_idx)
+                                    {
+                                        Mesh *mesh = model->meshes + mesh_idx;
+                                        Material *mat = model->materials + mesh->material_idx;
+                                        v3 light_pos = subtract(game_state->light->chunk_pos, {}, game_state->world->chunk_dim);
+                                        push_mesh(render_group, mesh, mat, world_transform, light_pos);
+                                    }
+                                }
+                            } break;
+
+                            case Entity_Type::RED_WALL: 
+                            {
+                                Model *model = assets->red_wall_model;
+                                if (model)
+                                {
+                                    for (u32 mesh_idx = 0;
+                                         mesh_idx < model->mesh_count;
+                                         ++mesh_idx)
+                                    {
+                                        Mesh *mesh = model->meshes + mesh_idx;
+                                        Material *mat = model->materials + mesh->material_idx;
+                                        v3 light_pos = subtract(game_state->light->chunk_pos, {}, game_state->world->chunk_dim);
+                                        push_mesh(render_group, mesh, mat, world_transform, light_pos);
+                                    }
+                                }
+                            } break;
+
+                            case Entity_Type::GREEN_WALL: 
+                            {
+                                Model *model = assets->green_wall_model;
                                 if (model)
                                 {
                                     for (u32 mesh_idx = 0;

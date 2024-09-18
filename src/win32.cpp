@@ -1321,6 +1321,7 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
             BEGIN_BLOCK(win32_process_input);
             input.mouse.wheel_delta = 0;
             MSG msg;
+
             while (PeekMessageA(&msg, hwnd, 0, 0, PM_REMOVE)) 
             {
                 switch(msg.message) 
@@ -1331,32 +1332,32 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                     } break;
                     case WM_SYSKEYDOWN:
                     case WM_SYSKEYUP:
-                    case WM_KEYDOWN:
+                    case WM_KEYDOWN:  // @NOTE: no break!
                     case WM_KEYUP: 
                     {
                         u8 vk_code   = (u8)msg.wParam;
-                        b32 is_down  = ((msg.lParam & (1 << 31)) == 0);
                         b32 was_down = ((msg.lParam & (1 << 30)) != 0);
+                        b32 is_down  = ((msg.lParam & (1UL << 31)) == 0);
                         b32 alt      = (msg.lParam & (1 << 29));
                         u8 slot      = win32_keycode_map[vk_code];
 
-                        if (event_queue.next_idx < array_count(event_queue.events))
-                        {
-                            Event new_event = {};
-                            new_event.key = slot;
-                            if (is_down)
-                            {
-                                new_event.flag |= Event_Flag::PRESSED;
-                            }
-                            else
-                            {
-                                new_event.flag |= Event_Flag::RELEASED;
-                            }
-                            event_queue.events[event_queue.next_idx++] = new_event;
-                        }
-
                         if (was_down != is_down) 
                         {
+                            if (event_queue.next_idx < array_count(event_queue.events))
+                            {
+                                Event new_event = {};
+                                new_event.key = slot;
+                                if (is_down)
+                                {
+                                    new_event.flag |= Event_Flag::PRESSED;
+                                }
+                                else
+                                {
+                                    new_event.flag |= Event_Flag::RELEASED;
+                                }
+                                event_queue.events[event_queue.next_idx++] = new_event;
+                            }
+
 #if 0
                             case 'L': 
                             {
@@ -1394,10 +1395,13 @@ WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd)
                         s16 z_delta = (GET_WHEEL_DELTA_WPARAM(msg.wParam) / WHEEL_DELTA);
                         input.mouse.wheel_delta = z_delta;
                     } break;
-                }
 
-                TranslateMessage(&msg);
-                DispatchMessageA(&msg);
+                    default:
+                    {
+                        TranslateMessage(&msg);
+                        DispatchMessageA(&msg);
+                    } break;
+                }
             }
 
             Win32_Window_Dimension wd = win32_get_window_dimension(hwnd);

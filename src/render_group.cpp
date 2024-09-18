@@ -190,6 +190,46 @@ string_op(u8 flag, Render_Group *render_group,
     return result;
 }
 
+internal m4x4
+perspective_m4x4(f32 width, f32 height, f32 focal_length, f32 near, f32 far)
+{
+    f32 f = focal_length;
+    f32 N = near;
+    f32 F = far;
+    f32 a = safe_ratio(2.0f * f, width);
+    f32 b = safe_ratio(2.0f * f, height);
+    f32 c = (N + F) / (N - F);
+    f32 d = (2 * N * F) / (N - F);
+    m4x4 P = {{
+        { a,  0,  0,  0},
+        { 0,  b,  0,  0},
+        { 0,  0,  c,  d},
+        { 0,  0, -1,  0}
+    }};
+    return P;
+}
+
+internal m4x4
+orthographic_m4x4(f32 width, f32 height, f32 near, f32 far)
+{
+    f32 w = safe_ratio(2.0f, width);
+    f32 h = safe_ratio(2.0f, height);
+    f32 N = near;
+    f32 F = far;
+    f32 a = safe_ratio(2.0f, N-F);
+    f32 b = safe_ratio(N+F, N-F);
+    m4x4 P = m4x4{{
+        { w,  0,  0,  0},
+        { 0,  h,  0,  0},
+        { 0,  0,  a,  b},
+        { 0,  0,  0,  1}
+    }};
+    
+    return P;
+}
+
+#define DEBUG_FAR 500.0f
+
 internal void
 set_camera_projection(Camera *camera)
 {
@@ -200,21 +240,7 @@ set_camera_projection(Camera *camera)
                                   get_column(camera_rotation, 1),
                                   get_column(camera_rotation, 2),
                                   camera->world_translation);
-
-        f32 f = camera->focal_length;
-        f32 N = f;
-        f32 F = 500.0f;
-        f32 a = safe_ratio(2.0f * f, camera->width);
-        f32 b = safe_ratio(2.0f * f, camera->height);
-        f32 c = (N + F) / (N - F);
-        f32 d = (2 * N * F) / (N - F);
-        m4x4 P = {{
-                { a,  0,  0,  0},
-                { 0,  b,  0,  0},
-                { 0,  0,  c,  d},
-                { 0,  0, -1,  0}
-        }};
-
+        m4x4 P = perspective_m4x4(camera->width, camera->height, camera->focal_length, camera->focal_length, DEBUG_FAR);
         camera->V   = V;
         camera->P   = P;
         camera->VP  = P*V;
@@ -230,7 +256,7 @@ set_camera_projection(Camera *camera)
         f32 w = safe_ratio(2.0f, camera->width);
         f32 h = safe_ratio(2.0f, camera->height);
         f32 N = camera->focal_length;
-        f32 F = 500.0f;
+        f32 F = DEBUG_FAR;
         f32 a = safe_ratio(2.0f, N-F);
         f32 b = safe_ratio(N+F, N-F);
         m4x4 P = m4x4{{
@@ -246,7 +272,7 @@ set_camera_projection(Camera *camera)
 
 internal Camera *
 push_camera(Memory_Arena *arena, Camera_Type type, f32 width, f32 height,
-            f32 focal_length = DEFAULT_FOCAL_LENGTH,
+            f32 focal_length, f32 N, f32 F,
             v3 world_translation = _v3_(0, 0, 0),
             qt world_rotation = _qt_(1, 0, 0, 0))
 {
@@ -255,6 +281,8 @@ push_camera(Memory_Arena *arena, Camera_Type type, f32 width, f32 height,
     result->width               = width;
     result->height              = height;
     result->focal_length        = focal_length;
+    result->N                   = N;
+    result->F                   = F;
     result->world_translation   = world_translation;
     result->world_rotation      = world_rotation;
 

@@ -144,6 +144,8 @@ enum Entity_Type
     XBOT,
     TILE,
     LIGHT,
+    GREEN_WALL,
+    RED_WALL,
 };
 enum Entity_Flag 
 {
@@ -294,7 +296,8 @@ struct Game_Assets
     Model               *sphere_model;
     Model               *octahedral_model;
 
-    Model               *rifle_model;
+    Model               *red_wall_model;
+    Model               *green_wall_model;
 
     Model               *grass_model;
     f32                 grass_max_vertex_y;

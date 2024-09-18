@@ -37,7 +37,6 @@ struct Mesh_Program
     s32     world_transform;
     s32     VP;
     s32     is_skeletal;
-    s32     texture_sampler;
     s32     cam_pos;
     s32     bone_transforms;
     s32     color_ambient;
@@ -84,6 +83,10 @@ struct Voxelization_Program
     s32     is_skeletal;
     s32     bone_transforms;
     s32     voxel_map;
+    s32     time;
+    s32     ambient;
+    s32     diffuse;
+    s32     specular;
 };
 
 struct Voxel_Program
@@ -97,6 +100,18 @@ struct Voxel_Program
     s32     is_skeletal;
     s32     bone_transforms;
     s32     voxel_map;
+};
+
+struct Clip_Program
+{
+    s32     id;
+
+    s32     world_transform;
+    s32     V;
+    s32     ortho_P;
+    s32     persp_P;
+    s32     is_skeletal;
+    s32     bone_transforms;
 };
 
 struct Voxel_Map
@@ -113,10 +128,14 @@ struct GL
     Grass_Program           grass_program;
     Sprite_Program          sprite_program;
     Star_Program            star_program;
+
     Voxelization_Program    voxelization_program;
     Voxel_Program           voxel_program;
+    Clip_Program            clip_program;
 
     Voxel_Map               voxel_map;
+    Voxel_Map               albedo_map;
+    Voxel_Map               normal_map;
 
     GLuint  vao;
     GLuint  vbo;

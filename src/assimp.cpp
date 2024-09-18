@@ -906,7 +906,8 @@ int main(void)
         "../data/grass.dae",
         "../data/cube.dae",
         "../data/sphere.fbx",
-        "../data/Rifle.fbx",
+        "../data/red_wall.fbx",
+        "../data/green_wall.fbx",
         "../data/octahedral.dae",
     };
 

@@ -12,6 +12,7 @@ R"MULTILINE(
 #define iv2     ivec2
 #define iv3     ivec3
 #define iv4     ivec4
+#define uv4     uvec4
 
 mat4x4 identity()
 {
@@ -20,5 +21,28 @@ mat4x4 identity()
                 0, 0, 1, 0,
                 0, 0, 0, 1);
 }
+
+v4
+rgba8_to_v4(u32 val)
+{
+    v4 result = v4(
+        f32((val & 0x000000FF)) / 255.0f * 2.0f - 1.0f,
+        f32((val & 0x0000FF00) >>  8U) / 255.0f * 2.0f - 1.0f,
+        f32((val & 0x00FF0000) >> 16U) / 255.0f * 2.0f - 1.0f,
+        f32((val & 0xFF000000) >> 24U)
+    );
+    return result;
+}
+
+u32
+v4_to_rgba8(v4 val)
+{
+    u32 result = (u32(val.w) & 0x000000FF) << 24U |
+                 (u32((val.z * 0.5f + 0.5f) * 255.0f) & 0x000000FF) << 16U |
+                 (u32((val.y * 0.5f + 0.5f) * 255.0f) & 0x000000FF) <<  8U |
+                 (u32((val.x * 0.5f + 0.5f) * 255.0f) & 0x000000FF);
+    return result;
+}
+
 
 )MULTILINE"

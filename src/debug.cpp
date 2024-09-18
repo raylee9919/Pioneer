@@ -1742,7 +1742,8 @@ debug_start(Debug_State *debug_state, Game_Assets *game_assets, u32 width, u32 h
         Assert(context.group_depth == 0);
 #endif
 
-        Camera *debug_overlay_camera = push_camera(&debug_state->debug_arena, eCamera_Type_Orthographic, (f32)width, (f32)height);
+        Camera *debug_overlay_camera = push_camera(&debug_state->debug_arena, eCamera_Type_Orthographic, (f32)width, (f32)height,
+                                                   0.0f, 0.0f, 500.0f);
         debug_state->render_group = alloc_render_group(&debug_state->debug_arena, MB(16),
                                                        debug_overlay_camera);
 
