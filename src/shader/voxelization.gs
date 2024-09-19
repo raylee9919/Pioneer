@@ -17,6 +17,11 @@ out v3 world_fP;
 
 void main() 
 {
+    v3 e1 = clip_P[0] - clip_P[2];
+    v3 e2 = clip_P[1] - clip_P[2];
+    v3 tN = normalize(abs(cross(e1, e2)));
+    f32 dominant_axis = max(max(tN.x, tN.y), tN.z);
+
 	for (u32 i = 0;
          i < 3;
          i++) 
@@ -27,7 +32,19 @@ void main()
         fC = gC[i];
         world_fP = world_gP[i];
 
-        gl_Position = v4(clip_fP, 1.0f);
+        if (dominant_axis == tN.x)
+        {
+            gl_Position = v4(clip_fP.zyx, 1.0f);
+        }
+        else if (dominant_axis == tN.y)
+        {
+            gl_Position = v4(clip_fP.xzy, 1.0f);
+        }
+        else
+        {
+            gl_Position = v4(clip_fP, 1.0f);
+        }
+
 
 		EmitVertex();
 	}

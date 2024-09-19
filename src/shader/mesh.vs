@@ -4,7 +4,7 @@ R"MULTILINE(
 #define MAX_BONE_PER_MESH           100
 
 uniform m4x4  world_transform;
-uniform m4x4  VP;
+uniform m4x4  persp_VP;
 uniform s32   is_skeletal;
 
 layout (location = 0) in v3 vP;
@@ -71,7 +71,7 @@ void main()
     fUV = vUV;
     fC  = vertex_color;
 
-    gl_Position = VP * result_pos;
+    gl_Position = persp_VP * result_pos;
 }
 
 )MULTILINE"

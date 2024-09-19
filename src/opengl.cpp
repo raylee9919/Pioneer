@@ -463,7 +463,7 @@ gl_alloc_texture(Bitmap *bitmap)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 }
 
-#define VOXEL_SIZE 512
+#define VOXEL_SIZE 512 
 internal void
 gl_alloc_voxel_map(Voxel_Map *vm, GLenum internal_format, GLenum subimage_format, size_t data_size)
 {
@@ -522,18 +522,18 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     Voxel_Map *vm = &gl.voxel_map;
     Voxel_Map *am = &gl.albedo_map;
     Voxel_Map *nm = &gl.normal_map;
-    f32 side_in_meter = 20.0f;
-    f32 x = 1.0f / side_in_meter;
+    f32 side_in_meter = 100.0f;
+    f32 x = 2.0f / side_in_meter;
     m4x4 voxelize_clip_P = m4x4{{
         { x,  0,  0,  0},
         { 0,  x,  0,  0},
-        { 0,  0,-2*x, -1},
+        { 0,  0,  x , 0},
         { 0,  0,  0,  1}
     }};
 
-    glClearTexImage(vm->id, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    //glClearTexImage(vm->id, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     glClearTexImage(am->id, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-    glClearTexImage(nm->id, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    //glClearTexImage(nm->id, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 
     // Settings
     glViewport(0, 0, VOXEL_SIZE, VOXEL_SIZE);
@@ -714,9 +714,16 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
                             Camera *camera = group->camera;
 
-                            glUniformMatrix4fv(program->VP, 1, GL_TRUE, &group->camera->VP.e[0][0]);
+                            m4x4 voxel_VP = voxelize_clip_P *camera->V;
+
+                            glUniformMatrix4fv(program->voxel_VP, 1, GL_TRUE, &voxel_VP.e[0][0]);
+                            glUniformMatrix4fv(program->persp_VP, 1, GL_TRUE, &group->camera->VP.e[0][0]);
                             glUniform3fv(program->cam_pos, 1, (GLfloat *)&group->camera->world_translation);
                             glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0);
+
+                            glBindImageTexture(0, vm->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8);
+                            glBindImageTexture(1, am->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
+                            glBindImageTexture(2, nm->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
 
                             glEnableVertexAttribArray(0);
                             glEnableVertexAttribArray(1);
@@ -1163,7 +1170,8 @@ gl_init()
 #define GET_UNIFORM_LOCATION(program, name) gl.program.name = glGetUniformLocation(gl.program.id, #name);
     gl.mesh_program.id = gl_create_program(header, mesh_vshader, mesh_fshader);
     GET_UNIFORM_LOCATION(mesh_program, world_transform);
-    GET_UNIFORM_LOCATION(mesh_program, VP);
+    GET_UNIFORM_LOCATION(mesh_program, voxel_VP);
+    GET_UNIFORM_LOCATION(mesh_program, persp_VP);
     GET_UNIFORM_LOCATION(mesh_program, is_skeletal);
     GET_UNIFORM_LOCATION(mesh_program, cam_pos);
     GET_UNIFORM_LOCATION(mesh_program, bone_transforms);

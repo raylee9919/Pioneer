@@ -14,6 +14,11 @@ R"MULTILINE(
 #define iv4     ivec4
 #define uv4     uvec4
 
+
+#define LIGHT_ATTENUATION_CONSTANT  0.6f
+#define LIGHT_ATTENUATION_LINEAR    0.3f
+#define LIGHT_ATTENUATION_QUADRATIC 0.1f
+
 mat4x4 identity()
 {
     return mat4(1, 0, 0, 0,
@@ -41,6 +46,16 @@ v4_to_rgba8(v4 val)
                  (u32((val.z * 0.5f + 0.5f) * 255.0f) & 0x000000FF) << 16U |
                  (u32((val.y * 0.5f + 0.5f) * 255.0f) & 0x000000FF) <<  8U |
                  (u32((val.x * 0.5f + 0.5f) * 255.0f) & 0x000000FF);
+    return result;
+}
+
+f32
+light_attenuation(v3 light_P, v3 world_P)
+{
+    f32 D = length(light_P - world_P);
+    f32 result = 1.0f / (LIGHT_ATTENUATION_CONSTANT +
+                        LIGHT_ATTENUATION_LINEAR * D +
+                        LIGHT_ATTENUATION_QUADRATIC * D * D);
     return result;
 }
 

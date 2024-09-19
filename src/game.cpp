@@ -498,8 +498,14 @@ GAME_UPDATE(game_update)
                 m4x4 rotation = to_m4x4(free_camera->world_rotation);
                 free_camera->world_translation += rotation * _v3_(0, C, 0);
             }
+
+            static v2 prev_mouse_P = v2{};
+            v2 D = 0.1f * (input->mouse.P - prev_mouse_P);
+            prev_mouse_P = input->mouse.P;
+            free_camera->world_rotation = rotate(free_camera->world_rotation, v3{0, 1, 0}, -dt*D.x);
+            free_camera->world_rotation = rotate(free_camera->world_rotation, v3{1, 0, 0},  dt*D.y);
         }
-        else
+        else if (game_state->using_camera == game_state->player_camera)
         {
             if (input->keys[KEY_W].is_down)
             {

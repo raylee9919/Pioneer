@@ -35,7 +35,9 @@ struct Mesh_Program
     s32     id;
 
     s32     world_transform;
-    s32     VP;
+    s32     voxel_VP;
+    s32     clip_P;
+    s32     persp_VP;
     s32     is_skeletal;
     s32     cam_pos;
     s32     bone_transforms;
