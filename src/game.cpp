@@ -15,6 +15,8 @@
 #include "asset.cpp"
 #include "animation_player.cpp"
 
+#include "stdio.h" // @TODO: remove this bad boy.
+
 #define GRASS_COUNT_MAX 100'000
 #define GRASS_DENSITY 10
 #define GRASS_RANDOM_OFFSET 0.10f
@@ -149,8 +151,8 @@ GAME_UPDATE(game_update)
             }
         }
 
-        Entity *red_wall = push_entity(world_arena, chunk_hashmap, Entity_Type::RED_WALL, Chunk_Position{0, 0, 0, v3{-3, 0, 0}}, world->chunk_dim);
-        Entity *green_wall = push_entity(world_arena, chunk_hashmap, Entity_Type::GREEN_WALL, Chunk_Position{0, 0, 0, v3{3, 0, 0}}, world->chunk_dim);
+        Entity *red_wall = push_entity(world_arena, chunk_hashmap, Entity_Type::RED_WALL, Chunk_Position{0, 0, 0, v3{-2, 0, 0}}, world->chunk_dim);
+        Entity *green_wall = push_entity(world_arena, chunk_hashmap, Entity_Type::GREEN_WALL, Chunk_Position{0, 0, 0, v3{2, 0, 0}}, world->chunk_dim);
 
         Entity *xbot = push_entity(world_arena, chunk_hashmap, Entity_Type::XBOT, Chunk_Position{0, 0, 0}, world->chunk_dim);
         game_state->player = xbot;
@@ -592,6 +594,12 @@ GAME_UPDATE(game_update)
         update_entities(game_state, dt, min_pos, max_pos);
 
         game_state->player_camera->world_translation = game_state->player->world_translation + v3{0.0f, 5.0f, 5.0f};
+        char DEBUG_player_pos_buf[256];
+        snprintf(DEBUG_player_pos_buf, 256, "x: %f, y: %f, z: %f",
+                 player->world_translation.x,
+                 player->world_translation.y,
+                 player->world_translation.z);
+        string_op(String_Op::DRAW, orthographic_group, v3{400, height - 100, 0}, DEBUG_player_pos_buf, &assets->debug_font);
 
 
         //
@@ -701,6 +709,7 @@ GAME_UPDATE(game_update)
 
                             case Entity_Type::LIGHT:
                             {
+#if 0
                                 Model *model = assets->sphere_model;
                                 if (model)
                                 {
@@ -714,6 +723,7 @@ GAME_UPDATE(game_update)
                                         push_mesh(render_group, mesh, mat, world_transform, light_pos);
                                     }
                                 }
+#endif
                             } break;
 
                             case Entity_Type::RED_WALL: 

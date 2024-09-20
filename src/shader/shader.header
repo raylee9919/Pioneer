@@ -19,6 +19,8 @@ R"MULTILINE(
 #define LIGHT_ATTENUATION_LINEAR    0.3f
 #define LIGHT_ATTENUATION_QUADRATIC 0.1f
 
+#define PI32 3.14159f
+
 mat4x4 identity()
 {
     return mat4(1, 0, 0, 0,

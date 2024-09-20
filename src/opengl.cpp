@@ -522,7 +522,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     Voxel_Map *vm = &gl.voxel_map;
     Voxel_Map *am = &gl.albedo_map;
     Voxel_Map *nm = &gl.normal_map;
-    f32 side_in_meter = 100.0f;
+    f32 side_in_meter = 50.0f;
     f32 x = 2.0f / side_in_meter;
     m4x4 voxelize_clip_P = m4x4{{
         { x,  0,  0,  0},
@@ -683,7 +683,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     // int n;
     // glGetIntegerv(GL_MAX_SAMPLES, &n);
     
-    int DEBUG_DRAW_MODE = 1;
+    int DEBUG_DRAW_MODE = 0;
 
     for (Render_Group *group = (Render_Group *)batch->base;
          (u8 *)group < (u8 *)batch->base + batch->used;

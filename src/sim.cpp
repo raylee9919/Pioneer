@@ -120,7 +120,7 @@ push_entity(Memory_Arena *arena, Chunk_Hashmap *hashmap,
 
         case Entity_Type::RED_WALL:
         {
-            entity->world_scaling       = _v3_(1, 8.0f, 5.0f);
+            entity->world_scaling       = _v3_(0.2f, 8.0f, 5.0f);
         } break;
 
         case Entity_Type::GREEN_WALL:
