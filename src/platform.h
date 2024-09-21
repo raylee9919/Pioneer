@@ -184,6 +184,9 @@ struct Render_Batch
     size_t  size;
     void    *base;
     size_t  used;
+
+    f32     time;
+    f32     dt;
 };
 
 struct Game_Memory 

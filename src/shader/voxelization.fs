@@ -10,6 +10,10 @@ uniform v3 ambient;
 uniform v3 diffuse;
 uniform v3 specular;
 
+uniform v3 DEBUG_light_P;
+uniform v3 DEBUG_light_color;
+uniform f32 DEBUG_light_strength;
+
 in v3 clip_fP;
 in v3 world_fP;
 in v3 fN;
@@ -22,17 +26,16 @@ void main()
     iv3 voxel_size = imageSize(albedo_map);
     iv3 idx = iv3(idx_01 * voxel_size);
 
-    v3 light_color = v3(1, 1, 1);
-    f32 light_strength = 1.0f;
-    v3 light_P = v3(0, 2, 0);
-    f32 cos_falloff = max(dot(fN, normalize(light_P - world_fP)), 0.0f);
-    f32 attenuation = light_attenuation(light_P, world_fP);
+
+    v3 tmp = v3(0, 2, 0);
+    f32 cos_falloff = max(dot(fN, normalize(DEBUG_light_P - world_fP)), 0.0f);
+    f32 attenuation = light_attenuation(DEBUG_light_P, world_fP);
 
     //
     // DIFFUSE
     //
     {
-        v3 diffuse = light_color * light_strength * diffuse * cos_falloff * attenuation;
+        v3 diffuse = DEBUG_light_color * DEBUG_light_strength * diffuse * cos_falloff * attenuation;
         v4 val = v4(diffuse, 1.0f);
         u32 new_val = v4_to_rgba8(val);
         u32 prev = 0;

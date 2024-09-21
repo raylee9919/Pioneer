@@ -275,6 +275,12 @@ win32_load_gl_extensions()
             WGL_GET_PROC_ADDRESS(glGenerateMipmap);
             WGL_GET_PROC_ADDRESS(glBindImageTexture);
             WGL_GET_PROC_ADDRESS(glClearTexImage);
+            WGL_GET_PROC_ADDRESS(glDrawBuffers);
+            WGL_GET_PROC_ADDRESS(glActiveTexture);
+            WGL_GET_PROC_ADDRESS(glBindRenderbuffer);
+            WGL_GET_PROC_ADDRESS(glRenderbufferStorage);
+            WGL_GET_PROC_ADDRESS(glFramebufferRenderbuffer);
+            WGL_GET_PROC_ADDRESS(glGenRenderbuffers);
 
             gl_init_info();
 

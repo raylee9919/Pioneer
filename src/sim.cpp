@@ -309,7 +309,7 @@ update_entities(Game_State *game_state, f32 dt,
 
                         case Entity_Type::TILE: 
                         {
-#if 0
+#if 0 // some fun.
                             f32 theta = acos(entity->world_rotation.w);
                             theta += dt;
                             if (theta > pi32)

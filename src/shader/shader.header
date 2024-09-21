@@ -54,7 +54,7 @@ v4_to_rgba8(v4 val)
 f32
 light_attenuation(v3 light_P, v3 world_P)
 {
-    f32 D = length(light_P - world_P);
+    f32 D = distance(light_P, world_P);
     f32 result = 1.0f / (LIGHT_ATTENUATION_CONSTANT +
                         LIGHT_ATTENUATION_LINEAR * D +
                         LIGHT_ATTENUATION_QUADRATIC * D * D);

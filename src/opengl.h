@@ -80,7 +80,6 @@ struct Voxelization_Program
 
     s32     world_transform;
     s32     V;
-    s32     P;
     s32     VP;
     s32     is_skeletal;
     s32     bone_transforms;
@@ -89,6 +88,10 @@ struct Voxelization_Program
     s32     ambient;
     s32     diffuse;
     s32     specular;
+
+    s32     DEBUG_light_P;
+    s32     DEBUG_light_color;
+    s32     DEBUG_light_strength;
 };
 
 struct Voxel_Program
@@ -104,16 +107,30 @@ struct Voxel_Program
     s32     voxel_map;
 };
 
-struct Clip_Program
+struct G_Buffer_Program
 {
     s32     id;
 
     s32     world_transform;
-    s32     V;
-    s32     ortho_P;
-    s32     persp_P;
+    s32     VP;
     s32     is_skeletal;
     s32     bone_transforms;
+};
+
+
+struct Deffer_Program
+{
+    s32     id;
+
+    s32     gP;
+    s32     gN;
+    s32     gC;
+
+    s32     DEBUG_light_P;
+    s32     DEBUG_light_color;
+    s32     DEBUG_light_strength;
+
+    s32     voxel_VP;
 };
 
 struct Voxel_Map
@@ -121,6 +138,15 @@ struct Voxel_Map
     void    *data;
     u32     voxel_size;
     u32     id;
+};
+
+struct G_Buffer
+{
+    u32 id;
+
+    u32 Pid;
+    u32 Nid;
+    u32 Cid;
 };
 
 
@@ -133,11 +159,15 @@ struct GL
 
     Voxelization_Program    voxelization_program;
     Voxel_Program           voxel_program;
-    Clip_Program            clip_program;
+
+    G_Buffer_Program        gbuffer_program;
+    Deffer_Program          deffer_program;
 
     Voxel_Map               voxel_map;
     Voxel_Map               albedo_map;
     Voxel_Map               normal_map;
+
+    G_Buffer                gbuffer;
 
     GLuint  vao;
     GLuint  vbo;
