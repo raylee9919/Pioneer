@@ -487,23 +487,16 @@ gl_alloc_texture(Bitmap *bitmap)
 
 #define VOXEL_SIZE 512 
 internal void
-gl_alloc_voxel_map(Voxel_Map *vm, GLenum internal_format, GLenum subimage_format, size_t data_size)
+gl_alloc_voxel_map(Voxel_Map *vm, GLenum internal_format, GLenum pixel_format, size_t data_size)
 {
-    vm->voxel_size = VOXEL_SIZE;
-    vm->data = VirtualAlloc(0, VOXEL_SIZE*VOXEL_SIZE*VOXEL_SIZE*data_size,
-                            MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-
+    vm->pixel_format = pixel_format;
     glGenTextures(1, &vm->id); // generate name.
     glBindTexture(GL_TEXTURE_3D, vm->id); // bind name to target.
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    s32 levels  = 7;
-    glTexStorage3D(GL_TEXTURE_3D, levels, internal_format, VOXEL_SIZE, VOXEL_SIZE, VOXEL_SIZE); // alloc for each level.
-    glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, VOXEL_SIZE, VOXEL_SIZE, VOXEL_SIZE, subimage_format, GL_UNSIGNED_BYTE, vm->data); // assign image data
-    glGenerateMipmap(GL_TEXTURE_3D);
+    glTexStorage3D(GL_TEXTURE_3D, 1, internal_format, VOXEL_SIZE, VOXEL_SIZE, VOXEL_SIZE); // alloc for each level. Immutable. For mutable, gl*TexImage*. NOT INITIALLZIED YET! ala malloc().
+    glClearTexImage(vm->id, 0, pixel_format, GL_UNSIGNED_BYTE, 0); // Detect the internal format automatically from GL_TEXTUED_3D parameter.
 
     glBindTexture(GL_TEXTURE_3D, 0);
 }
@@ -515,10 +508,6 @@ gl_bind_texture(Bitmap *bitmap)
     {
         bitmap = &gl.white_bitmap;
     } 
-    else 
-    {
-
-    }
 
     if (bitmap->handle) 
     {
@@ -531,23 +520,21 @@ gl_bind_texture(Bitmap *bitmap)
     }
 }
 
-static f32 DEBUG_time = 0.0f;
-
 internal void
 gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 {
     TIMED_FUNCTION();
 
-    v3 light_P = v3{0, 2, 0};
+    v3 light_P = v3{0, 3, 0};
     v3 light_color = v3{1, 1, 1};
     f32 light_strength = 1.0f;
 
     //
     // Voxelization Pass
     //
-    Voxel_Map *vm = &gl.voxel_map;
+    //Voxel_Map *vm = &gl.voxel_map;
     Voxel_Map *am = &gl.albedo_map;
-    Voxel_Map *nm = &gl.normal_map;
+    //Voxel_Map *nm = &gl.normal_map;
     f32 side_in_meter = 50.0f;
     f32 x = 2.0f / side_in_meter;
     m4x4 voxelize_clip_P = m4x4{{
@@ -558,7 +545,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     }};
 
     //glClearTexImage(vm->id, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-    glClearTexImage(am->id, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glClearTexImage(am->id, 0, am->pixel_format, GL_UNSIGNED_BYTE, 0);
     //glClearTexImage(nm->id, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 
     // Settings
@@ -595,10 +582,10 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     glUseProgram(pid);
 
                     // Bind to image unit.
-                    glBindTexture(GL_TEXTURE_3D, vm->id);
-                    glBindImageTexture(0, vm->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8);
+                    //glBindTexture(GL_TEXTURE_3D, vm->id);
+                    //glBindImageTexture(0, vm->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8);
                     glBindImageTexture(1, am->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
-                    glBindImageTexture(2, nm->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
+                    //glBindImageTexture(2, nm->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
 
                     glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
 
@@ -616,8 +603,6 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     glUniformMatrix4fv(program->V, 1, GL_TRUE, &camera->V.e[0][0]);
                     glUniformMatrix4fv(program->VP, 1, GL_TRUE, &VP.e[0][0]);
                     glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0);
-                    glUniform1f(program->time, DEBUG_time);
-                    DEBUG_time += (pi32/120000.0f);
                     glUniform3fv(program->ambient, 1, (GLfloat *)&mat->color_ambient);
                     glUniform3fv(program->diffuse, 1, (GLfloat *)&mat->color_diffuse);
                     glUniform3fv(program->specular, 1, (GLfloat *)&mat->color_specular);
@@ -1176,9 +1161,9 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glActiveTexture(GL_TEXTURE0);
 
     // Voxel info
-    glBindImageTexture(0, vm->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8);
+    //glBindImageTexture(0, vm->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8);
     glBindImageTexture(1, am->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
-    glBindImageTexture(2, nm->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
+    //glBindImageTexture(2, nm->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
 
     glUniformMatrix4fv(program->voxel_VP, 1, GL_TRUE, &DEBUG_voxel_VP.e[0][0]);
 
@@ -1344,7 +1329,6 @@ gl_init()
     GET_UNIFORM_LOCATION(voxelization_program, is_skeletal);
     GET_UNIFORM_LOCATION(voxelization_program, bone_transforms);
     GET_UNIFORM_LOCATION(voxelization_program, voxel_map);
-    GET_UNIFORM_LOCATION(voxelization_program, time);
     GET_UNIFORM_LOCATION(voxelization_program, ambient);
     GET_UNIFORM_LOCATION(voxelization_program, diffuse);
     GET_UNIFORM_LOCATION(voxelization_program, specular);
@@ -1397,9 +1381,9 @@ gl_init()
     // Radiance Voxel-Map
     //
 #if 1
-    gl_alloc_voxel_map(&gl.voxel_map, GL_RGBA8, GL_RGBA, 4);
+    //gl_alloc_voxel_map(&gl.voxel_map, GL_RGBA8, GL_RGBA, 4);
     gl_alloc_voxel_map(&gl.albedo_map, GL_RGBA8, GL_RGBA, 4);
-    gl_alloc_voxel_map(&gl.normal_map, GL_RGBA8, GL_RGBA, 4);
+    //gl_alloc_voxel_map(&gl.normal_map, GL_RGBA8, GL_RGBA, 4);
 #endif
 
 

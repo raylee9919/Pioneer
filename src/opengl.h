@@ -84,7 +84,6 @@ struct Voxelization_Program
     s32     is_skeletal;
     s32     bone_transforms;
     s32     voxel_map;
-    s32     time;
     s32     ambient;
     s32     diffuse;
     s32     specular;
@@ -135,9 +134,9 @@ struct Deffer_Program
 
 struct Voxel_Map
 {
-    void    *data;
     u32     voxel_size;
     u32     id;
+    GLenum  pixel_format;
 };
 
 struct G_Buffer

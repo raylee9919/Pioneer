@@ -54,14 +54,14 @@ void main()
 
 
     
-        #define SHADOW_STR 2.0f
+        #define SHADOW_STR 1.0f
         v3 voxel_size = imageSize(albedo_map);
         f32 occlusion = 0.0f;
         f32 march = 0.001f;
 
-        f32 MAX_DIST = distance(DEBUG_light_P, fP);
+        f32 max_dist = distance(DEBUG_light_P, fP);
 
-        while (march < MAX_DIST &&
+        while (march < max_dist &&
                occlusion < 1.0f)
         {
             v3 cen = fP + to_light * march;
@@ -72,7 +72,7 @@ void main()
             v4 S = rgba8_to_v4(val);
             if (S.w > 0.0f)
             {
-                occlusion += (1 - occlusion) * smoothstep(0.0f, MAX_DIST, sqrt(march) * SHADOW_STR);
+                occlusion += (1 - occlusion) * smoothstep(0.0f, max_dist, sqrt(march) * SHADOW_STR);
             }
 
             march += 0.1f;

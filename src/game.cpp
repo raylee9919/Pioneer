@@ -151,8 +151,8 @@ GAME_UPDATE(game_update)
             }
         }
 
-        Entity *red_wall = push_entity(world_arena, chunk_hashmap, Entity_Type::RED_WALL, Chunk_Position{0, 0, 0, v3{-2, 0, 0}}, world->chunk_dim);
-        Entity *green_wall = push_entity(world_arena, chunk_hashmap, Entity_Type::GREEN_WALL, Chunk_Position{0, 0, 0, v3{2, 0, 0}}, world->chunk_dim);
+        Entity *red_wall = push_entity(world_arena, chunk_hashmap, Entity_Type::RED_WALL, Chunk_Position{0, 0, 0, v3{-2, 2, 0}}, world->chunk_dim);
+        Entity *green_wall = push_entity(world_arena, chunk_hashmap, Entity_Type::GREEN_WALL, Chunk_Position{0, 0, 0, v3{2, 2, 0}}, world->chunk_dim);
 
         Entity *xbot = push_entity(world_arena, chunk_hashmap, Entity_Type::XBOT, Chunk_Position{0, 0, 0}, world->chunk_dim);
         game_state->player = xbot;
