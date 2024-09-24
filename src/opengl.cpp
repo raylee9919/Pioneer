@@ -16,13 +16,16 @@
 
 typedef char    GLchar;
 typedef size_t  GLsizeiptr;
+typedef size_t  GLintptr;
 typedef void (APIENTRY  *GLDEBUGPROCARB)(GLenum source,GLenum type,GLuint id,GLenum severity,GLsizei length,const GLchar *message,const void *userParam);
 
 #define GL_SRGB8_ALPHA8                     0x8C43
 #define GL_FRAMEBUFFER_SRGB                 0x8DB9            
 #define GL_SHADING_LANGUAGE_VERSION         0x8B8C
 #define GL_VERTEX_SHADER                    0x8B31
+#define GL_GEOMETRY_SHADER                  0x8DD9
 #define GL_FRAGMENT_SHADER                  0x8B30
+#define GL_COMPUTE_SHADER                   0x91B9
 #define GL_VALIDATE_STATUS                  0x8B83
 #define GL_COMPILE_STATUS                   0x8B81
 #define GL_LINK_STATUS                      0x8B82
@@ -82,7 +85,6 @@ typedef void (APIENTRY  *GLDEBUGPROCARB)(GLenum source,GLenum type,GLuint id,GLe
 #define GL_READ_ONLY                        0x88B8
 #define GL_WRITE_ONLY                       0x88B9
 #define GL_READ_WRITE                       0x88BA
-#define GL_GEOMETRY_SHADER                  0x8DD9
 #define GL_R8UI                             0x8232
 #define GL_RGBA8UI                          0x8D7C
 #define GL_R32UI                            0x8236
@@ -97,6 +99,18 @@ typedef void (APIENTRY  *GLDEBUGPROCARB)(GLenum source,GLenum type,GLuint id,GLe
 #define GL_TEXTURE2                         0x84C2
 #define GL_TEXTURE3                         0x84C3
 #define GL_RENDERBUFFER                     0x8D41
+#define GL_ATOMIC_COUNTER_BUFFER            0x92C0
+#define GL_DYNAMIC_STORAGE_BIT              0x0100
+#define GL_MAP_READ_BIT                     0x0001
+#define GL_MAP_WRITE_BIT                    0x0002
+#define GL_SHADER_STORAGE_BUFFER            0x90D2
+#define GL_UNSIGNED_INT_10_10_10_2          0x8036
+#define GL_RGB10_A2UI                       0x906F
+#define GL_RGBA8                            0x8058
+#define GL_TEXTURE_BUFFER                   0x8C2A
+#define GL_ALL_BARRIER_BITS                 0xFFFFFFFF
+#define GL_SHADER_IMAGE_ACCESS_BARRIER_BIT  0x00000020
+
 
 typedef BOOL        Type_wglSwapIntervalEXT(int interval);
 typedef GLuint      Type_glCreateShader(GLenum shaderType);
@@ -146,6 +160,16 @@ typedef void        Type_glBindRenderbuffer (GLenum target, GLuint renderbuffer)
 typedef void        Type_glRenderbufferStorage (GLenum target, GLenum internalformat, GLsizei width, GLsizei height);
 typedef void        Type_glFramebufferRenderbuffer (GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
 typedef void        Type_glGenRenderbuffers (GLsizei n, GLuint *renderbuffers);
+typedef void        Type_glBufferSubData (GLenum target, GLintptr offset, GLsizeiptr size, const void *data);
+typedef void        Type_glBufferStorage (GLenum target, GLsizeiptr size, const void *data, GLbitfield flags);
+typedef void        Type_glBindBufferBase (GLenum target, GLuint index, GLuint buffer);
+typedef void        Type_glGetBufferSubData (GLenum target, GLintptr offset, GLsizeiptr size, void *data);
+typedef void        Type_glTexBuffer (GLenum target, GLenum internalformat, GLuint buffer);
+typedef void        Type_glUniform1ui (GLint location, GLuint v0);
+typedef void        Type_glDispatchCompute (GLuint num_groups_x, GLuint num_groups_y, GLuint num_groups_z);
+typedef void        Type_glMemoryBarrier (GLbitfield barriers);
+typedef void *      Type_glMapBufferRange (GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access);
+typedef GLboolean   Type_glUnmapBuffer (GLenum target);
 
 
 #define GL_DECLARE_GLOBAL_FUNCTION(Name) global_var Type_##Name *Name
@@ -196,6 +220,16 @@ GL_DECLARE_GLOBAL_FUNCTION(glBindRenderbuffer);
 GL_DECLARE_GLOBAL_FUNCTION(glRenderbufferStorage);
 GL_DECLARE_GLOBAL_FUNCTION(glFramebufferRenderbuffer);
 GL_DECLARE_GLOBAL_FUNCTION(glGenRenderbuffers);
+GL_DECLARE_GLOBAL_FUNCTION(glBufferSubData);
+GL_DECLARE_GLOBAL_FUNCTION(glBufferStorage);
+GL_DECLARE_GLOBAL_FUNCTION(glBindBufferBase);
+GL_DECLARE_GLOBAL_FUNCTION(glGetBufferSubData);
+GL_DECLARE_GLOBAL_FUNCTION(glTexBuffer);
+GL_DECLARE_GLOBAL_FUNCTION(glUniform1ui);
+GL_DECLARE_GLOBAL_FUNCTION(glDispatchCompute);
+GL_DECLARE_GLOBAL_FUNCTION(glMemoryBarrier);
+GL_DECLARE_GLOBAL_FUNCTION(glMapBufferRange);
+GL_DECLARE_GLOBAL_FUNCTION(glUnmapBuffer);
 
 
 global_var GL gl;
@@ -345,6 +379,47 @@ gl_init_info()
 
 
 internal GLuint
+gl_create_compute_program(const char *header,
+                          const char *csrc)
+{
+    GLuint program = 0;
+
+    if (glCreateShader) 
+    {
+        GLuint cshader = glCreateShader(GL_COMPUTE_SHADER);
+        const GLchar *cunit[] = {
+            header,
+            csrc
+        };
+        glShaderSource(cshader, array_count(cunit), (const GLchar **)cunit, 0);
+        glCompileShader(cshader);
+
+        program = glCreateProgram();
+        glAttachShader(program, cshader);
+        glLinkProgram(program);
+
+        glValidateProgram(program);
+        GLint linked = false;
+        glGetProgramiv(program, GL_LINK_STATUS, &linked);
+        if (!linked) 
+        {
+            GLsizei stub;
+
+            GLchar clog[1024];
+            glGetProgramInfoLog(program, sizeof(clog), &stub, clog);
+
+            Assert(!"compile/link error.");
+        }
+    } 
+    else 
+    {
+        // TODO: handling.
+    }
+    
+    return program;
+}
+
+internal GLuint
 gl_create_program(const char *header,
                   const char *vsrc,
                   const char *fsrc)
@@ -485,21 +560,7 @@ gl_alloc_texture(Bitmap *bitmap)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 }
 
-#define VOXEL_SIZE 512 
-internal void
-gl_alloc_voxel_map(Voxel_Map *vm, GLenum internal_format, GLenum pixel_format, size_t data_size)
-{
-    vm->pixel_format = pixel_format;
-    glGenTextures(1, &vm->id); // generate name.
-    glBindTexture(GL_TEXTURE_3D, vm->id); // bind name to target.
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glTexStorage3D(GL_TEXTURE_3D, 1, internal_format, VOXEL_SIZE, VOXEL_SIZE, VOXEL_SIZE); // alloc for each level. Immutable. For mutable, gl*TexImage*. NOT INITIALLZIED YET! ala malloc().
-    glClearTexImage(vm->id, 0, pixel_format, GL_UNSIGNED_BYTE, 0); // Detect the internal format automatically from GL_TEXTUED_3D parameter.
-
-    glBindTexture(GL_TEXTURE_3D, 0);
-}
+#define OCTREE_LEVEL 10 
 
 internal void
 gl_bind_texture(Bitmap *bitmap)
@@ -532,9 +593,6 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     //
     // Voxelization Pass
     //
-    //Voxel_Map *vm = &gl.voxel_map;
-    Voxel_Map *am = &gl.albedo_map;
-    //Voxel_Map *nm = &gl.normal_map;
     f32 side_in_meter = 50.0f;
     f32 x = 2.0f / side_in_meter;
     m4x4 voxelize_clip_P = m4x4{{
@@ -544,17 +602,24 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         { 0,  0,  0,  1}
     }};
 
-    //glClearTexImage(vm->id, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-    glClearTexImage(am->id, 0, am->pixel_format, GL_UNSIGNED_BYTE, 0);
-    //glClearTexImage(nm->id, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-
     // Settings
-    glViewport(0, 0, VOXEL_SIZE, VOXEL_SIZE);
+    glViewport(0, 0, gl.octree_resolution, gl.octree_resolution);
     glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
     glDisable(GL_CULL_FACE);
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_BLEND);
     glDisable(GL_SCISSOR_TEST);
+
+    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+
+    // Prepare atomic fragment-counter.
+    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.fragment_counter);
+    glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, 0, gl.fragment_counter);
+
+
+    glBindBuffer(GL_TEXTURE_BUFFER, gl.flist_P);
+    glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI);
+    glBindImageTexture(1, gl.flist_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
 
     for (Render_Group *group = (Render_Group *)batch->base;
          (u8 *)group < (u8 *)batch->base + batch->used;
@@ -574,18 +639,11 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     Mesh *mesh            = piece->mesh;
                     Material *mat         = piece->material;
 
-                    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
 
                     // Use voxelization program.
                     Voxelization_Program *program = &gl.voxelization_program;
                     s32 pid = program->id;
                     glUseProgram(pid);
-
-                    // Bind to image unit.
-                    //glBindTexture(GL_TEXTURE_3D, vm->id);
-                    //glBindImageTexture(0, vm->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8);
-                    glBindImageTexture(1, am->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
-                    //glBindImageTexture(2, nm->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
 
                     glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
 
@@ -607,10 +665,12 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     glUniform3fv(program->diffuse, 1, (GLfloat *)&mat->color_diffuse);
                     glUniform3fv(program->specular, 1, (GLfloat *)&mat->color_specular);
 
+                    glUniform1ui(program->octree_level, OCTREE_LEVEL);
+                    glUniform1ui(program->octree_resolution, gl.octree_resolution);
+
                     glUniform3fv(program->DEBUG_light_P, 1, (GLfloat *)&light_P);
                     glUniform3fv(program->DEBUG_light_color, 1, (GLfloat *)&light_color);
                     glUniform1f(program->DEBUG_light_strength, light_strength);
-
 
                     glEnableVertexAttribArray(0);
                     glEnableVertexAttribArray(1);
@@ -668,9 +728,54 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     }
 
     //
-    // Revert Settings
-    //
+    // Map GPU side fragment counter to CPU and generate Fragment List.
+    // 
+    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.fragment_counter);
+    u32 *mapped_fragment_count = (u32 *)glMapBufferRange(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(GLuint), GL_MAP_READ_BIT|GL_MAP_WRITE_BIT);
+    u32 fragment_count = mapped_fragment_count[0];
+    Assert(fragment_count <= gl.fragment_list_capacity); // Since fragment count can be bigger than total voxel #. @TODO: Better idea...?
+    *mapped_fragment_count = 0; // Reset counter to zerogl.fragment_counter
+    glUnmapBuffer(GL_ATOMIC_COUNTER_BUFFER); // @TODO: Is unmapping necessary?
+    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0);
 
+
+    //
+    // Build Octree
+    //
+#if 1
+    s32 data_width = 1024;
+    s32 data_height = (fragment_count + 1023) / data_width;
+    s32 group_x = data_width / 8;
+    s32 group_y = (data_height + 7) / 8;
+    Assert(group_x * group_y * 8 * 8 >= (s32)fragment_count);
+    
+    // From root level(0) to (OCTREE_LEVEL - 1), since leaf nodes can't be subdivided.
+    for (u32 level = 0;
+         level < OCTREE_LEVEL;
+         ++level)
+    {
+        Flag_Program *fp = &gl.flag_program;
+        glUseProgram(fp->id);
+
+        glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI);
+        glBindImageTexture(1, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
+        glUniform1ui(fp->octree_level, level);
+        glUniform1ui(fp->octree_resolution, gl.octree_resolution);
+        glUniform1ui(fp->fragment_count, fragment_count);
+
+        glDispatchCompute(group_x, group_y, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+    }
+#endif
+
+
+
+
+
+
+
+
+    
     //
     // G-Buffer Pass (Deferred Rendering)
     //
@@ -769,9 +874,12 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
 
 
+
+
     //
     // Draw
     //
+#if 0
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     // Settings
     glViewport(0, 0, win_w, win_h);
@@ -784,7 +892,6 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glEnable(GL_SCISSOR_TEST);
 
     glEnable(GL_DEPTH_TEST);
-    //glClearColor(0.03f, 0.02f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glClearDepth(1.0f);
     glClear(GL_DEPTH_BUFFER_BIT);
@@ -798,11 +905,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
 
-    // int n;
-    // glGetIntegerv(GL_MAX_SAMPLES, &n);
-
 #if 0
-    
     int DEBUG_DRAW_MODE = 0;
 
     for (Render_Group *group = (Render_Group *)batch->base;
@@ -841,9 +944,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                             glUniform3fv(program->cam_pos, 1, (GLfloat *)&group->camera->world_translation);
                             glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0);
 
-                            glBindImageTexture(0, vm->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8);
-                            glBindImageTexture(1, am->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
-                            glBindImageTexture(2, nm->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
+                            glBindImageTexture(0, am->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
 
                             glEnableVertexAttribArray(0);
                             glEnableVertexAttribArray(1);
@@ -910,11 +1011,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                             if (piece->animation_transforms)
                                 glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
 
-                            glBindTexture(GL_TEXTURE_3D, vm->id);
-                            glUniform1i(program->voxel_map, 0);
-                            glBindImageTexture(0, vm->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8);
-                            glBindImageTexture(1, am->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
-                            glBindImageTexture(2, nm->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
+                            glBindImageTexture(0, am->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
 
                             glEnableVertexAttribArray(0);
                             glEnableVertexAttribArray(1);
@@ -1160,18 +1257,13 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glBindTexture(GL_TEXTURE_2D, gb->Cid);
     glActiveTexture(GL_TEXTURE0);
 
-    // Voxel info
-    //glBindImageTexture(0, vm->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8);
-    glBindImageTexture(1, am->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
-    //glBindImageTexture(2, nm->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
 
     glUniformMatrix4fv(program->voxel_VP, 1, GL_TRUE, &DEBUG_voxel_VP.e[0][0]);
-
     glUniform3fv(program->DEBUG_light_P, 1, (GLfloat *)&light_P);
     glUniform3fv(program->DEBUG_light_color, 1, (GLfloat *)&light_color);
     glUniform1f(program->DEBUG_light_strength, light_strength);
 
-    
+    // Draw full quad on screen.
     f32 vertices[] = { // P, UV
          1.0f, -1.0f, 0.0f,      1.0f,  0.0f,
          1.0f,  1.0f, 0.0f,      1.0f,  1.0f,
@@ -1194,10 +1286,23 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glDisableVertexAttribArray(0);
     glDisableVertexAttribArray(2);
 #endif
+#endif
             
     batch->used = 0;
     gl_bind_texture(0);
     glUseProgram(0);
+}
+
+internal void
+gl_gen_linear_buffer(u32 *buf, u32 *tex, GLenum format, size_t size)
+{
+    glGenBuffers(1, buf);
+    glBindBuffer(GL_TEXTURE_BUFFER, *buf);
+    glBufferData(GL_TEXTURE_BUFFER, size, 0, GL_STATIC_DRAW);
+    glGenTextures(1, tex);
+    glBindTexture(GL_TEXTURE_BUFFER, *tex);
+    glTexBuffer(GL_TEXTURE_BUFFER, GL_R32UI, *buf);
+    glBindBuffer(GL_TEXTURE_BUFFER, 0);
 }
 
 
@@ -1221,7 +1326,6 @@ gl_init()
     //
     const char *header = 
     #include "shader/shader.header"
-    ;
 
     const char *mesh_vshader = 
     #include "shader/mesh.vs"
@@ -1254,14 +1358,11 @@ gl_init()
     ;
 
     const char *voxelization_vs = 
-    #include "shader/voxelization.vs"
-    ;
+        #include "shader/voxelization.vs"
     const char *voxelization_gs = 
-    #include "shader/voxelization.gs"
-    ;
+        #include "shader/voxelization.gs"
     const char *voxelization_fs = 
-    #include "shader/voxelization.fs"
-    ;
+        #include "shader/voxelization.fs"
 
     const char *voxel_vs = 
     #include "shader/voxel_visual.vs"
@@ -1278,18 +1379,17 @@ gl_init()
     ;
 
     const char *gbuffer_vs = 
-    #include "shader/gbuffer.vs"
-    ;
+        #include "shader/gbuffer.vs"
     const char *gbuffer_fs = 
-    #include "shader/gbuffer.fs"
-    ;
+        #include "shader/gbuffer.fs"
+
+    const char *flag_cs = 
+        #include "shader/flag.comp"
 
     const char *deffer_vs = 
-    #include "shader/deffer.vs"
-    ;
+        #include "shader/deffer.vs"
     const char *deffer_fs = 
-    #include "shader/deffer.fs"
-    ;
+        #include "shader/deffer.fs"
 
 
 
@@ -1329,6 +1429,8 @@ gl_init()
     GET_UNIFORM_LOCATION(voxelization_program, is_skeletal);
     GET_UNIFORM_LOCATION(voxelization_program, bone_transforms);
     GET_UNIFORM_LOCATION(voxelization_program, voxel_map);
+    GET_UNIFORM_LOCATION(voxelization_program, octree_level);
+    GET_UNIFORM_LOCATION(voxelization_program, octree_resolution);
     GET_UNIFORM_LOCATION(voxelization_program, ambient);
     GET_UNIFORM_LOCATION(voxelization_program, diffuse);
     GET_UNIFORM_LOCATION(voxelization_program, specular);
@@ -1350,6 +1452,11 @@ gl_init()
     GET_UNIFORM_LOCATION(gbuffer_program, VP);
     GET_UNIFORM_LOCATION(gbuffer_program, is_skeletal);
     GET_UNIFORM_LOCATION(gbuffer_program, bone_transforms);
+
+    gl.flag_program.id = gl_create_compute_program(header, flag_cs);
+    GET_UNIFORM_LOCATION(flag_program, octree_level);
+    GET_UNIFORM_LOCATION(flag_program, octree_resolution);
+    GET_UNIFORM_LOCATION(flag_program, fragment_count);
 
     gl.deffer_program.id = gl_create_program(header, deffer_vs, deffer_fs);
     GET_UNIFORM_LOCATION(deffer_program, gP);
@@ -1375,16 +1482,6 @@ gl_init()
         *at = 0xffffffff;
     }
     gl_alloc_texture(&gl.white_bitmap);
-
-    
-    //
-    // Radiance Voxel-Map
-    //
-#if 1
-    //gl_alloc_voxel_map(&gl.voxel_map, GL_RGBA8, GL_RGBA, 4);
-    gl_alloc_voxel_map(&gl.albedo_map, GL_RGBA8, GL_RGBA, 4);
-    //gl_alloc_voxel_map(&gl.normal_map, GL_RGBA8, GL_RGBA, 4);
-#endif
 
 
     //
@@ -1442,6 +1539,37 @@ gl_init()
     glDrawBuffers(array_count(attachments), attachments);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
+    // Experiment
+    glGenBuffers(1, &gl.grass_vbo);
+    glGenBuffers(1, &gl.star_vbo);
+
+    //
+    // Sparse Voxel Octree
+    //
+    gl.octree_resolution = (1 << OCTREE_LEVEL);
+    gl.fragment_list_capacity = MB(64);
+
+    // Atomic Fragment List Counter
+    u32 zero = 0;
+    glGenBuffers(1, &gl.fragment_counter);
+    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.fragment_counter);
+    glBufferStorage(GL_ATOMIC_COUNTER_BUFFER, sizeof(u32), &zero, GL_MAP_READ_BIT|GL_MAP_WRITE_BIT);
+    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0);
+
+    // Fragment Lists
+    u32 max_cap = 1;
+    for (u32 i = 0, addend = 8;
+         i < OCTREE_LEVEL;
+         ++i, addend *= 8)
+    {
+        max_cap += addend;
+    }
+    gl_gen_linear_buffer(&gl.octree_nodes, &gl.octree_nodes_texture, GL_R32UI, sizeof(u32) * max_cap);
+    gl_gen_linear_buffer(&gl.flist_P, &gl.flist_P_texture, GL_R32UI, sizeof(u32) * gl.fragment_list_capacity);
+    gl_gen_linear_buffer(&gl.flist_diffuse, &gl.flist_diffuse_texture, GL_RGBA8, sizeof(u32) * gl.fragment_list_capacity);
+
     //
     // Dummy
     //
@@ -1452,8 +1580,4 @@ gl_init()
 
     glGenBuffers(1, &gl.vio);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl.vio);
-
-    glGenBuffers(1, &gl.grass_vbo);
-
-    glGenBuffers(1, &gl.star_vbo);
 }

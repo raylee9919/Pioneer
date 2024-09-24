@@ -17,9 +17,7 @@ layout (binding = 2) uniform sampler2D   gN;
 layout (binding = 3) uniform sampler2D   gC;
 
 
-layout(binding = 0, rgba8) uniform volatile coherent image3D voxel_map;
-layout(binding = 1, r32ui) uniform volatile coherent uimage3D albedo_map;
-layout(binding = 2, r32ui) uniform volatile coherent uimage3D normal_map;
+layout(binding = 0, r32ui) uniform volatile coherent uimage3D albedo_map;
 
 
 void main()
@@ -86,4 +84,4 @@ void main()
     }
 }
 
-)MULTILINE"
+)MULTILINE";

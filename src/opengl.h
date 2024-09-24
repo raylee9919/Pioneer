@@ -87,6 +87,8 @@ struct Voxelization_Program
     s32     ambient;
     s32     diffuse;
     s32     specular;
+    s32     octree_level;
+    s32     octree_resolution;
 
     s32     DEBUG_light_P;
     s32     DEBUG_light_color;
@@ -116,6 +118,15 @@ struct G_Buffer_Program
     s32     bone_transforms;
 };
 
+struct Flag_Program
+{
+    s32     id;
+
+    s32     octree_level;
+    s32     octree_resolution;
+    s32     fragment_count;
+};
+
 
 struct Deffer_Program
 {
@@ -130,13 +141,6 @@ struct Deffer_Program
     s32     DEBUG_light_strength;
 
     s32     voxel_VP;
-};
-
-struct Voxel_Map
-{
-    u32     voxel_size;
-    u32     id;
-    GLenum  pixel_format;
 };
 
 struct G_Buffer
@@ -160,11 +164,8 @@ struct GL
     Voxel_Program           voxel_program;
 
     G_Buffer_Program        gbuffer_program;
+    Flag_Program            flag_program;
     Deffer_Program          deffer_program;
-
-    Voxel_Map               voxel_map;
-    Voxel_Map               albedo_map;
-    Voxel_Map               normal_map;
 
     G_Buffer                gbuffer;
 
@@ -180,4 +181,18 @@ struct GL
 
     Bitmap  white_bitmap;
     u32     white[4][4];
+
+
+
+
+    u32     octree_resolution;
+    u32     fragment_list_capacity;
+    u32     fragment_counter;
+
+    u32     octree_nodes;
+    u32     octree_nodes_texture;
+    u32     flist_P;
+    u32     flist_P_texture;
+    u32     flist_diffuse;
+    u32     flist_diffuse_texture;
 };

@@ -1,4 +1,4 @@
-R"MULTILINE(
+R"(
 
 #define MAX_BONE_PER_VERTEX         4
 #define MAX_BONE_PER_MESH           100
@@ -73,4 +73,4 @@ void main()
     gl_Position = VP * result_pos;
 }
 
-)MULTILINE"
+)";

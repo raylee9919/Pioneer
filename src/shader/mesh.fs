@@ -19,9 +19,7 @@ smooth in v4 fC;
 out v4 C;
 
 
-layout(binding = 0, rgba8) uniform volatile coherent image3D voxel_map;
-layout(binding = 1, r32ui) uniform volatile coherent uimage3D albedo_map;
-layout(binding = 2, r32ui) uniform volatile coherent uimage3D normal_map;
+layout(binding = 0, r32ui) uniform volatile coherent uimage3D albedo_map;
 
 v3 cones[6] = {
     v3(0, 1, 0),

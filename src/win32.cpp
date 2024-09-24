@@ -281,6 +281,16 @@ win32_load_gl_extensions()
             WGL_GET_PROC_ADDRESS(glRenderbufferStorage);
             WGL_GET_PROC_ADDRESS(glFramebufferRenderbuffer);
             WGL_GET_PROC_ADDRESS(glGenRenderbuffers);
+            WGL_GET_PROC_ADDRESS(glBufferSubData);
+            WGL_GET_PROC_ADDRESS(glBufferStorage);
+            WGL_GET_PROC_ADDRESS(glBindBufferBase);
+            WGL_GET_PROC_ADDRESS(glGetBufferSubData);
+            WGL_GET_PROC_ADDRESS(glTexBuffer);
+            WGL_GET_PROC_ADDRESS(glUniform1ui);
+            WGL_GET_PROC_ADDRESS(glDispatchCompute);
+            WGL_GET_PROC_ADDRESS(glMemoryBarrier);
+            WGL_GET_PROC_ADDRESS(glMapBufferRange);
+            WGL_GET_PROC_ADDRESS(glUnmapBuffer);
 
             gl_init_info();
 
@@ -306,7 +316,7 @@ win32_init_opengl(HDC dc)
     const int context_attrib_list[] = 
     {
         WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
-        WGL_CONTEXT_MINOR_VERSION_ARB, 5,
+        WGL_CONTEXT_MINOR_VERSION_ARB, 6,
         WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
 #if __DEVELOPER
             | WGL_CONTEXT_DEBUG_BIT_ARB

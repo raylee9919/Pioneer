@@ -1,10 +1,12 @@
-R"MULTILINE(
+R"===(
 
 uniform f32 time;
 uniform sampler2D texture_sampler;
-layout(binding = 0, rgba8) uniform volatile coherent image3D voxel_map;
-layout(binding = 1, r32ui) uniform volatile coherent uimage3D albedo_map;
-layout(binding = 2, r32ui) uniform volatile coherent uimage3D normal_map;
+uniform layout(binding = 0, offset = 0) atomic_uint fragment_counter;
+
+uniform layout(binding = 0, rgb10_a2ui) uimageBuffer flist_P;
+uniform layout(binding = 1, rgba8) imageBuffer flist_diffuse;
+
 
 uniform v3 ambient;
 uniform v3 diffuse;
@@ -14,6 +16,9 @@ uniform v3 DEBUG_light_P;
 uniform v3 DEBUG_light_color;
 uniform f32 DEBUG_light_strength;
 
+uniform u32 octree_level;
+uniform u32 octree_resolution;
+
 in v3 clip_fP;
 in v3 world_fP;
 in v3 fN;
@@ -22,15 +27,18 @@ in v4 fC;
 
 void main()
 {
-    v3 idx_01 = 0.5f * clip_fP + v3(0.5f);
-    iv3 voxel_size = imageSize(albedo_map);
-    iv3 idx = iv3(idx_01 * voxel_size);
-
+    v3 coord_01 = 0.5f * clip_fP + v3(0.5f);
+    f32 voxel_size = f32(octree_resolution);
+    iv3 coord = iv3(coord_01 * voxel_size);
 
     v3 tmp = v3(0, 2, 0);
     f32 cos_falloff = max(dot(fN, normalize(DEBUG_light_P - world_fP)), 0.0f);
     f32 attenuation = light_attenuation(DEBUG_light_P, world_fP);
 
+    // Increment fragment count.
+    u32 next_empty = atomicCounterIncrement(fragment_counter);
+
+#if 0
     //
     // DIFFUSE
     //
@@ -43,9 +51,9 @@ void main()
         u32 count = 0;
 
         // @TODO: this is taxy.
-        while((cur = imageAtomicCompSwap(albedo_map, idx, prev, new_val)) != prev &&
+        while((cur = imageAtomicCompSwap(albedo_map, coord, prev, new_val)) != prev &&
               //false)
-              count < 256)
+              count < 10)
         {
             prev = cur;
             v4 rval = rgba8_to_v4(cur);
@@ -57,6 +65,24 @@ void main()
             ++count;
         }
     }
+#endif
+
+    //
+    // Voxel Pos to Fragment_List_P
+    //
+    // imageStore(flist_P, s32(idx_to_write), uv4(1100, 0, 0, 0)); //exceeds 10-bit! OpenGL clamps automatically.
+    s32 idx_to_write = s32(next_empty);
+    imageStore(flist_P, idx_to_write, uv4(coord, 0));
+    //imageStore(flist_diffuse, idx_to_write, uv4(coord, 0));
+
+
+
+
+
+
+
+
+
 
 #if 0
     //
@@ -86,4 +112,4 @@ void main()
 
 }
 
-)MULTILINE"
+)===";

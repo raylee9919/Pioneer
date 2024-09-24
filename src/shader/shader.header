@@ -1,5 +1,5 @@
-R"MULTILINE(
-#version 450
+R"(
+#version 430
 
 #define u32     uint
 #define s32     int
@@ -12,7 +12,9 @@ R"MULTILINE(
 #define iv2     ivec2
 #define iv3     ivec3
 #define iv4     ivec4
+#define uv3     uvec3
 #define uv4     uvec4
+#define b32     bool
 
 
 #define LIGHT_ATTENUATION_CONSTANT  0.6f
@@ -62,4 +64,4 @@ light_attenuation(v3 light_P, v3 world_P)
 }
 
 
-)MULTILINE"
+)";

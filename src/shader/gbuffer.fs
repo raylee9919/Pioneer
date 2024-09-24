@@ -1,4 +1,4 @@
-R"MULTILINE(
+R"(
 
 uniform sampler2D diffuse_texture;
 
@@ -18,4 +18,4 @@ void main()
     gC = (texture(diffuse_texture, fUV) * fC);
 }
 
-)MULTILINE"
+)";
