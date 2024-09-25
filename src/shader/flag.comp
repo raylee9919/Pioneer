@@ -12,90 +12,42 @@ uniform u32 fragment_count;
 
 void main()
 {
-    u32 thx_id = gl_GlobalInvocationID.y * 1024 + gl_GlobalInvocationID.x;
-    if (thx_id < fragment_count)
+    u32 tid = gl_GlobalInvocationID.y * 1024 + gl_GlobalInvocationID.x;
+    if (tid < fragment_count)
     {
-        // Top-Down
-        u32 first_idx_of_cur_level  = 0;
-        u32 voxel_count             = 1;
-        u32 res                     = 1;
-        u32 voxel_size              = octree_resolution;
-
-        uv4 voxel_coord = imageLoad(flist_P, s32(thx_id));
-
-        for (u32 level = 0;
-             level < octree_level;
-             ++level)
+        if (octree_level != 0)
         {
-            u32 x = voxel_coord.x / voxel_size;
-            u32 y = voxel_coord.y / voxel_size;
-            u32 z = voxel_coord.z / voxel_size;
+            uv4 coord = imageLoad(flist_P, s32(tid));
 
-            u32 offset = z * res*res +
-                         y * res     +
-                         x;
-            s32 idx_in_pool = s32(first_idx_of_cur_level + offset);
-            u32 node = imageLoad(octree_nodes, idx_in_pool).r;
-            node |= MSB;
-            imageStore(octree_nodes, idx_in_pool, uv4(node, 0, 0, 0));
+            u32 idx_to_write    = 0;
+            u32 div             = octree_resolution;
+            u32 node            = (imageLoad(octree_nodes, 0).r & 0x7fffffff);
 
-
-            res <<= 1;
-            first_idx_of_cur_level += voxel_count;
-            voxel_count <<= 3;
-            voxel_size >>= 1;
-        }
-
-
-
-
-#if 0
-        b32 flag = true;
-        s32 child_idx = 0;
-
-        u32 voxel_dim = octree_resolution;
-
-        uv4 loc = imageLoad(flist_P, s32(thx_id));
-
-        uv3 umin = uv3(0);
-        uv3 umax = uv3(voxel_dim);
-
-        u32 node = imageLoad(octree_nodes, 0).r;
-        u32 subnode;
-
-        for (u32 i = 0;
-             i < octree_level;
-             ++i)
-        {
-            voxel_dim /= 2;
-            if ((node & MSB) == 0)
+            // Traverse down the node pool.
+            for (u32 level = 0;
+                 level < octree_level;
+                 ++level)
             {
-                flag = false;
-                break;
+                u32 sr = (octree_level - level);
+                u32 x = (coord.x >> sr);
+                u32 y = (coord.y >> sr);
+                u32 z = (coord.z >> sr);
+                u32 offset = (z<<2) + (y<<1) + x;
+                idx_to_write = node + offset;
+
+                node = (imageLoad(octree_nodes, s32(idx_to_write)).r & 0x7fffffff);
+
+                div >>= 1;
             }
-            else
-            {
-                child_idx = s32(node & 0x7fffffff);
 
-                subnode = clamp(s32(1 + loc.x - umin.x - voxel_dim), 0, 1);
-                subnode += 4 * clamp(s32(1 + loc.y - umin.y - voxel_dim), 0, 1);
-                subnode += 2 * clamp(s32(1 + loc.z - umin.z - voxel_dim), 0, 1);
-                child_idx += s32(subnode);
-
-                umin.x += voxel_dim * clamp(s32(1 + loc.x - umin.x - voxel_dim), 0, 1);
-                umin.y += voxel_dim * clamp(s32(1 + loc.y - umin.y - voxel_dim), 0, 1);
-                umin.z += voxel_dim * clamp(s32(1 + loc.z - umin.z - voxel_dim), 0, 1);
-
-                node = imageLoad(octree_nodes, child_idx).r;
-            }
+            // Since storing occurs on the last level, it is safe to ignore
+            // lower 31 bits since it points to no node.
+            imageStore(octree_nodes, s32(idx_to_write), uv4(MSB, 0, 0, 0));
         }
-
-        if (flag)
+        else
         {
-            node |= MSB;
-            imageStore(octree_nodes, child_idx, uv4(node, 0, 0, 0));
+            imageStore(octree_nodes, 0, uv4(MSB, 0, 0, 0));
         }
-#endif
     }
 }
 

@@ -291,6 +291,7 @@ win32_load_gl_extensions()
             WGL_GET_PROC_ADDRESS(glMemoryBarrier);
             WGL_GET_PROC_ADDRESS(glMapBufferRange);
             WGL_GET_PROC_ADDRESS(glUnmapBuffer);
+            WGL_GET_PROC_ADDRESS(glGetIntegeri_v);
 
             gl_init_info();
 

@@ -127,6 +127,22 @@ struct Flag_Program
     s32     fragment_count;
 };
 
+struct Alloc_Program
+{
+    s32     id;
+
+    s32     start;
+    s32     alloc_size;
+};
+
+struct Init_Program
+{
+    s32     id;
+
+    s32     start;
+    s32     alloc_size;
+};
+
 
 struct Deffer_Program
 {
@@ -164,7 +180,11 @@ struct GL
     Voxel_Program           voxel_program;
 
     G_Buffer_Program        gbuffer_program;
+
     Flag_Program            flag_program;
+    Alloc_Program           alloc_program;
+    Init_Program            init_program;
+
     Deffer_Program          deffer_program;
 
     G_Buffer                gbuffer;
@@ -188,6 +208,8 @@ struct GL
     u32     octree_resolution;
     u32     fragment_list_capacity;
     u32     fragment_counter;
+    u32     alloc_count;
+    s32     max_compute_work_group_count[3];
 
     u32     octree_nodes;
     u32     octree_nodes_texture;

@@ -1,0 +1,35 @@
+R"===(
+
+layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+uniform u32 start;
+uniform u32 alloc_size;
+uniform layout(binding = 0, r32ui) uimageBuffer octree_nodes;
+uniform layout(binding = 0, offset = 0) atomic_uint alloc_count;
+
+#define MSB 0x80000000
+
+void main()
+{
+    u32 tid = gl_GlobalInvocationID.y * 1024 + gl_GlobalInvocationID.x;
+    u32 node_idx = start + (tid << 3);
+    if (node_idx < alloc_size)
+    {
+        for (u32 i = 0;
+             i < 8;
+             ++i)
+        {
+            u32 idx = node_idx + i;
+            u32 val = imageLoad(octree_nodes, s32(idx)).r;
+            //if ((val & MSB) != 0)
+            //{
+                u32 tmp = atomicCounterIncrement(alloc_count);
+                u32 child_idx = (tmp << 3);
+                val |= child_idx;
+                imageStore(octree_nodes, s32(idx), uv4(val, 0, 0, 0));
+            //}
+        }
+    }
+}
+
+)===";

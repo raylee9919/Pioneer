@@ -110,6 +110,8 @@ typedef void (APIENTRY  *GLDEBUGPROCARB)(GLenum source,GLenum type,GLuint id,GLe
 #define GL_TEXTURE_BUFFER                   0x8C2A
 #define GL_ALL_BARRIER_BITS                 0xFFFFFFFF
 #define GL_SHADER_IMAGE_ACCESS_BARRIER_BIT  0x00000020
+#define GL_MAX_COMPUTE_WORK_GROUP_COUNT     0x91BE
+#define GL_MAX_COMPUTE_WORK_GROUP_SIZE      0x91BF
 
 
 typedef BOOL        Type_wglSwapIntervalEXT(int interval);
@@ -170,6 +172,7 @@ typedef void        Type_glDispatchCompute (GLuint num_groups_x, GLuint num_grou
 typedef void        Type_glMemoryBarrier (GLbitfield barriers);
 typedef void *      Type_glMapBufferRange (GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access);
 typedef GLboolean   Type_glUnmapBuffer (GLenum target);
+typedef void        Type_glGetIntegeri_v (GLenum target, GLuint index, GLint *data);
 
 
 #define GL_DECLARE_GLOBAL_FUNCTION(Name) global_var Type_##Name *Name
@@ -230,6 +233,7 @@ GL_DECLARE_GLOBAL_FUNCTION(glDispatchCompute);
 GL_DECLARE_GLOBAL_FUNCTION(glMemoryBarrier);
 GL_DECLARE_GLOBAL_FUNCTION(glMapBufferRange);
 GL_DECLARE_GLOBAL_FUNCTION(glUnmapBuffer);
+GL_DECLARE_GLOBAL_FUNCTION(glGetIntegeri_v);
 
 
 global_var GL gl;
@@ -582,6 +586,13 @@ gl_bind_texture(Bitmap *bitmap)
 }
 
 internal void
+gl_bind_atomic_counter(s32 id, s32 binding_point)
+{
+    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, id);
+    glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, binding_point, id);
+}
+
+internal void
 gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 {
     TIMED_FUNCTION();
@@ -743,17 +754,28 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     // Build Octree
     //
 #if 1
+    // @TODO: Optimal work group dimension and local size?
     s32 data_width = 1024;
-    s32 data_height = (fragment_count + 1023) / data_width;
-    s32 group_x = data_width / 8;
-    s32 group_y = (data_height + 7) / 8;
+    s32 data_height = (fragment_count + data_width - 1) / data_width;
+    // local size will be 8 for now.
+    s32 group_x = (data_width >> 3);
+    s32 group_y = ((data_height + 7) >> 3);
     Assert(group_x * group_y * 8 * 8 >= (s32)fragment_count);
+    Assert(group_x <= gl.max_compute_work_group_count[0] &&
+           group_y <= gl.max_compute_work_group_count[1]);
+
+    // Reset variables
+    u32 start = 0;
+    gl_bind_atomic_counter(gl.alloc_count, 0);
+    u32 *mapped_alloc_count = (u32 *)glMapBufferRange(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(GLuint), GL_MAP_READ_BIT|GL_MAP_WRITE_BIT);
+    *mapped_alloc_count = 0;
     
-    // From root level(0) to (OCTREE_LEVEL - 1), since leaf nodes can't be subdivided.
+    // 'Level' to be allocated.
     for (u32 level = 0;
-         level < OCTREE_LEVEL;
+         level <= OCTREE_LEVEL;
          ++level)
     {
+        // 1. Flag
         Flag_Program *fp = &gl.flag_program;
         glUseProgram(fp->id);
 
@@ -764,8 +786,67 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         glUniform1ui(fp->fragment_count, fragment_count);
 
         glDispatchCompute(group_x, group_y, 1);
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+        // 2. Alloc
+        Alloc_Program *ap = &gl.alloc_program;
+        glUseProgram(ap->id);
+
+        u32 prev_alloc_count = mapped_alloc_count[0];
+        u32 node_count = (prev_alloc_count - (start >> 3));
+        u32 alloc_size = (prev_alloc_count << 3);
+        glUniform1ui(ap->alloc_size, alloc_size);
+        glUniform1ui(ap->start, start);
+        glBindImageTexture(0, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
+
+        if (level != 0)
+        {
+            s32 dw = 1024;
+            s32 dh = (node_count + dw - 1) / dw;
+            s32 gx = (dw >> 3);
+            s32 gy = ((dh + 7) >> 3);
+            Assert(gx * gy * 8 * 8 >= (s32)node_count);
+            Assert(gx <= gl.max_compute_work_group_count[0] &&
+                   gy <= gl.max_compute_work_group_count[1]);
+            glDispatchCompute(gx, gy, 1);
+        }
+        else
+        {
+            mapped_alloc_count[0] = 1;
+        }
+
+        start = (prev_alloc_count << 3);
+
+
+        // 3. Init
+        Init_Program *ip = &gl.init_program;
+        glUseProgram(ip->id);
+
+        prev_alloc_count = mapped_alloc_count[0];
+        node_count = (prev_alloc_count - (start >> 3));
+        alloc_size = (prev_alloc_count << 3);
+
+        glBindImageTexture(0, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
+        glUniform1ui(ip->start, start);
+        glUniform1ui(ip->alloc_size, alloc_size);
+
+        s32 dw = 1024;
+        s32 dh = (node_count + dw - 1) / dw;
+        s32 gx = (dw >> 3);
+        s32 gy = ((dh + 7) >> 3);
+        Assert(gx * gy * 8 * 8 >= (s32)node_count);
+        Assert(gx <= gl.max_compute_work_group_count[0] &&
+               gy <= gl.max_compute_work_group_count[1]);
+        glDispatchCompute(gx, gy, 1);
+
+
+
+
+
     }
+
+    glUnmapBuffer(GL_ATOMIC_COUNTER_BUFFER);
+    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 #endif
 
 
@@ -1385,6 +1466,10 @@ gl_init()
 
     const char *flag_cs = 
         #include "shader/flag.comp"
+    const char *alloc_cs = 
+        #include "shader/alloc.comp"
+    const char *init_cs = 
+        #include "shader/init.comp"
 
     const char *deffer_vs = 
         #include "shader/deffer.vs"
@@ -1457,6 +1542,15 @@ gl_init()
     GET_UNIFORM_LOCATION(flag_program, octree_level);
     GET_UNIFORM_LOCATION(flag_program, octree_resolution);
     GET_UNIFORM_LOCATION(flag_program, fragment_count);
+
+    gl.alloc_program.id = gl_create_compute_program(header, alloc_cs);
+    GET_UNIFORM_LOCATION(alloc_program, start);
+    GET_UNIFORM_LOCATION(alloc_program, alloc_size);
+
+    gl.init_program.id = gl_create_compute_program(header, init_cs);
+    GET_UNIFORM_LOCATION(init_program, start);
+    GET_UNIFORM_LOCATION(init_program, alloc_size);
+
 
     gl.deffer_program.id = gl_create_program(header, deffer_vs, deffer_fs);
     GET_UNIFORM_LOCATION(deffer_program, gP);
@@ -1550,11 +1644,20 @@ gl_init()
     //
     gl.octree_resolution = (1 << OCTREE_LEVEL);
     gl.fragment_list_capacity = MB(64);
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &gl.max_compute_work_group_count[0]);
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, &gl.max_compute_work_group_count[1]);
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, &gl.max_compute_work_group_count[2]);
 
     // Atomic Fragment List Counter
     u32 zero = 0;
     glGenBuffers(1, &gl.fragment_counter);
     glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.fragment_counter);
+    glBufferStorage(GL_ATOMIC_COUNTER_BUFFER, sizeof(u32), &zero, GL_MAP_READ_BIT|GL_MAP_WRITE_BIT);
+    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0);
+
+    // Atomic Node Alloc Counter
+    glGenBuffers(1, &gl.alloc_count);
+    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.alloc_count);
     glBufferStorage(GL_ATOMIC_COUNTER_BUFFER, sizeof(u32), &zero, GL_MAP_READ_BIT|GL_MAP_WRITE_BIT);
     glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0);
 
