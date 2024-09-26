@@ -9,45 +9,36 @@ uniform u32 octree_resolution;
 uniform u32 fragment_count;
 
 #define MSB 0x80000000
+#define OCTREE_LEVEL 10
 
 void main()
 {
-    u32 tid = gl_GlobalInvocationID.y * 1024 + gl_GlobalInvocationID.x;
+    u32 tid = (gl_GlobalInvocationID.y << 10) + gl_GlobalInvocationID.x;
     if (tid < fragment_count)
     {
-        if (octree_level != 0)
+        uv4 coord   = imageLoad(flist_P, s32(tid));
+        u32 idx     = 0;
+        u32 node    = 0;
+
+        // Traverse down the node pool.
+        for (u32 level = 0;
+             level < octree_level;
+             ++level)
         {
-            uv4 coord = imageLoad(flist_P, s32(tid));
+            u32 s = (OCTREE_LEVEL - level);
+            uv4 sub = coord;
+            sub >>= s;
+            u32 offset = sub.x + (sub.y << 1) + (sub.z << 2);
+            sub <<= s;
+            coord -= sub;
+            idx = node + offset;
 
-            u32 idx_to_write    = 0;
-            u32 div             = octree_resolution;
-            u32 node            = (imageLoad(octree_nodes, 0).r & 0x7fffffff);
-
-            // Traverse down the node pool.
-            for (u32 level = 0;
-                 level < octree_level;
-                 ++level)
-            {
-                u32 sr = (octree_level - level);
-                u32 x = (coord.x >> sr);
-                u32 y = (coord.y >> sr);
-                u32 z = (coord.z >> sr);
-                u32 offset = (z<<2) + (y<<1) + x;
-                idx_to_write = node + offset;
-
-                node = (imageLoad(octree_nodes, s32(idx_to_write)).r & 0x7fffffff);
-
-                div >>= 1;
-            }
-
-            // Since storing occurs on the last level, it is safe to ignore
-            // lower 31 bits since it points to no node.
-            imageStore(octree_nodes, s32(idx_to_write), uv4(MSB, 0, 0, 0));
+            node = (imageLoad(octree_nodes, s32(idx)).r & 0x7fffffff);
         }
-        else
-        {
-            imageStore(octree_nodes, 0, uv4(MSB, 0, 0, 0));
-        }
+
+        // Since storing occurs on the last level, it is safe to ignore
+        // lower 31 bits since it points to no node.
+        imageStore(octree_nodes, s32(idx), uv4(MSB, 0, 0, 0));
     }
 }
 

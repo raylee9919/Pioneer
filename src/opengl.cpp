@@ -14,6 +14,8 @@
 #include "render_group.h"
 #include "opengl.h"
 
+#define OCTREE_LEVEL 10
+
 typedef char    GLchar;
 typedef size_t  GLsizeiptr;
 typedef size_t  GLintptr;
@@ -112,6 +114,8 @@ typedef void (APIENTRY  *GLDEBUGPROCARB)(GLenum source,GLenum type,GLuint id,GLe
 #define GL_SHADER_IMAGE_ACCESS_BARRIER_BIT  0x00000020
 #define GL_MAX_COMPUTE_WORK_GROUP_COUNT     0x91BE
 #define GL_MAX_COMPUTE_WORK_GROUP_SIZE      0x91BF
+#define GL_MAP_PERSISTENT_BIT               0x0040
+#define GL_ATOMIC_COUNTER_BARRIER_BIT       0x00001000
 
 
 typedef BOOL        Type_wglSwapIntervalEXT(int interval);
@@ -410,7 +414,10 @@ gl_create_compute_program(const char *header,
             GLsizei stub;
 
             GLchar clog[1024];
-            glGetProgramInfoLog(program, sizeof(clog), &stub, clog);
+            glGetProgramInfoLog(cshader, sizeof(clog), &stub, clog);
+
+            GLchar plog[1024];
+            glGetProgramInfoLog(program, sizeof(plog), &stub, plog);
 
             Assert(!"compile/link error.");
         }
@@ -563,8 +570,6 @@ gl_alloc_texture(Bitmap *bitmap)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 }
-
-#define OCTREE_LEVEL 10 
 
 internal void
 gl_bind_texture(Bitmap *bitmap)
@@ -765,33 +770,44 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
            group_y <= gl.max_compute_work_group_count[1]);
 
     // Reset variables
+    u32 zero = 0;
     u32 start = 0;
-    gl_bind_atomic_counter(gl.alloc_count, 0);
-    u32 *mapped_alloc_count = (u32 *)glMapBufferRange(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(GLuint), GL_MAP_READ_BIT|GL_MAP_WRITE_BIT);
-    *mapped_alloc_count = 0;
+    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.alloc_count);
+    glBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &zero);
+    glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, 0, gl.alloc_count);
     
     // 'Level' to be allocated.
     for (u32 level = 0;
          level <= OCTREE_LEVEL;
          ++level)
     {
+        //
         // 1. Flag
-        Flag_Program *fp = &gl.flag_program;
-        glUseProgram(fp->id);
+        //
 
-        glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI);
-        glBindImageTexture(1, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
-        glUniform1ui(fp->octree_level, level);
-        glUniform1ui(fp->octree_resolution, gl.octree_resolution);
-        glUniform1ui(fp->fragment_count, fragment_count);
+        if (level != 0)
+        {
+            Flag_Program *fp = &gl.flag_program;
+            glUseProgram(fp->id);
 
-        glDispatchCompute(group_x, group_y, 1);
+            glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI);
+            glBindImageTexture(1, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
+            glUniform1ui(fp->octree_level, level);
+            glUniform1ui(fp->octree_resolution, gl.octree_resolution);
+            glUniform1ui(fp->fragment_count, fragment_count);
 
+            glDispatchCompute(group_x, group_y, 1);
+            glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+        }
+
+        //
         // 2. Alloc
+        //
         Alloc_Program *ap = &gl.alloc_program;
         glUseProgram(ap->id);
 
-        u32 prev_alloc_count = mapped_alloc_count[0];
+        u32 prev_alloc_count;
+        glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &prev_alloc_count);
         u32 node_count = (prev_alloc_count - (start >> 3));
         u32 alloc_size = (prev_alloc_count << 3);
         glUniform1ui(ap->alloc_size, alloc_size);
@@ -808,20 +824,25 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
             Assert(gx <= gl.max_compute_work_group_count[0] &&
                    gy <= gl.max_compute_work_group_count[1]);
             glDispatchCompute(gx, gy, 1);
+            start = (prev_alloc_count << 3);
         }
         else
         {
-            mapped_alloc_count[0] = 1;
+            u32 one = 1;
+            glBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &one);
+            start = 0;
         }
 
-        start = (prev_alloc_count << 3);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT|GL_ATOMIC_COUNTER_BARRIER_BIT);
 
 
+        //
         // 3. Init
+        //
         Init_Program *ip = &gl.init_program;
         glUseProgram(ip->id);
 
-        prev_alloc_count = mapped_alloc_count[0];
+        glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &prev_alloc_count);
         node_count = (prev_alloc_count - (start >> 3));
         alloc_size = (prev_alloc_count << 3);
 
@@ -837,16 +858,9 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         Assert(gx <= gl.max_compute_work_group_count[0] &&
                gy <= gl.max_compute_work_group_count[1]);
         glDispatchCompute(gx, gy, 1);
-
-
-
-
-
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT|GL_ATOMIC_COUNTER_BARRIER_BIT);
     }
-
-    glUnmapBuffer(GL_ATOMIC_COUNTER_BUFFER);
     glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0);
-    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 #endif
 
 
@@ -1658,14 +1672,14 @@ gl_init()
     // Atomic Node Alloc Counter
     glGenBuffers(1, &gl.alloc_count);
     glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.alloc_count);
-    glBufferStorage(GL_ATOMIC_COUNTER_BUFFER, sizeof(u32), &zero, GL_MAP_READ_BIT|GL_MAP_WRITE_BIT);
+    glBufferData(GL_ATOMIC_COUNTER_BUFFER, sizeof(u32), &zero, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0);
 
     // Fragment Lists
-    u32 max_cap = 1;
-    for (u32 i = 0, addend = 8;
-         i < OCTREE_LEVEL;
-         ++i, addend *= 8)
+    u32 max_cap = 0;
+    for (u32 level = 0, addend = 1;
+         level <= OCTREE_LEVEL;
+         ++level, addend <<= 3)
     {
         max_cap += addend;
     }

@@ -36,7 +36,22 @@ void main()
     f32 attenuation = light_attenuation(DEBUG_light_P, world_fP);
 
     // Increment fragment count.
-    u32 next_empty = atomicCounterIncrement(fragment_counter);
+    s32 next_empty = s32(atomicCounterIncrement(fragment_counter));
+
+
+    //
+    // Assign voxel coordinate to fragment list
+    //
+    imageStore(flist_P, next_empty, uv4(coord, 0));
+
+
+
+    //
+    // Diffuse Light
+    //
+    imageStore(flist_diffuse, next_empty, v4(1.0f));
+
+
 
 #if 0
     //
@@ -67,13 +82,6 @@ void main()
     }
 #endif
 
-    //
-    // Voxel Pos to Fragment_List_P
-    //
-    // imageStore(flist_P, s32(idx_to_write), uv4(1100, 0, 0, 0)); //exceeds 10-bit! OpenGL clamps automatically.
-    s32 idx_to_write = s32(next_empty);
-    imageStore(flist_P, idx_to_write, uv4(coord, 0));
-    //imageStore(flist_diffuse, idx_to_write, uv4(coord, 0));
 
 
 
