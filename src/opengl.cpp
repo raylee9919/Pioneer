@@ -14,7 +14,11 @@
 #include "render_group.h"
 #include "opengl.h"
 
-#define OCTREE_LEVEL 10
+#define OCTREE_LEVEL        10
+#define VOXEL_HALF_SIDE     50
+
+#define SVOGI               0
+#define VOXEL_VISUALIZE     1
 
 typedef char    GLchar;
 typedef size_t  GLsizeiptr;
@@ -177,6 +181,7 @@ typedef void        Type_glMemoryBarrier (GLbitfield barriers);
 typedef void *      Type_glMapBufferRange (GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access);
 typedef GLboolean   Type_glUnmapBuffer (GLenum target);
 typedef void        Type_glGetIntegeri_v (GLenum target, GLuint index, GLint *data);
+typedef void        Type_glDeleteBuffers (GLsizei n, const GLuint *buffers);
 
 
 #define GL_DECLARE_GLOBAL_FUNCTION(Name) global_var Type_##Name *Name
@@ -238,6 +243,7 @@ GL_DECLARE_GLOBAL_FUNCTION(glMemoryBarrier);
 GL_DECLARE_GLOBAL_FUNCTION(glMapBufferRange);
 GL_DECLARE_GLOBAL_FUNCTION(glUnmapBuffer);
 GL_DECLARE_GLOBAL_FUNCTION(glGetIntegeri_v);
+GL_DECLARE_GLOBAL_FUNCTION(glDeleteBuffers);
 
 
 global_var GL gl;
@@ -598,6 +604,26 @@ gl_bind_atomic_counter(s32 id, s32 binding_point)
 }
 
 internal void
+gl_gen_linear_buffer(u32 *buf, u32 *tex, GLenum format, size_t size)
+{
+    if (*buf)
+    {
+        glDeleteBuffers(1, buf);
+    }
+    if (*tex)
+    {
+        glDeleteTextures(1, tex);
+    }
+    glGenBuffers(1, buf);
+    glBindBuffer(GL_TEXTURE_BUFFER, *buf);
+    glBufferData(GL_TEXTURE_BUFFER, size, 0, GL_STATIC_DRAW);
+    glGenTextures(1, tex);
+    glBindTexture(GL_TEXTURE_BUFFER, *tex);
+    glTexBuffer(GL_TEXTURE_BUFFER, GL_R32UI, *buf);
+    glBindBuffer(GL_TEXTURE_BUFFER, 0);
+}
+
+internal void
 gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 {
     TIMED_FUNCTION();
@@ -609,8 +635,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     //
     // Voxelization Pass
     //
-    f32 side_in_meter = 50.0f;
-    f32 x = 2.0f / side_in_meter;
+    f32 x = 1.0f / VOXEL_HALF_SIDE;
     m4x4 voxelize_clip_P = m4x4{{
         { x,  0,  0,  0},
         { 0,  x,  0,  0},
@@ -860,12 +885,31 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         glDispatchCompute(gx, gy, 1);
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT|GL_ATOMIC_COUNTER_BARRIER_BIT);
     }
+
+    // Flag leaf nodes.
+    Flag_Program *fp = &gl.flag_program;
+    glUseProgram(fp->id);
+
+    glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI);
+    glBindImageTexture(1, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
+    glUniform1ui(fp->octree_level, OCTREE_LEVEL + 1);
+    glUniform1ui(fp->octree_resolution, gl.octree_resolution);
+    glUniform1ui(fp->fragment_count, fragment_count);
+
+    glDispatchCompute(group_x, group_y, 1);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+    // Get allocated node count.
+    u32 node_count;
+    glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &node_count);
+
     glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0);
 #endif
 
 
-
-
+    // Let's allocate memory-saved attribute octree.
+    u32 octree_albedo, octree_albedo_texture;
+    gl_gen_linear_buffer(&octree_albedo, &octree_albedo_texture, GL_RGBA8, sizeof(u32) * node_count);
 
 
 
@@ -974,7 +1018,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     //
     // Draw
     //
-#if 0
+#if 1
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     // Settings
     glViewport(0, 0, win_w, win_h);
@@ -1000,8 +1044,9 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
 
-#if 0
-    int DEBUG_DRAW_MODE = 0;
+#if 1
+    int DEBUG_DRAW_MODE //= SVOGI;
+                        = VOXEL_VISUALIZE;
 
     for (Render_Group *group = (Render_Group *)batch->base;
          (u8 *)group < (u8 *)batch->base + batch->used;
@@ -1018,7 +1063,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                 {
                     switch (DEBUG_DRAW_MODE)
                     {
-                        case 0:
+                        case SVOGI:
                         {
                             Render_Mesh *piece = (Render_Mesh *)entity;
                             Mesh *mesh            = piece->mesh;
@@ -1038,8 +1083,6 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                             glUniformMatrix4fv(program->persp_VP, 1, GL_TRUE, &group->camera->VP.e[0][0]);
                             glUniform3fv(program->cam_pos, 1, (GLfloat *)&group->camera->world_translation);
                             glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0);
-
-                            glBindImageTexture(0, am->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
 
                             glEnableVertexAttribArray(0);
                             glEnableVertexAttribArray(1);
@@ -1084,7 +1127,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                             glDisableVertexAttribArray(5);
                         } break;
 
-                        case 1:
+                        case VOXEL_VISUALIZE:
                         {
                             Render_Mesh *piece = (Render_Mesh *)entity;
                             Mesh *mesh            = piece->mesh;
@@ -1105,8 +1148,9 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                             glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0);
                             if (piece->animation_transforms)
                                 glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
+                            glUniform1ui(program->octree_level, OCTREE_LEVEL);
 
-                            glBindImageTexture(0, am->id, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8UI);
+                            glBindImageTexture(0, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
 
                             glEnableVertexAttribArray(0);
                             glEnableVertexAttribArray(1);
@@ -1389,19 +1433,6 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 }
 
 internal void
-gl_gen_linear_buffer(u32 *buf, u32 *tex, GLenum format, size_t size)
-{
-    glGenBuffers(1, buf);
-    glBindBuffer(GL_TEXTURE_BUFFER, *buf);
-    glBufferData(GL_TEXTURE_BUFFER, size, 0, GL_STATIC_DRAW);
-    glGenTextures(1, tex);
-    glBindTexture(GL_TEXTURE_BUFFER, *tex);
-    glTexBuffer(GL_TEXTURE_BUFFER, GL_R32UI, *buf);
-    glBindBuffer(GL_TEXTURE_BUFFER, 0);
-}
-
-
-internal void
 gl_init()
 {
 #if __DEVELOPER
@@ -1544,7 +1575,7 @@ gl_init()
     GET_UNIFORM_LOCATION(voxel_program, ortho_P);
     GET_UNIFORM_LOCATION(voxel_program, is_skeletal);
     GET_UNIFORM_LOCATION(voxel_program, bone_transforms);
-    GET_UNIFORM_LOCATION(voxel_program, voxel_map);
+    GET_UNIFORM_LOCATION(voxel_program, octree_level);
 
     gl.gbuffer_program.id = gl_create_program(header, gbuffer_vs, gbuffer_fs);
     GET_UNIFORM_LOCATION(gbuffer_program, world_transform);
@@ -1686,6 +1717,7 @@ gl_init()
     gl_gen_linear_buffer(&gl.octree_nodes, &gl.octree_nodes_texture, GL_R32UI, sizeof(u32) * max_cap);
     gl_gen_linear_buffer(&gl.flist_P, &gl.flist_P_texture, GL_R32UI, sizeof(u32) * gl.fragment_list_capacity);
     gl_gen_linear_buffer(&gl.flist_diffuse, &gl.flist_diffuse_texture, GL_RGBA8, sizeof(u32) * gl.fragment_list_capacity);
+
 
     //
     // Dummy

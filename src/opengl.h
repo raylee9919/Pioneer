@@ -105,7 +105,8 @@ struct Voxel_Program
     s32     ortho_P;
     s32     is_skeletal;
     s32     bone_transforms;
-    s32     voxel_map;
+
+    s32     octree_level;
 };
 
 struct G_Buffer_Program
