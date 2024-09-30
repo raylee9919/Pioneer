@@ -14,10 +14,21 @@
 #include "render_group.h"
 #include "opengl.h"
 
-#define OCTREE_LEVEL        9
+#define OCTREE_LEVEL        8       // For debug buffer, LEVEL 10 won't work. Too big.
 #define VOXEL_HALF_SIDE     10
 #define SVOGI               0
 #define VOXEL_VISUALIZE     1
+
+
+#if __DEVELOPER
+  #define GL(func) func; Assert(glGetError() == GL_NO_ERROR);
+#else
+  #define GL(func)
+#endif
+
+#define GET_UNIFORM_LOCATION(program, name)\
+    gl.program.name = GL(glGetUniformLocation(gl.program.id, #name));
+
 
 typedef char    GLchar;
 typedef size_t  GLsizeiptr;
@@ -315,14 +326,14 @@ gl_debug_callback(GLenum source, GLenum type, GLuint id,
 internal void
 gl_init_info()
 {
-    gl_info.vendor     = (char *)glGetString(GL_VENDOR);
-    gl_info.renderer   = (char *)glGetString(GL_RENDERER);
-    gl_info.extensions = (char *)glGetString(GL_EXTENSIONS);
+    gl_info.vendor     = (char *)GL(glGetString(GL_VENDOR));
+    gl_info.renderer   = (char *)GL(glGetString(GL_RENDERER));
+    gl_info.extensions = (char *)GL(glGetString(GL_EXTENSIONS));
     Assert(gl_info.extensions);
     gl_parse_version();
     if (gl_info.modern) 
     {
-        gl_info.shading_language_version = (char *)glGetString(GL_SHADING_LANGUAGE_VERSION);
+        gl_info.shading_language_version = (char *)GL(glGetString(GL_SHADING_LANGUAGE_VERSION));
     } 
     else 
     {
@@ -502,54 +513,54 @@ gl_create_program(const char *header,
 
     if (glCreateShader) 
     {
-        GLuint vshader = glCreateShader(GL_VERTEX_SHADER);
+        GLuint vshader = GL(glCreateShader(GL_VERTEX_SHADER));
         const GLchar *vunit[] = {
             header,
             vsrc
         };
-        glShaderSource(vshader, array_count(vunit), (const GLchar **)vunit, 0);
-        glCompileShader(vshader);
+        GL(glShaderSource(vshader, array_count(vunit), (const GLchar **)vunit, 0));
+        GL(glCompileShader(vshader));
 
-        GLuint gshader = glCreateShader(GL_GEOMETRY_SHADER);
+        GLuint gshader = GL(glCreateShader(GL_GEOMETRY_SHADER));
         const GLchar *gunit[] = {
             header,
             gsrc
         };
-        glShaderSource(gshader, array_count(gunit), (const GLchar **)gunit, 0);
-        glCompileShader(gshader);
+        GL(glShaderSource(gshader, array_count(gunit), (const GLchar **)gunit, 0));
+        GL(glCompileShader(gshader));
 
-        GLuint fshader = glCreateShader(GL_FRAGMENT_SHADER);
+        GLuint fshader = GL(glCreateShader(GL_FRAGMENT_SHADER));
         const GLchar *funit[] = {
             header,
             fsrc
         };
-        glShaderSource(fshader, array_count(funit), (const GLchar **)funit, 0);
-        glCompileShader(fshader);
+        GL(glShaderSource(fshader, array_count(funit), (const GLchar **)funit, 0));
+        GL(glCompileShader(fshader));
 
-        program = glCreateProgram();
-        glAttachShader(program, vshader);
-        glAttachShader(program, gshader);
-        glAttachShader(program, fshader);
-        glLinkProgram(program);
+        program = GL(glCreateProgram());
+        GL(glAttachShader(program, vshader));
+        GL(glAttachShader(program, gshader));
+        GL(glAttachShader(program, fshader));
+        GL(glLinkProgram(program));
 
-        glValidateProgram(program);
+        GL(glValidateProgram(program));
         GLint linked = false;
-        glGetProgramiv(program, GL_LINK_STATUS, &linked);
+        GL(glGetProgramiv(program, GL_LINK_STATUS, &linked));
         if (!linked) 
         {
             GLsizei stub;
 
             GLchar vlog[1024];
-            glGetShaderInfoLog(vshader, sizeof(vlog), &stub, vlog);
+            GL(glGetShaderInfoLog(vshader, sizeof(vlog), &stub, vlog));
 
             GLchar glog[1024];
-            glGetShaderInfoLog(gshader, sizeof(glog), &stub, glog);
+            GL(glGetShaderInfoLog(gshader, sizeof(glog), &stub, glog));
 
             GLchar flog[1024];
-            glGetShaderInfoLog(fshader, sizeof(flog), &stub, flog);
+            GL(glGetShaderInfoLog(fshader, sizeof(flog), &stub, flog));
 
             GLchar plog[1024];
-            glGetProgramInfoLog(program, sizeof(plog), &stub, plog);
+            GL(glGetProgramInfoLog(program, sizeof(plog), &stub, plog));
 
             Assert(!"compile/link error.");
         }
@@ -565,15 +576,15 @@ gl_create_program(const char *header,
 internal void
 gl_alloc_texture(Bitmap *bitmap)
 {
-    glGenTextures(1, &bitmap->handle);
-    glBindTexture(GL_TEXTURE_2D, bitmap->handle);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, bitmap->width, bitmap->height,
-                 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, bitmap->memory);
+    GL(glGenTextures(1, &bitmap->handle));
+    GL(glBindTexture(GL_TEXTURE_2D, bitmap->handle));
+    GL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, bitmap->width, bitmap->height,
+                 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, bitmap->memory));
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
 }
 
 internal void
@@ -586,20 +597,20 @@ gl_bind_texture(Bitmap *bitmap)
 
     if (bitmap->handle) 
     {
-        glBindTexture(GL_TEXTURE_2D, bitmap->handle);
+        GL(glBindTexture(GL_TEXTURE_2D, bitmap->handle));
     } 
     else 
     {
         gl_alloc_texture(bitmap);
-        glBindTexture(GL_TEXTURE_2D, bitmap->handle);
+        GL(glBindTexture(GL_TEXTURE_2D, bitmap->handle));
     }
 }
 
 internal void
 gl_bind_atomic_counter(s32 id, s32 binding_point)
 {
-    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, id);
-    glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, binding_point, id);
+    GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, id));
+    GL(glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, binding_point, id));
 }
 
 internal void
@@ -607,19 +618,19 @@ gl_gen_linear_buffer(u32 *buf, u32 *tex, GLenum format, size_t size)
 {
     if (*buf)
     {
-        glDeleteBuffers(1, buf);
+        GL(glDeleteBuffers(1, buf));
     }
     if (*tex)
     {
-        glDeleteTextures(1, tex);
+        GL(glDeleteTextures(1, tex));
     }
-    glGenBuffers(1, buf);
-    glBindBuffer(GL_TEXTURE_BUFFER, *buf);
-    glBufferData(GL_TEXTURE_BUFFER, size, 0, GL_STATIC_DRAW);
-    glGenTextures(1, tex);
-    glBindTexture(GL_TEXTURE_BUFFER, *tex);
-    glTexBuffer(GL_TEXTURE_BUFFER, format, *buf);
-    glBindBuffer(GL_TEXTURE_BUFFER, 0);
+    GL(glGenBuffers(1, buf));
+    GL(glBindBuffer(GL_TEXTURE_BUFFER, *buf));
+    GL(glBufferData(GL_TEXTURE_BUFFER, size, 0, GL_STATIC_DRAW));
+    GL(glGenTextures(1, tex));
+    GL(glBindTexture(GL_TEXTURE_BUFFER, *tex));
+    GL(glTexBuffer(GL_TEXTURE_BUFFER, format, *buf));
+    GL(glBindBuffer(GL_TEXTURE_BUFFER, 0));
 }
 
 internal void
@@ -647,24 +658,24 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     }};
 
     // Settings
-    glViewport(0, 0, gl.octree_resolution, gl.octree_resolution);
-    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_DEPTH_TEST);
-    glDisable(GL_BLEND);
-    glDisable(GL_SCISSOR_TEST);
-    glDisable(GL_MULTISAMPLE);
+    GL(glViewport(0, 0, gl.octree_resolution, gl.octree_resolution));
+    GL(glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE));
+    GL(glDisable(GL_CULL_FACE));
+    GL(glDisable(GL_DEPTH_TEST));
+    GL(glDisable(GL_BLEND));
+    GL(glDisable(GL_SCISSOR_TEST));
+    GL(glDisable(GL_MULTISAMPLE));
 
-    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+    GL(glBindBuffer(GL_ARRAY_BUFFER, gl.vbo));
 
     // Prepare atomic fragment-counter.
-    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.fragment_counter);
-    glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, 0, gl.fragment_counter);
+    GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.fragment_counter));
+    GL(glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, 0, gl.fragment_counter));
 
 
-    glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI);
-    glBindImageTexture(1, gl.flist_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
-    glBindImageTexture(2, gl.DEBUG_buffer_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
+    GL(glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI));
+    GL(glBindImageTexture(1, gl.flist_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8));
+    GL(glBindImageTexture(2, gl.DEBUG_buffer_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
 
     for (Render_Group *group = (Render_Group *)batch->base;
          (u8 *)group < (u8 *)batch->base + batch->used;
@@ -688,62 +699,62 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     // Use voxelization program.
                     Voxelization_Program *program = &gl.voxelization_program;
                     s32 pid = program->id;
-                    glUseProgram(pid);
+                    GL(glUseProgram(pid));
 
 
                     // @TEMPORARY...?
                     Camera *camera = group->camera;
 
-                    glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
-                    glUniformMatrix4fv(program->V, 1, GL_TRUE, &camera->V.e[0][0]);
-                    glUniformMatrix4fv(program->voxel_P, 1, GL_TRUE, &voxelize_clip_P.e[0][0]);
-                    glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0);
-                    glUniform3fv(program->ambient, 1, (GLfloat *)&mat->color_ambient);
-                    glUniform3fv(program->diffuse, 1, (GLfloat *)&mat->color_diffuse);
-                    glUniform3fv(program->specular, 1, (GLfloat *)&mat->color_specular);
+                    GL(glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]));
+                    GL(glUniformMatrix4fv(program->V, 1, GL_TRUE, &camera->V.e[0][0]));
+                    GL(glUniformMatrix4fv(program->voxel_P, 1, GL_TRUE, &voxelize_clip_P.e[0][0]));
+                    GL(glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0));
+                    GL(glUniform3fv(program->ambient, 1, (GLfloat *)&mat->color_ambient));
+                    GL(glUniform3fv(program->diffuse, 1, (GLfloat *)&mat->color_diffuse));
+                    GL(glUniform3fv(program->specular, 1, (GLfloat *)&mat->color_specular));
 
-                    glUniform1ui(program->octree_level, OCTREE_LEVEL);
-                    glUniform1ui(program->octree_resolution, gl.octree_resolution);
+                    GL(glUniform1ui(program->octree_level, OCTREE_LEVEL));
+                    GL(glUniform1ui(program->octree_resolution, gl.octree_resolution));
 
-                    glUniform3fv(program->DEBUG_light_P, 1, (GLfloat *)&light_P);
-                    glUniform3fv(program->DEBUG_light_color, 1, (GLfloat *)&light_color);
-                    glUniform1f(program->DEBUG_light_strength, light_strength);
+                    GL(glUniform3fv(program->DEBUG_light_P, 1, (GLfloat *)&light_P));
+                    GL(glUniform3fv(program->DEBUG_light_color, 1, (GLfloat *)&light_color));
+                    GL(glUniform1f(program->DEBUG_light_strength, light_strength));
 
-                    glEnableVertexAttribArray(0);
-                    glEnableVertexAttribArray(1);
-                    glEnableVertexAttribArray(2);
-                    glEnableVertexAttribArray(3);
-                    glEnableVertexAttribArray(4);
-                    glEnableVertexAttribArray(5);
+                    GL(glEnableVertexAttribArray(0));
+                    GL(glEnableVertexAttribArray(1));
+                    GL(glEnableVertexAttribArray(2));
+                    GL(glEnableVertexAttribArray(3));
+                    GL(glEnableVertexAttribArray(4));
+                    GL(glEnableVertexAttribArray(5));
 
-                    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, pos)));
-                    glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, normal)));
-                    glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, uv)));
-                    glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Vertex), (GLvoid *)(offset_of(Vertex, color)));
-                    glVertexAttribIPointer(4, MAX_BONE_PER_VERTEX, GL_INT, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_ids)));
-                    glVertexAttribPointer(5, MAX_BONE_PER_VERTEX, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_weights)));
+                    GL(glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, pos))));
+                    GL(glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, normal))));
+                    GL(glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, uv))));
+                    GL(glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Vertex), (GLvoid *)(offset_of(Vertex, color))));
+                    GL(glVertexAttribIPointer(4, MAX_BONE_PER_VERTEX, GL_INT, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_ids))));
+                    GL(glVertexAttribPointer(5, MAX_BONE_PER_VERTEX, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_weights))));
 
-                    glBufferData(GL_ARRAY_BUFFER,
+                    GL(glBufferData(GL_ARRAY_BUFFER,
                                  mesh->vertex_count * sizeof(Vertex),
                                  mesh->vertices,
-                                 GL_DYNAMIC_DRAW);
+                                 GL_DYNAMIC_DRAW));
 
-                    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                    GL(glBufferData(GL_ELEMENT_ARRAY_BUFFER,
                                  mesh->index_count * sizeof(u32),
                                  mesh->indices,
-                                 GL_DYNAMIC_DRAW);
+                                 GL_DYNAMIC_DRAW));
 
                     if (piece->animation_transforms)
-                        glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
+                        GL(glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms));
 
-                    glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0);
+                    GL(glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0));
 
-                    glDisableVertexAttribArray(0);
-                    glDisableVertexAttribArray(1);
-                    glDisableVertexAttribArray(2);
-                    glDisableVertexAttribArray(3);
-                    glDisableVertexAttribArray(4);
-                    glDisableVertexAttribArray(5);
+                    GL(glDisableVertexAttribArray(0));
+                    GL(glDisableVertexAttribArray(1));
+                    GL(glDisableVertexAttribArray(2));
+                    GL(glDisableVertexAttribArray(3));
+                    GL(glDisableVertexAttribArray(4));
+                    GL(glDisableVertexAttribArray(5));
 #endif
                 } break;
 
@@ -767,13 +778,13 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     //
     // Map GPU side fragment counter to CPU and generate Fragment List.
     // 
-    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.fragment_counter);
+    GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.fragment_counter));
     u32 *mapped_fragment_count = (u32 *)glMapBufferRange(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(GLuint), GL_MAP_READ_BIT|GL_MAP_WRITE_BIT);
     u32 fragment_count = mapped_fragment_count[0];
     Assert(fragment_count <= gl.fragment_list_capacity); // Since fragment count can be bigger than total voxel #. @TODO: Better idea...? Probably check for the count first?
     *mapped_fragment_count = 0; // Reset counter to zerogl.fragment_counter
-    glUnmapBuffer(GL_ATOMIC_COUNTER_BUFFER); // @TODO: Is unmapping necessary?
-    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0);
+    GL(glUnmapBuffer(GL_ATOMIC_COUNTER_BUFFER)); // @TODO: Is unmapping necessary?
+    GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0));
 
 
     //
@@ -793,9 +804,9 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     // Reset variables
     u32 zero = 0;
     u32 start = 0;
-    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.alloc_count);
-    glBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &zero);
-    glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, 0, gl.alloc_count);
+    GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.alloc_count));
+    GL(glBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &zero));
+    GL(glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, 0, gl.alloc_count));
     
     // 'Level' to be allocated.
     for (u32 level = 0;
@@ -809,17 +820,17 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         if (level != 0)
         {
             Flag_Program *fp = &gl.flag_program;
-            glUseProgram(fp->id);
+            GL(glUseProgram(fp->id));
 
-            glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI);
-            glBindImageTexture(1, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
-            glUniform1ui(fp->current_level, level);
-            glUniform1ui(fp->octree_level, OCTREE_LEVEL);
-            glUniform1ui(fp->octree_resolution, gl.octree_resolution);
-            glUniform1ui(fp->fragment_count, fragment_count);
+            GL(glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI));
+            GL(glBindImageTexture(1, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
+            GL(glUniform1ui(fp->current_level, level));
+            GL(glUniform1ui(fp->octree_level, OCTREE_LEVEL));
+            GL(glUniform1ui(fp->octree_resolution, gl.octree_resolution));
+            GL(glUniform1ui(fp->fragment_count, fragment_count));
 
-            glDispatchCompute(group_x, group_y, 1);
-            glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+            GL(glDispatchCompute(group_x, group_y, 1));
+            GL(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
         }
 
         //
@@ -829,12 +840,12 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         glUseProgram(ap->id);
 
         u32 prev_alloc_count;
-        glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &prev_alloc_count);
+        GL(glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &prev_alloc_count));
         u32 node_count = (prev_alloc_count - (start >> 3));
         u32 alloc_size = (prev_alloc_count << 3);
-        glUniform1ui(ap->alloc_size, alloc_size);
-        glUniform1ui(ap->start, start);
-        glBindImageTexture(0, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
+        GL(glUniform1ui(ap->alloc_size, alloc_size));
+        GL(glUniform1ui(ap->start, start));
+        GL(glBindImageTexture(0, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
 
         if (level != 0)
         {
@@ -845,32 +856,32 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
             Assert(gx * gy * 8 * 8 >= (s32)node_count);
             Assert(gx <= gl.max_compute_work_group_count[0] &&
                    gy <= gl.max_compute_work_group_count[1]);
-            glDispatchCompute(gx, gy, 1);
+            GL(glDispatchCompute(gx, gy, 1));
             start = (prev_alloc_count << 3);
         }
         else
         {
             u32 one = 1;
-            glBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &one);
+            GL(glBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &one));
             start = 0;
         }
 
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT|GL_ATOMIC_COUNTER_BARRIER_BIT);
+        GL(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT|GL_ATOMIC_COUNTER_BARRIER_BIT));
 
 
         //
         // 3. Init
         //
         Init_Program *ip = &gl.init_program;
-        glUseProgram(ip->id);
+        GL(glUseProgram(ip->id));
 
-        glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &prev_alloc_count);
+        GL(glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &prev_alloc_count));
         node_count = (prev_alloc_count - (start >> 3));
         alloc_size = (prev_alloc_count << 3);
 
-        glBindImageTexture(0, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
-        glUniform1ui(ip->start, start);
-        glUniform1ui(ip->alloc_size, alloc_size);
+        GL(glBindImageTexture(0, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
+        GL(glUniform1ui(ip->start, start));
+        GL(glUniform1ui(ip->alloc_size, alloc_size));
 
         s32 dw = 1024;
         s32 dh = (node_count + dw - 1) / dw;
@@ -879,8 +890,8 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         Assert(gx * gy * 8 * 8 >= (s32)node_count);
         Assert(gx <= gl.max_compute_work_group_count[0] &&
                gy <= gl.max_compute_work_group_count[1]);
-        glDispatchCompute(gx, gy, 1);
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT|GL_ATOMIC_COUNTER_BARRIER_BIT);
+        GL(glDispatchCompute(gx, gy, 1));
+        GL(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT|GL_ATOMIC_COUNTER_BARRIER_BIT));
     }
 
   #if 0
@@ -901,8 +912,8 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
     // Get allocated node count.
     u32 node_count;
-    glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &node_count);
-    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0);
+    GL(glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &node_count));
+    GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0));
 
 
     //
@@ -911,20 +922,20 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     gl_gen_linear_buffer(&gl.octree_diffuse, &gl.octree_diffuse_texture, GL_R32UI, sizeof(u32) * node_count);
 
     Octree_Program *op = &gl.octree_program;
-    glUseProgram(op->id);
+    GL(glUseProgram(op->id));
 
-    glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI);
-    glBindImageTexture(1, gl.flist_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
-    glBindImageTexture(2, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
-    glBindImageTexture(3, gl.octree_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
+    GL(glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI));
+    GL(glBindImageTexture(1, gl.flist_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8));
+    GL(glBindImageTexture(2, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
+    GL(glBindImageTexture(3, gl.octree_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
 
-    glUniform1ui(op->octree_level, OCTREE_LEVEL);
-    glUniform1ui(op->octree_resolution, gl.octree_resolution);
-    glUniform1ui(op->fragment_count, fragment_count);
+    GL(glUniform1ui(op->octree_level, OCTREE_LEVEL));
+    GL(glUniform1ui(op->octree_resolution, gl.octree_resolution));
+    GL(glUniform1ui(op->fragment_count, fragment_count));
 
     Assert(group_x * group_y * 8 * 8 >= (s32)fragment_count);
-    glDispatchCompute(group_x, group_y, 1);
-    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+    GL(glDispatchCompute(group_x, group_y, 1));
+    GL(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
 #endif
 
 
@@ -935,26 +946,26 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     // G-Buffer Pass (Deferred Rendering)
     //
     G_Buffer *gb = &gl.gbuffer;
-    glBindFramebuffer(GL_FRAMEBUFFER, gb->id);
-    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+    GL(glBindFramebuffer(GL_FRAMEBUFFER, gb->id));
+    GL(glBindBuffer(GL_ARRAY_BUFFER, gl.vbo));
 
     // Settings
-    glViewport(0, 0, win_w, win_h);
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-    glDisable(GL_BLEND);
-    glEnable(GL_SCISSOR_TEST);
-    glEnable(GL_DEPTH_TEST);
-    glClearColor(0, 0, 0, 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glClearDepth(1);
-    glClear(GL_DEPTH_BUFFER_BIT);
-    glDepthFunc(GL_LEQUAL);
-    glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
-    glEnable(GL_SAMPLE_ALPHA_TO_ONE);
-    glEnable(GL_MULTISAMPLE);
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
-    glFrontFace(GL_CCW);
+    GL(glViewport(0, 0, win_w, win_h));
+    GL(glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE));
+    GL(glDisable(GL_BLEND));
+    GL(glEnable(GL_SCISSOR_TEST));
+    GL(glEnable(GL_DEPTH_TEST));
+    GL(glClearColor(0, 0, 0, 0));
+    GL(glClear(GL_COLOR_BUFFER_BIT));
+    GL(glClearDepth(1));
+    GL(glClear(GL_DEPTH_BUFFER_BIT));
+    GL(glDepthFunc(GL_LEQUAL));
+    GL(glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE));
+    GL(glEnable(GL_SAMPLE_ALPHA_TO_ONE));
+    GL(glEnable(GL_MULTISAMPLE));
+    GL(glEnable(GL_CULL_FACE));
+    GL(glCullFace(GL_BACK));
+    GL(glFrontFace(GL_CCW));
 
     //
 
@@ -981,45 +992,45 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
                     Camera *camera = group->camera;
 
-                    glUniformMatrix4fv(program->VP, 1, GL_TRUE, &group->camera->VP.e[0][0]);
-                    glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0);
-                    glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
+                    GL(glUniformMatrix4fv(program->VP, 1, GL_TRUE, &group->camera->VP.e[0][0]));
+                    GL(glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0));
+                    GL(glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]));
 
-                    glEnableVertexAttribArray(0);
-                    glEnableVertexAttribArray(1);
-                    glEnableVertexAttribArray(2);
-                    glEnableVertexAttribArray(3);
-                    glEnableVertexAttribArray(4);
-                    glEnableVertexAttribArray(5);
+                    GL(glEnableVertexAttribArray(0));
+                    GL(glEnableVertexAttribArray(1));
+                    GL(glEnableVertexAttribArray(2));
+                    GL(glEnableVertexAttribArray(3));
+                    GL(glEnableVertexAttribArray(4));
+                    GL(glEnableVertexAttribArray(5));
 
-                    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, pos)));
-                    glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, normal)));
-                    glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, uv)));
-                    glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Vertex), (GLvoid *)(offset_of(Vertex, color)));
-                    glVertexAttribIPointer(4, MAX_BONE_PER_VERTEX, GL_INT, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_ids)));
-                    glVertexAttribPointer(5, MAX_BONE_PER_VERTEX, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_weights)));
+                    GL(glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, pos))));
+                    GL(glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, normal))));
+                    GL(glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, uv))));
+                    GL(glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Vertex), (GLvoid *)(offset_of(Vertex, color))));
+                    GL(glVertexAttribIPointer(4, MAX_BONE_PER_VERTEX, GL_INT, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_ids))));
+                    GL(glVertexAttribPointer(5, MAX_BONE_PER_VERTEX, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_weights))));
 
-                    glBufferData(GL_ARRAY_BUFFER,
+                    GL(glBufferData(GL_ARRAY_BUFFER,
                                  mesh->vertex_count * sizeof(Vertex),
                                  mesh->vertices,
-                                 GL_DYNAMIC_DRAW);
+                                 GL_DYNAMIC_DRAW));
 
-                    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                    GL(glBufferData(GL_ELEMENT_ARRAY_BUFFER,
                                  mesh->index_count * sizeof(u32),
                                  mesh->indices,
-                                 GL_DYNAMIC_DRAW);
+                                 GL_DYNAMIC_DRAW));
 
                     if (piece->animation_transforms)
-                        glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
+                        GL(glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms));
 
-                    glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0);
+                    GL(glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0));
 
-                    glDisableVertexAttribArray(0);
-                    glDisableVertexAttribArray(1);
-                    glDisableVertexAttribArray(2);
-                    glDisableVertexAttribArray(3);
-                    glDisableVertexAttribArray(4);
-                    glDisableVertexAttribArray(5);
+                    GL(glDisableVertexAttribArray(0));
+                    GL(glDisableVertexAttribArray(1));
+                    GL(glDisableVertexAttribArray(2));
+                    GL(glDisableVertexAttribArray(3));
+                    GL(glDisableVertexAttribArray(4));
+                    GL(glDisableVertexAttribArray(5));
                 } break;
             }
         }
@@ -1033,30 +1044,30 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     // Draw
     //
 #if 1
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
     // Settings
-    glViewport(0, 0, win_w, win_h);
+    GL(glViewport(0, 0, win_w, win_h));
 
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    GL(glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE));
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    GL(glEnable(GL_BLEND));
+    GL(glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA));
 
-    glEnable(GL_SCISSOR_TEST);
+    GL(glEnable(GL_SCISSOR_TEST));
 
-    glEnable(GL_DEPTH_TEST);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glClearDepth(1.0f);
-    glClear(GL_DEPTH_BUFFER_BIT);
-    glDepthFunc(GL_LEQUAL);
+    GL(glEnable(GL_DEPTH_TEST));
+    GL(glClear(GL_COLOR_BUFFER_BIT));
+    GL(glClearDepth(1.0f));
+    GL(glClear(GL_DEPTH_BUFFER_BIT));
+    GL(glDepthFunc(GL_LEQUAL));
 
-    glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
-    glEnable(GL_SAMPLE_ALPHA_TO_ONE);
-    glDisable(GL_MULTISAMPLE);
+    GL(glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE));
+    GL(glEnable(GL_SAMPLE_ALPHA_TO_ONE));
+    GL(glDisable(GL_MULTISAMPLE));
 
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
-    glFrontFace(GL_CCW);
+    GL(glEnable(GL_CULL_FACE));
+    GL(glCullFace(GL_BACK));
+    GL(glFrontFace(GL_CCW));
 
   #if 0
     int DEBUG_DRAW_MODE //= SVOGI;
@@ -1402,28 +1413,28 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         }
     }
   #else
-    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+    GL(glBindBuffer(GL_ARRAY_BUFFER, gl.vbo));
 
     Deffer_Program *program = &gl.deffer_program;
     s32 pid = program->id;
-    glUseProgram(pid);
+    GL(glUseProgram(pid));
 
     // G-Buffer
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, gb->Pid);
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, gb->Nid);
-    glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, gb->Cid);
-    glActiveTexture(GL_TEXTURE0);
+    GL(glActiveTexture(GL_TEXTURE1));
+    GL(glBindTexture(GL_TEXTURE_2D, gb->Pid));
+    GL(glActiveTexture(GL_TEXTURE2));
+    GL(glBindTexture(GL_TEXTURE_2D, gb->Nid));
+    GL(glActiveTexture(GL_TEXTURE3));
+    GL(glBindTexture(GL_TEXTURE_2D, gb->Cid));
+    GL(glActiveTexture(GL_TEXTURE0));
 
-    glBindImageTexture(0, gl.DEBUG_buffer_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
+    GL(glBindImageTexture(0, gl.DEBUG_buffer_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
 
-    glUniformMatrix4fv(program->voxel_P, 1, GL_TRUE, &voxelize_clip_P.e[0][0]);
-    glUniform3fv(program->DEBUG_light_P, 1, (GLfloat *)&light_P);
-    glUniform3fv(program->DEBUG_light_color, 1, (GLfloat *)&light_color);
-    glUniform1f(program->DEBUG_light_strength, light_strength);
-    glUniform1ui(program->octree_resolution, gl.octree_resolution);
+    GL(glUniformMatrix4fv(program->voxel_P, 1, GL_TRUE, &voxelize_clip_P.e[0][0]));
+    GL(glUniform3fv(program->DEBUG_light_P, 1, (GLfloat *)&light_P));
+    GL(glUniform3fv(program->DEBUG_light_color, 1, (GLfloat *)&light_color));
+    GL(glUniform1f(program->DEBUG_light_strength, light_strength));
+    GL(glUniform1ui(program->octree_resolution, gl.octree_resolution));
 
     // Draw full quad on screen.
     f32 vertices[] = { // P, UV
@@ -1433,20 +1444,20 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         -1.0f,  1.0f, 0.0f,      0.0f,  1.0f,
     };
     
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(2);
+    GL(glEnableVertexAttribArray(0));
+    GL(glEnableVertexAttribArray(2));
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(f32) * 5, (GLvoid *)(0));
-    glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(f32) * 5, (GLvoid *)(sizeof(f32) * 3));
+    GL(glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(f32) * 5, (GLvoid *)(0)));
+    GL(glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(f32) * 5, (GLvoid *)(sizeof(f32) * 3)));
 
-    glBufferData(GL_ARRAY_BUFFER,
+    GL(glBufferData(GL_ARRAY_BUFFER,
                  sizeof(f32) * array_count(vertices),
                  vertices,
-                 GL_DYNAMIC_DRAW);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+                 GL_DYNAMIC_DRAW));
+    GL(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
 
-    glDisableVertexAttribArray(0);
-    glDisableVertexAttribArray(2);
+    GL(glDisableVertexAttribArray(0));
+    GL(glDisableVertexAttribArray(2));
   #endif
 #endif
             
@@ -1461,8 +1472,8 @@ gl_init()
 #if __DEVELOPER
     if (glDebugMessageCallbackARB) 
     {
-        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-        glDebugMessageCallbackARB(gl_debug_callback, 0);
+        GL(glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS));
+        GL(glDebugMessageCallbackARB(gl_debug_callback, 0));
     } 
     else 
     {
@@ -1549,7 +1560,6 @@ gl_init()
 
 
 
-#define GET_UNIFORM_LOCATION(program, name) gl.program.name = glGetUniformLocation(gl.program.id, #name);
     gl.mesh_program.id = gl_create_program(header, mesh_vshader, mesh_fshader);
     GET_UNIFORM_LOCATION(mesh_program, world_transform);
     GET_UNIFORM_LOCATION(mesh_program, voxel_VP);
@@ -1665,44 +1675,44 @@ gl_init()
 #define DEBUG_WIDTH     2560
 #define DEBUG_HEIGHT    1440
     s32 max_attachment;
-    glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS, &max_attachment);
+    GL(glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS, &max_attachment));
     Assert(max_attachment >= 3);
 
     G_Buffer *gb = &gl.gbuffer;
-    glGenFramebuffers(1, &gb->id);
-    glBindFramebuffer(GL_FRAMEBUFFER, gb->id);
+    GL(glGenFramebuffers(1, &gb->id));
+    GL(glBindFramebuffer(GL_FRAMEBUFFER, gb->id));
 
     // Depth-Buffer
     u32 gdepth_buffer;
-    glGenRenderbuffers(1, &gdepth_buffer);
-    glBindRenderbuffer(GL_RENDERBUFFER, gdepth_buffer);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, DEBUG_WIDTH, DEBUG_HEIGHT);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, gdepth_buffer);
+    GL(glGenRenderbuffers(1, &gdepth_buffer));
+    GL(glBindRenderbuffer(GL_RENDERBUFFER, gdepth_buffer));
+    GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, DEBUG_WIDTH, DEBUG_HEIGHT));
+    GL(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, gdepth_buffer));
 
     // Position
     //   if there's an entity, alpha value is set to value other than 0.
-    glGenTextures(1, &gb->Pid);
-    glBindTexture(GL_TEXTURE_2D, gb->Pid);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, DEBUG_WIDTH, DEBUG_HEIGHT, 0, GL_RGBA, GL_FLOAT, 0);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gb->Pid, 0);
+    GL(glGenTextures(1, &gb->Pid));
+    GL(glBindTexture(GL_TEXTURE_2D, gb->Pid));
+    GL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, DEBUG_WIDTH, DEBUG_HEIGHT, 0, GL_RGBA, GL_FLOAT, 0));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+    GL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gb->Pid, 0));
 
     // Normal
-    glGenTextures(1, &gb->Nid);
-    glBindTexture(GL_TEXTURE_2D, gb->Nid);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, DEBUG_WIDTH, DEBUG_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gb->Nid, 0); 
+    GL(glGenTextures(1, &gb->Nid));
+    GL(glBindTexture(GL_TEXTURE_2D, gb->Nid));
+    GL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, DEBUG_WIDTH, DEBUG_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+    GL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gb->Nid, 0);) 
 
     // Color (Albedo + Specular)
-    glGenTextures(1, &gb->Cid);
-    glBindTexture(GL_TEXTURE_2D, gb->Cid);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, DEBUG_WIDTH, DEBUG_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gb->Cid, 0);
+    GL(glGenTextures(1, &gb->Cid));
+    GL(glBindTexture(GL_TEXTURE_2D, gb->Cid));
+    GL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, DEBUG_WIDTH, DEBUG_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+    GL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gb->Cid, 0));
 
 
     u32 attachments[3] = { 
@@ -1710,36 +1720,36 @@ gl_init()
         GL_COLOR_ATTACHMENT1,
         GL_COLOR_ATTACHMENT2,
     };
-    glDrawBuffers(array_count(attachments), attachments);
+    GL(glDrawBuffers(array_count(attachments), attachments));
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 
 
     // Experiment
-    glGenBuffers(1, &gl.grass_vbo);
-    glGenBuffers(1, &gl.star_vbo);
+    GL(glGenBuffers(1, &gl.grass_vbo));
+    GL(glGenBuffers(1, &gl.star_vbo));
 
     //
     // Sparse Voxel Octree
     //
     gl.octree_resolution = (1 << OCTREE_LEVEL);
     gl.fragment_list_capacity = MB(64);
-    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &gl.max_compute_work_group_count[0]);
-    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, &gl.max_compute_work_group_count[1]);
-    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, &gl.max_compute_work_group_count[2]);
+    GL(glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &gl.max_compute_work_group_count[0]));
+    GL(glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, &gl.max_compute_work_group_count[1]));
+    GL(glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, &gl.max_compute_work_group_count[2]));
 
     // Atomic Fragment List Counter
     u32 zero = 0;
-    glGenBuffers(1, &gl.fragment_counter);
-    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.fragment_counter);
-    glBufferStorage(GL_ATOMIC_COUNTER_BUFFER, sizeof(u32), &zero, GL_MAP_READ_BIT|GL_MAP_WRITE_BIT);
-    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0);
+    GL(glGenBuffers(1, &gl.fragment_counter));
+    GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.fragment_counter));
+    GL(glBufferStorage(GL_ATOMIC_COUNTER_BUFFER, sizeof(u32), &zero, GL_MAP_READ_BIT|GL_MAP_WRITE_BIT));
+    GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0));
 
     // Atomic Node Alloc Counter
-    glGenBuffers(1, &gl.alloc_count);
-    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.alloc_count);
-    glBufferData(GL_ATOMIC_COUNTER_BUFFER, sizeof(u32), &zero, GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0);
+    GL(glGenBuffers(1, &gl.alloc_count));
+    GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.alloc_count));
+    GL(glBufferData(GL_ATOMIC_COUNTER_BUFFER, sizeof(u32), &zero, GL_DYNAMIC_DRAW));
+    GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0));
 
     // Fragment Lists
     u32 max_cap = 0;
@@ -1757,13 +1767,13 @@ gl_init()
     //
     // Dummy
     //
-    glGenVertexArrays(1, &gl.vao);
-    glBindVertexArray(gl.vao);
+    GL(glGenVertexArrays(1, &gl.vao));
+    GL(glBindVertexArray(gl.vao));
 
-    glGenBuffers(1, &gl.vbo);
+    GL(glGenBuffers(1, &gl.vbo));
 
-    glGenBuffers(1, &gl.vio);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl.vio);
+    GL(glGenBuffers(1, &gl.vio));
+    GL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl.vio));
     
     //DEBUG
     u32 res = gl.octree_resolution;
