@@ -55,7 +55,6 @@ void main()
 #else
     s32 I = s32(ucoord.x + ucoord.y * octree_resolution + ucoord.z * octree_resolution * octree_resolution);
     C = v4(rgba8_to_v4(imageLoad(DEBUG_buffer, I).r).rgb, 1);
-    C = v4(1);
 #endif
 }
 

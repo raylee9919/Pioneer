@@ -14,8 +14,10 @@
 #include "render_group.h"
 #include "opengl.h"
 
-#define OCTREE_LEVEL        8
+#define OCTREE_LEVEL        9
 #define VOXEL_HALF_SIDE     10
+#define SVOGI               0
+#define VOXEL_VISUALIZE     1
 
 typedef char    GLchar;
 typedef size_t  GLsizeiptr;
@@ -768,7 +770,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.fragment_counter);
     u32 *mapped_fragment_count = (u32 *)glMapBufferRange(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(GLuint), GL_MAP_READ_BIT|GL_MAP_WRITE_BIT);
     u32 fragment_count = mapped_fragment_count[0];
-    Assert(fragment_count <= gl.fragment_list_capacity); // Since fragment count can be bigger than total voxel #. @TODO: Better idea...?
+    Assert(fragment_count <= gl.fragment_list_capacity); // Since fragment count can be bigger than total voxel #. @TODO: Better idea...? Probably check for the count first?
     *mapped_fragment_count = 0; // Reset counter to zerogl.fragment_counter
     glUnmapBuffer(GL_ATOMIC_COUNTER_BUFFER); // @TODO: Is unmapping necessary?
     glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0);
@@ -777,7 +779,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     //
     // Build Octree
     //
-#if 0
+#if 1
     // @TODO: Optimal work group dimension and local size?
     s32 data_width = 1024;
     s32 data_height = (fragment_count + data_width - 1) / data_width;
@@ -903,7 +905,9 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0);
 
 
-    // Let's allocate memory-saved attribute octree.
+    //
+    // Creating (probably) memory-saved Octree Attribute Buffer.
+    //
     gl_gen_linear_buffer(&gl.octree_diffuse, &gl.octree_diffuse_texture, GL_R32UI, sizeof(u32) * node_count);
 
     Octree_Program *op = &gl.octree_program;
@@ -913,6 +917,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glBindImageTexture(1, gl.flist_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
     glBindImageTexture(2, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
     glBindImageTexture(3, gl.octree_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
+
     glUniform1ui(op->octree_level, OCTREE_LEVEL);
     glUniform1ui(op->octree_resolution, gl.octree_resolution);
     glUniform1ui(op->fragment_count, fragment_count);

@@ -67,7 +67,7 @@ void main()
     v4 tmp = ortho_P * world_P;
     ortho_clip_P = (tmp.xyz / tmp.w);
     persp_clip_P = persp_P * V * world_P;
-    gl_Position = tmp;
+    gl_Position = persp_clip_P;
 }
 
 )MULTILINE"

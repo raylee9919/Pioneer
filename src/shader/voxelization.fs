@@ -61,7 +61,8 @@ void main()
         //
         // DEBUG buffer
         //
-        s32 idx = s32(ucoord.x + ucoord.y * octree_resolution + ucoord.z * octree_resolution * octree_resolution);
+        u32 res = octree_resolution;
+        s32 idx = s32(ucoord.x + ucoord.y*res + ucoord.z*res*res);
 
         v4 val = v4(DEBUG_light_color * (fC.xyz * diffuse) * cos_falloff * attenuation, 1);
         u32 new_val = v4_to_rgba8(val);
@@ -70,7 +71,7 @@ void main()
         u32 count = 0;
     
         while((cur = imageAtomicCompSwap(DEBUG_buffer, s32(idx), prev, new_val)) != prev &&
-              count < 10)
+              count < 5)
         {
             prev = cur;
             v4 rval = rgba8_to_v4(cur);
@@ -86,75 +87,6 @@ void main()
     
     
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    #if 0
-        //
-        // DIFFUSE
-        //
-        {
-            v3 diffuse = DEBUG_light_color * DEBUG_light_strength * diffuse * cos_falloff * attenuation;
-            v4 val = v4(diffuse, 1.0f);
-            u32 new_val = v4_to_rgba8(val);
-            u32 prev = 0;
-            u32 cur;
-            u32 count = 0;
-    
-            // @TODO: this is taxy.
-            while((cur = imageAtomicCompSwap(albedo_map, coord, prev, new_val)) != prev &&
-                  //false)
-                  count < 10)
-            {
-                prev = cur;
-                v4 rval = rgba8_to_v4(cur);
-                rval.rgb = (rval.rgb * rval.a);
-                v4 cur_f = rval + val;
-                cur_f.rgb /= cur_f.a;
-                new_val = v4_to_rgba8(cur_f);
-    
-                ++count;
-            }
-        }
-    #endif
-    
-    #if 0
-        //
-        // NORMAL
-        //
-        {
-            v4 val = v4(fN, 1.0f);
-            u32 new_val = v4_to_rgba8(val);
-            u32 prev = 0;
-            u32 cur;
-            u32 count = 0;
-    
-            while((cur = imageAtomicCompSwap(normal_map, idx, prev, new_val)) != prev &&
-                  count < 255)
-            {
-                prev = cur;
-                v4 rval = rgba8_to_v4(cur);
-                rval.rgb = (rval.rgb * rval.a);
-                v4 cur_f = rval + val;
-                cur_f.rgb /= cur_f.a;
-                new_val = v4_to_rgba8(cur_f);
-    
-                ++count;
-            }
-        }
-    #endif
     
     }
 }

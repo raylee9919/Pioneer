@@ -75,7 +75,7 @@ void main()
     // @IMPORTANT: Seems like M, which results from animation data, isn't guaranteed
     // to have [0, 0, 0, 1] as a last row!!!
     v4 tmp = voxel_P * world_P;
-    clip_P = tmp.xyz / tmp.w;
+    clip_P = (tmp.xyz / tmp.w);
 }
 
 
