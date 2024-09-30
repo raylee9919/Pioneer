@@ -6,7 +6,7 @@ R"MULTILINE(
 uniform m4x4  world_transform;
 uniform m4x4  V;
 uniform m4x4  P;
-uniform m4x4  VP;
+uniform m4x4  voxel_P;
 uniform s32   is_skeletal;
 
 layout (location = 0) in v3 vP;
@@ -27,7 +27,7 @@ out v3 world_gP;
 void main()
 {
     // Animation
-    m4x4 final_transform;
+    m4x4 M;
     if (is_skeletal != 0)
     {
         m4x4 bone_transform;
@@ -54,25 +54,28 @@ void main()
             bone_transform = identity();
         }
 
-        final_transform = world_transform * bone_transform;
+        M = world_transform * bone_transform;
     }
     else
     {
-        final_transform = world_transform;
+        M = world_transform;
     }
 
+    v4 world_P = M * v4(vP, 1.0f);
+
     //
     //
     //
 
-    v4 world_P = final_transform * v4(vP, 1.0f); // World Coord.
-    clip_P = (VP * world_P).xyz;
     world_gP = world_P.xyz;
-    gN  = normalize(m3x3(final_transform) * vN);
+    gN  = normalize(m3x3(M) * vN);
     gUV = vUV;
     gC  = vC;
 
-    gl_Position = VP * world_P;
+    // @IMPORTANT: Seems like M, which results from animation data, isn't guaranteed
+    // to have [0, 0, 0, 1] as a last row!!!
+    v4 tmp = voxel_P * world_P;
+    clip_P = tmp.xyz / tmp.w;
 }
 
 

@@ -14,11 +14,8 @@
 #include "render_group.h"
 #include "opengl.h"
 
-#define OCTREE_LEVEL        10
-#define VOXEL_HALF_SIDE     50
-
-#define SVOGI               0
-#define VOXEL_VISUALIZE     1
+#define OCTREE_LEVEL        8
+#define VOXEL_HALF_SIDE     10
 
 typedef char    GLchar;
 typedef size_t  GLsizeiptr;
@@ -619,7 +616,7 @@ gl_gen_linear_buffer(u32 *buf, u32 *tex, GLenum format, size_t size)
     glBufferData(GL_TEXTURE_BUFFER, size, 0, GL_STATIC_DRAW);
     glGenTextures(1, tex);
     glBindTexture(GL_TEXTURE_BUFFER, *tex);
-    glTexBuffer(GL_TEXTURE_BUFFER, GL_R32UI, *buf);
+    glTexBuffer(GL_TEXTURE_BUFFER, format, *buf);
     glBindBuffer(GL_TEXTURE_BUFFER, 0);
 }
 
@@ -627,8 +624,12 @@ internal void
 gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 {
     TIMED_FUNCTION();
+    f32 time = batch->time;
 
-    v3 light_P = v3{0, 3, 0};
+    u32 res = gl.octree_resolution;
+    gl_gen_linear_buffer(&gl.DEBUG_buffer, &gl.DEBUG_buffer_texture, GL_R32UI, sizeof(u32)*res*res*res);
+
+    v3 light_P = v3{cos(time), 2, 0};
     v3 light_color = v3{1, 1, 1};
     f32 light_strength = 1.0f;
 
@@ -639,7 +640,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     m4x4 voxelize_clip_P = m4x4{{
         { x,  0,  0,  0},
         { 0,  x,  0,  0},
-        { 0,  0,  x , 0},
+        { 0,  0, -x , 0},
         { 0,  0,  0,  1}
     }};
 
@@ -650,6 +651,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_BLEND);
     glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_MULTISAMPLE);
 
     glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
 
@@ -658,9 +660,9 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, 0, gl.fragment_counter);
 
 
-    glBindBuffer(GL_TEXTURE_BUFFER, gl.flist_P);
     glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI);
     glBindImageTexture(1, gl.flist_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
+    glBindImageTexture(2, gl.DEBUG_buffer_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
 
     for (Render_Group *group = (Render_Group *)batch->base;
          (u8 *)group < (u8 *)batch->base + batch->used;
@@ -686,21 +688,13 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     s32 pid = program->id;
                     glUseProgram(pid);
 
-                    glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
 
                     // @TEMPORARY...?
                     Camera *camera = group->camera;
 
-                    f32 w = camera->width;
-                    f32 h = camera->height;
-                    f32 f = camera->focal_length;
-                    f32 N = camera->N;
-                    f32 F = camera->F;
-
-                    m4x4 VP = voxelize_clip_P * camera->V;
-
+                    glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
                     glUniformMatrix4fv(program->V, 1, GL_TRUE, &camera->V.e[0][0]);
-                    glUniformMatrix4fv(program->VP, 1, GL_TRUE, &VP.e[0][0]);
+                    glUniformMatrix4fv(program->voxel_P, 1, GL_TRUE, &voxelize_clip_P.e[0][0]);
                     glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0);
                     glUniform3fv(program->ambient, 1, (GLfloat *)&mat->color_ambient);
                     glUniform3fv(program->diffuse, 1, (GLfloat *)&mat->color_diffuse);
@@ -783,7 +777,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     //
     // Build Octree
     //
-#if 1
+#if 0
     // @TODO: Optimal work group dimension and local size?
     s32 data_width = 1024;
     s32 data_height = (fragment_count + data_width - 1) / data_width;
@@ -817,7 +811,8 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
             glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI);
             glBindImageTexture(1, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
-            glUniform1ui(fp->octree_level, level);
+            glUniform1ui(fp->current_level, level);
+            glUniform1ui(fp->octree_level, OCTREE_LEVEL);
             glUniform1ui(fp->octree_resolution, gl.octree_resolution);
             glUniform1ui(fp->fragment_count, fragment_count);
 
@@ -886,30 +881,46 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT|GL_ATOMIC_COUNTER_BARRIER_BIT);
     }
 
+  #if 0
     // Flag leaf nodes.
     Flag_Program *fp = &gl.flag_program;
     glUseProgram(fp->id);
 
     glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI);
     glBindImageTexture(1, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
-    glUniform1ui(fp->octree_level, OCTREE_LEVEL + 1);
+    glUniform1ui(fp->current_level, OCTREE_LEVEL + 1);
+    glUniform1ui(fp->octree_level, OCTREE_LEVEL);
     glUniform1ui(fp->octree_resolution, gl.octree_resolution);
     glUniform1ui(fp->fragment_count, fragment_count);
 
     glDispatchCompute(group_x, group_y, 1);
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+  #endif
 
     // Get allocated node count.
     u32 node_count;
     glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &node_count);
-
     glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0);
-#endif
 
 
     // Let's allocate memory-saved attribute octree.
-    u32 octree_albedo, octree_albedo_texture;
-    gl_gen_linear_buffer(&octree_albedo, &octree_albedo_texture, GL_RGBA8, sizeof(u32) * node_count);
+    gl_gen_linear_buffer(&gl.octree_diffuse, &gl.octree_diffuse_texture, GL_R32UI, sizeof(u32) * node_count);
+
+    Octree_Program *op = &gl.octree_program;
+    glUseProgram(op->id);
+
+    glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI);
+    glBindImageTexture(1, gl.flist_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
+    glBindImageTexture(2, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
+    glBindImageTexture(3, gl.octree_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
+    glUniform1ui(op->octree_level, OCTREE_LEVEL);
+    glUniform1ui(op->octree_resolution, gl.octree_resolution);
+    glUniform1ui(op->fragment_count, fragment_count);
+
+    Assert(group_x * group_y * 8 * 8 >= (s32)fragment_count);
+    glDispatchCompute(group_x, group_y, 1);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+#endif
 
 
 
@@ -942,7 +953,6 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
     //
 
-    m4x4 DEBUG_voxel_VP = identity();
     for (Render_Group *group = (Render_Group *)batch->base;
          (u8 *)group < (u8 *)batch->base + batch->used;
          ++group)
@@ -965,7 +975,6 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     glUseProgram(pid);
 
                     Camera *camera = group->camera;
-                    DEBUG_voxel_VP = voxelize_clip_P * camera->V;
 
                     glUniformMatrix4fv(program->VP, 1, GL_TRUE, &group->camera->VP.e[0][0]);
                     glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0);
@@ -1038,13 +1047,13 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
     glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     glEnable(GL_SAMPLE_ALPHA_TO_ONE);
-    glEnable(GL_MULTISAMPLE);
+    glDisable(GL_MULTISAMPLE);
 
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
 
-#if 1
+  #if 0
     int DEBUG_DRAW_MODE //= SVOGI;
                         = VOXEL_VISUALIZE;
 
@@ -1077,12 +1086,18 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
                             Camera *camera = group->camera;
 
-                            m4x4 voxel_VP = voxelize_clip_P *camera->V;
+                            m4x4 voxel_VP = voxelize_clip_P;
 
                             glUniformMatrix4fv(program->voxel_VP, 1, GL_TRUE, &voxel_VP.e[0][0]);
                             glUniformMatrix4fv(program->persp_VP, 1, GL_TRUE, &group->camera->VP.e[0][0]);
                             glUniform3fv(program->cam_pos, 1, (GLfloat *)&group->camera->world_translation);
                             glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0);
+                            glUniform1ui(program->octree_resolution, gl.octree_resolution);
+                            glUniform3fv(program->DEBUG_light_P, 1, (GLfloat *)&light_P);
+                            glUniform3fv(program->DEBUG_light_color, 1, (GLfloat *)&light_color);
+                            glUniform1f(program->DEBUG_light_strength, light_strength);
+
+                            glBindImageTexture(0, gl.DEBUG_buffer_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
 
                             glEnableVertexAttribArray(0);
                             glEnableVertexAttribArray(1);
@@ -1114,8 +1129,6 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                             glUniform3fv(program->color_ambient, 1, (GLfloat *)&mat->color_ambient);
                             glUniform3fv(program->color_diffuse, 1, (GLfloat *)&mat->color_diffuse);
                             glUniform3fv(program->color_specular, 1, (GLfloat *)&mat->color_specular);
-
-                            glUniform3fv(program->light_pos, 1, (GLfloat *)&piece->light_pos);
 
                             glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0);
 
@@ -1149,8 +1162,11 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                             if (piece->animation_transforms)
                                 glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
                             glUniform1ui(program->octree_level, OCTREE_LEVEL);
+                            glUniform1ui(program->octree_resolution, gl.octree_resolution);
 
                             glBindImageTexture(0, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
+                            glBindImageTexture(1, gl.octree_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
+                            glBindImageTexture(2, gl.DEBUG_buffer_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
 
                             glEnableVertexAttribArray(0);
                             glEnableVertexAttribArray(1);
@@ -1380,7 +1396,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
             }
         }
     }
-#else
+  #else
     glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
 
     Deffer_Program *program = &gl.deffer_program;
@@ -1396,11 +1412,13 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     glBindTexture(GL_TEXTURE_2D, gb->Cid);
     glActiveTexture(GL_TEXTURE0);
 
+    glBindImageTexture(0, gl.DEBUG_buffer_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
 
-    glUniformMatrix4fv(program->voxel_VP, 1, GL_TRUE, &DEBUG_voxel_VP.e[0][0]);
+    glUniformMatrix4fv(program->voxel_P, 1, GL_TRUE, &voxelize_clip_P.e[0][0]);
     glUniform3fv(program->DEBUG_light_P, 1, (GLfloat *)&light_P);
     glUniform3fv(program->DEBUG_light_color, 1, (GLfloat *)&light_color);
     glUniform1f(program->DEBUG_light_strength, light_strength);
+    glUniform1ui(program->octree_resolution, gl.octree_resolution);
 
     // Draw full quad on screen.
     f32 vertices[] = { // P, UV
@@ -1424,7 +1442,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
     glDisableVertexAttribArray(0);
     glDisableVertexAttribArray(2);
-#endif
+  #endif
 #endif
             
     batch->used = 0;
@@ -1515,6 +1533,8 @@ gl_init()
         #include "shader/alloc.comp"
     const char *init_cs = 
         #include "shader/init.comp"
+    const char *octree_cs = 
+        #include "shader/octree.comp"
 
     const char *deffer_vs = 
         #include "shader/deffer.vs"
@@ -1535,7 +1555,10 @@ gl_init()
     GET_UNIFORM_LOCATION(mesh_program, color_ambient);
     GET_UNIFORM_LOCATION(mesh_program, color_diffuse);
     GET_UNIFORM_LOCATION(mesh_program, color_specular);
-    GET_UNIFORM_LOCATION(mesh_program, light_pos);
+    GET_UNIFORM_LOCATION(mesh_program, octree_resolution);
+    GET_UNIFORM_LOCATION(mesh_program, DEBUG_light_P);
+    GET_UNIFORM_LOCATION(mesh_program, DEBUG_light_color);
+    GET_UNIFORM_LOCATION(mesh_program, DEBUG_light_strength);
 
     gl.grass_program.id = gl_create_program(header, grass_vshader, grass_fshader);
     GET_UNIFORM_LOCATION(grass_program, mvp);
@@ -1555,7 +1578,7 @@ gl_init()
     gl.voxelization_program.id = gl_create_program(header, voxelization_vs, voxelization_gs, voxelization_fs);
     GET_UNIFORM_LOCATION(voxelization_program, world_transform);
     GET_UNIFORM_LOCATION(voxelization_program, V);
-    GET_UNIFORM_LOCATION(voxelization_program, VP);
+    GET_UNIFORM_LOCATION(voxelization_program, voxel_P);
     GET_UNIFORM_LOCATION(voxelization_program, is_skeletal);
     GET_UNIFORM_LOCATION(voxelization_program, bone_transforms);
     GET_UNIFORM_LOCATION(voxelization_program, voxel_map);
@@ -1576,6 +1599,7 @@ gl_init()
     GET_UNIFORM_LOCATION(voxel_program, is_skeletal);
     GET_UNIFORM_LOCATION(voxel_program, bone_transforms);
     GET_UNIFORM_LOCATION(voxel_program, octree_level);
+    GET_UNIFORM_LOCATION(voxel_program, octree_resolution);
 
     gl.gbuffer_program.id = gl_create_program(header, gbuffer_vs, gbuffer_fs);
     GET_UNIFORM_LOCATION(gbuffer_program, world_transform);
@@ -1584,6 +1608,7 @@ gl_init()
     GET_UNIFORM_LOCATION(gbuffer_program, bone_transforms);
 
     gl.flag_program.id = gl_create_compute_program(header, flag_cs);
+    GET_UNIFORM_LOCATION(flag_program, current_level);
     GET_UNIFORM_LOCATION(flag_program, octree_level);
     GET_UNIFORM_LOCATION(flag_program, octree_resolution);
     GET_UNIFORM_LOCATION(flag_program, fragment_count);
@@ -1596,12 +1621,17 @@ gl_init()
     GET_UNIFORM_LOCATION(init_program, start);
     GET_UNIFORM_LOCATION(init_program, alloc_size);
 
+    gl.octree_program.id = gl_create_compute_program(header, octree_cs);
+    GET_UNIFORM_LOCATION(octree_program, octree_level);
+    GET_UNIFORM_LOCATION(octree_program, octree_resolution);
+    GET_UNIFORM_LOCATION(octree_program, fragment_count);
 
     gl.deffer_program.id = gl_create_program(header, deffer_vs, deffer_fs);
     GET_UNIFORM_LOCATION(deffer_program, gP);
     GET_UNIFORM_LOCATION(deffer_program, gN);
     GET_UNIFORM_LOCATION(deffer_program, gC);
-    GET_UNIFORM_LOCATION(deffer_program, voxel_VP);
+    GET_UNIFORM_LOCATION(deffer_program, voxel_P);
+    GET_UNIFORM_LOCATION(deffer_program, octree_resolution);
     GET_UNIFORM_LOCATION(deffer_program, DEBUG_light_P);
     GET_UNIFORM_LOCATION(deffer_program, DEBUG_light_color);
     GET_UNIFORM_LOCATION(deffer_program, DEBUG_light_strength);
@@ -1729,4 +1759,8 @@ gl_init()
 
     glGenBuffers(1, &gl.vio);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl.vio);
+    
+    //DEBUG
+    u32 res = gl.octree_resolution;
+    gl_gen_linear_buffer(&gl.DEBUG_buffer, &gl.DEBUG_buffer_texture, GL_R32UI, sizeof(u32)*res*res*res);
 }

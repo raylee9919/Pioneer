@@ -37,7 +37,6 @@ struct Render_Mesh
     Material          *material;
     m4x4              world_transform;
     m4x4              *animation_transforms;
-    v3                light_pos;
 };
 
 struct Render_Grass

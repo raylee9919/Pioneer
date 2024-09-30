@@ -4,12 +4,12 @@ layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 uniform layout(binding = 0, rgb10_a2ui) uimageBuffer flist_P;
 uniform layout(binding = 1, r32ui) uimageBuffer octree_nodes;
+uniform u32 current_level;
 uniform u32 octree_level;
 uniform u32 octree_resolution;
 uniform u32 fragment_count;
 
 #define MSB 0x80000000
-#define OCTREE_LEVEL 10
 
 void main()
 {
@@ -22,10 +22,10 @@ void main()
 
         // Traverse down the node pool.
         for (u32 level = 0;
-             level < octree_level;
+             level < current_level;
              ++level)
         {
-            u32 s = (OCTREE_LEVEL - level);
+            u32 s = (octree_level - level);
             uv4 sub = coord;
             sub >>= s;
             u32 offset = sub.x + (sub.y << 1) + (sub.z << 2);

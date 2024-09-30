@@ -685,7 +685,7 @@ GAME_UPDATE(game_update)
                                         Mesh *mesh = model->meshes + mesh_idx;
                                         Material *mat = model->materials + mesh->material_idx;
                                         v3 light_pos = subtract(game_state->light->chunk_pos, {}, game_state->world->chunk_dim);
-                                        push_mesh(render_group, mesh, mat, world_transform, light_pos, entity->animation_transform);
+                                        push_mesh(render_group, mesh, mat, world_transform, entity->animation_transform);
                                     }
                                 }
                             } break;
@@ -702,7 +702,7 @@ GAME_UPDATE(game_update)
                                         Mesh *mesh = model->meshes + mesh_idx;
                                         Material *mat = model->materials + mesh->material_idx;
                                         v3 light_pos = subtract(game_state->light->chunk_pos, {}, game_state->world->chunk_dim);
-                                        push_mesh(render_group, mesh, mat, world_transform, light_pos);
+                                        push_mesh(render_group, mesh, mat, world_transform);
                                     }
                                 }
                             } break;
@@ -738,7 +738,7 @@ GAME_UPDATE(game_update)
                                         Mesh *mesh = model->meshes + mesh_idx;
                                         Material *mat = model->materials + mesh->material_idx;
                                         v3 light_pos = subtract(game_state->light->chunk_pos, {}, game_state->world->chunk_dim);
-                                        push_mesh(render_group, mesh, mat, world_transform, light_pos);
+                                        push_mesh(render_group, mesh, mat, world_transform);
                                     }
                                 }
                             } break;
@@ -755,7 +755,7 @@ GAME_UPDATE(game_update)
                                         Mesh *mesh = model->meshes + mesh_idx;
                                         Material *mat = model->materials + mesh->material_idx;
                                         v3 light_pos = subtract(game_state->light->chunk_pos, {}, game_state->world->chunk_dim);
-                                        push_mesh(render_group, mesh, mat, world_transform, light_pos);
+                                        push_mesh(render_group, mesh, mat, world_transform);
                                     }
                                 }
                             } break;

@@ -44,7 +44,11 @@ struct Mesh_Program
     s32     color_ambient;
     s32     color_diffuse;
     s32     color_specular;
-    s32     light_pos;
+    s32     octree_resolution;
+
+    s32     DEBUG_light_P;
+    s32     DEBUG_light_color;
+    s32     DEBUG_light_strength;
 };
 
 struct Grass_Program
@@ -80,7 +84,7 @@ struct Voxelization_Program
 
     s32     world_transform;
     s32     V;
-    s32     VP;
+    s32     voxel_P;
     s32     is_skeletal;
     s32     bone_transforms;
     s32     voxel_map;
@@ -107,6 +111,7 @@ struct Voxel_Program
     s32     bone_transforms;
 
     s32     octree_level;
+    s32     octree_resolution;
 };
 
 struct G_Buffer_Program
@@ -123,6 +128,7 @@ struct Flag_Program
 {
     s32     id;
 
+    s32     current_level;
     s32     octree_level;
     s32     octree_resolution;
     s32     fragment_count;
@@ -144,6 +150,15 @@ struct Init_Program
     s32     alloc_size;
 };
 
+struct Octree_Program
+{
+    s32     id;
+
+    s32     octree_level;
+    s32     octree_resolution;
+    s32     fragment_count;
+};
+
 
 struct Deffer_Program
 {
@@ -157,7 +172,8 @@ struct Deffer_Program
     s32     DEBUG_light_color;
     s32     DEBUG_light_strength;
 
-    s32     voxel_VP;
+    s32     voxel_P;
+    s32     octree_resolution;
 };
 
 struct G_Buffer
@@ -185,6 +201,7 @@ struct GL
     Flag_Program            flag_program;
     Alloc_Program           alloc_program;
     Init_Program            init_program;
+    Octree_Program          octree_program;
 
     Deffer_Program          deffer_program;
 
@@ -218,4 +235,10 @@ struct GL
     u32     flist_P_texture;
     u32     flist_diffuse;
     u32     flist_diffuse_texture;
+
+    u32     octree_diffuse;
+    u32     octree_diffuse_texture;
+
+    u32     DEBUG_buffer;
+    u32     DEBUG_buffer_texture;
 };

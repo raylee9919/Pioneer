@@ -1,0 +1,67 @@
+R"===(
+
+layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+uniform layout(binding = 0, rgb10_a2ui) uimageBuffer flist_P;
+uniform layout(binding = 1, rgba8) imageBuffer flist_diffuse;
+uniform layout(binding = 2, r32ui) uimageBuffer octree_nodes;
+uniform layout(binding = 3, r32ui) uimageBuffer octree_diffuse;
+
+uniform u32 octree_level;
+uniform u32 octree_resolution;
+uniform u32 fragment_count;
+
+void main()
+{
+    u32 tid = (gl_GlobalInvocationID.y << 10) + gl_GlobalInvocationID.x;
+    if (tid < fragment_count)
+    {
+        uv4 coord   = imageLoad(flist_P, s32(tid));
+        u32 idx     = 0;
+        u32 node    = 0;
+
+        for (u32 level = 0;
+             level < octree_level;
+             ++level)
+        {
+            u32 s = (octree_level - level);
+            uv4 sub = coord;
+            sub >>= s;
+            u32 offset = sub.x + (sub.y << 1) + (sub.z << 2);
+            sub <<= s;
+            coord -= sub;
+            idx = node + offset;
+
+            node = (imageLoad(octree_nodes, s32(idx)).r & 0x7fffffff);
+        }
+
+        //
+        // Diffuse
+        //
+        v4 diffuse = imageLoad(flist_diffuse, s32(tid));
+#if 0
+
+        u32 new_val = v4_to_rgba8(diffuse);
+        u32 prev = 0;
+        u32 cur;
+        u32 count = 0;
+    
+        // @TODO: this is taxy.
+        while((cur = imageAtomicCompSwap(octree_diffuse, s32(idx), prev, new_val)) != prev &&
+              count < 10)
+        {
+            prev = cur;
+            v4 rval = rgba8_to_v4(cur);
+            rval.rgb = (rval.rgb * rval.a);
+            v4 cur_f = rval + diffuse;
+            cur_f.rgb /= cur_f.a;
+            new_val = v4_to_rgba8(cur_f);
+            ++count;
+        }
+#else
+        imageAtomicExchange(octree_diffuse, s32(idx), v4_to_rgba8(v4(1, 0, 1, 1)));
+#endif
+    }
+}
+
+)===";

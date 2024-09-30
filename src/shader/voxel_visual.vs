@@ -17,12 +17,13 @@ layout (location = 4) in s32    bone_ids[MAX_BONE_PER_VERTEX];
 layout (location = 5) in f32    bone_weights[MAX_BONE_PER_VERTEX];
 
 out v4 persp_clip_P;
-out v4 ortho_clip_P;
+out v3 ortho_clip_P;
+out v4 world_fP;
 
 void main()
 {
     // Animation
-    m4x4 final_transform;
+    m4x4 M;
     if (is_skeletal != 0)
     {
         m4x4 bone_transform;
@@ -49,22 +50,24 @@ void main()
             bone_transform = identity();
         }
 
-        final_transform = world_transform * bone_transform;
+        M = world_transform * bone_transform;
     }
     else
     {
-        final_transform = world_transform;
+        M = world_transform;
     }
 
-    v4 world_P = final_transform * v4(vP, 1.0f);
+    v4 world_P = M * v4(vP, 1.0f);
 
     //
     //
     //
+    world_fP = world_P;
 
-    ortho_clip_P = ortho_P * V * world_P;
+    v4 tmp = ortho_P * world_P;
+    ortho_clip_P = (tmp.xyz / tmp.w);
     persp_clip_P = persp_P * V * world_P;
-    gl_Position = persp_clip_P;
+    gl_Position = tmp;
 }
 
 )MULTILINE"
