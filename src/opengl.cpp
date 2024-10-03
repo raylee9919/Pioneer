@@ -723,7 +723,6 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
 
     u32 res = gl.octree_resolution;
-    gl_gen_linear_buffer(&gl.DEBUG_buffer, &gl.DEBUG_buffer_texture, GL_R32UI, sizeof(u32)*res*res*res);
 
     v3 light_P = v3{0, 2, 0};
     v3 light_color = v3{1, 1, 1};
@@ -868,7 +867,6 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
     GL(glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGB10_A2UI));
     GL(glBindImageTexture(1, gl.flist_diffuse_texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8));
-    GL(glBindImageTexture(2, gl.DEBUG_buffer_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
 
     for (Render_Group *group = (Render_Group *)batch->base;
          (u8 *)group < (u8 *)batch->base + batch->used;
@@ -1282,7 +1280,6 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
                             glBindImageTexture(0, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
                             glBindImageTexture(1, gl.octree_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
-                            glBindImageTexture(2, gl.DEBUG_buffer_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
 
                             glEnableVertexAttribArray(0);
                             glEnableVertexAttribArray(1);
@@ -1530,7 +1527,6 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
     GL(glBindImageTexture(0, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_R32UI));
     GL(glBindImageTexture(1, gl.octree_diffuse_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_R32UI));
-    GL(glBindImageTexture(2, gl.DEBUG_buffer_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_R32UI));
 
     GL(glUniformMatrix4fv(program->voxel_P, 1, GL_TRUE, &voxelize_clip_P.e[0][0]));
     GL(glUniform3fv(program->DEBUG_light_P, 1, (GLfloat *)&light_P));
@@ -1823,5 +1819,4 @@ gl_init()
     
     //DEBUG
     u32 res = gl.octree_resolution;
-    gl_gen_linear_buffer(&gl.DEBUG_buffer, &gl.DEBUG_buffer_texture, GL_R32UI, sizeof(u32)*res*res*res);
 }

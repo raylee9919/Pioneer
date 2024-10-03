@@ -6,7 +6,6 @@ uniform layout(binding = 0, offset = 0) atomic_uint fragment_counter;
 
 uniform layout(binding = 0, rgb10_a2ui) uimageBuffer flist_P;
 uniform layout(binding = 1, rgba8) imageBuffer flist_diffuse;
-uniform layout(binding = 2, r32ui) uimageBuffer DEBUG_buffer;
 
 
 uniform v3 ambient;
@@ -63,30 +62,6 @@ void main()
             // Diffuse Light
             //
             imageStore(flist_diffuse, next_empty, val);
-    
-    
-            //
-            // DEBUG buffer
-            //
-            u32 res = octree_resolution;
-            s32 idx = s32(ucoord.x + ucoord.y*res + ucoord.z*res*res);
-
-            u32 new_val = v4_to_rgba8(val);
-            u32 prev = 0;
-            u32 cur;
-            u32 count = 0;
-    
-            while((cur = imageAtomicCompSwap(DEBUG_buffer, s32(idx), prev, new_val)) != prev &&
-                  count < 5)
-            {
-                prev = cur;
-                v4 rval = rgba8_to_v4(cur);
-                rval.rgb = (rval.rgb * rval.a);
-                v4 cur_f = rval + val;
-                cur_f.rgb /= cur_f.a;
-                new_val = v4_to_rgba8(cur_f);
-                ++count;
-            }
         }
     
     

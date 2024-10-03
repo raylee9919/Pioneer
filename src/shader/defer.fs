@@ -20,7 +20,6 @@ uniform layout (binding = 3) sampler2D   gC;
 
 uniform layout(binding = 0, r32ui) uimageBuffer octree_nodes;
 uniform layout(binding = 1, r32ui) uimageBuffer octree_diffuse;
-uniform layout(binding = 2, r32ui) uimageBuffer DEBUG_buffer;
 
 void main()
 {
@@ -49,10 +48,8 @@ void main()
 
     
         #define SHADOW_STR 1.0f
-        v3 voxel_size = v3(octree_resolution);
         f32 occlusion = 0.0f;
         f32 march = 0.001f;
-
         f32 max_dist = distance(DEBUG_light_P, fP);
 
         while (march < max_dist &&

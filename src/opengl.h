@@ -241,7 +241,4 @@ struct GL
 
     u32     octree_diffuse;
     u32     octree_diffuse_texture;
-
-    u32     DEBUG_buffer;
-    u32     DEBUG_buffer_texture;
 };
