@@ -1097,6 +1097,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                         GL(glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms));
 
                     GL(glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0));
+                    GL(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
 
                     GL(glDisableVertexAttribArray(0));
                     GL(glDisableVertexAttribArray(1));
@@ -1528,6 +1529,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                  vertices,
                  GL_DYNAMIC_DRAW));
     GL(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
+    GL(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
 
     GL(glDisableVertexAttribArray(0));
     GL(glDisableVertexAttribArray(2));
