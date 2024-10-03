@@ -634,10 +634,84 @@ gl_gen_linear_buffer(u32 *buf, u32 *tex, GLenum format, size_t size)
 }
 
 internal void
+gl_reallocate_screen_dependent_buffers(u32 width, u32 height)
+{
+    //
+    // G-Buffer
+    //
+    G_Buffer *gb = &gl.gbuffer;
+    s32 max_attachment;
+    GL(glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS, &max_attachment));
+    Assert(max_attachment >= 3);
+
+    GL(glGenFramebuffers(1, &gb->id));
+    GL(glBindFramebuffer(GL_FRAMEBUFFER, gb->id));
+
+    // Depth-Buffer
+    u32 gdepth_buffer;
+    GL(glGenRenderbuffers(1, &gdepth_buffer));
+    GL(glBindRenderbuffer(GL_RENDERBUFFER, gdepth_buffer));
+    GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height));
+    GL(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, gdepth_buffer));
+
+    // Position
+    //   if there's an entity, alpha value is set to value other than 0.
+    GL(glGenTextures(1, &gb->Pid));
+    GL(glBindTexture(GL_TEXTURE_2D, gb->Pid));
+    GL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, 0));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+    GL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gb->Pid, 0));
+
+    // Normal
+    GL(glGenTextures(1, &gb->Nid));
+    GL(glBindTexture(GL_TEXTURE_2D, gb->Nid));
+    GL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+    GL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gb->Nid, 0);) 
+
+        // Color (Albedo + Specular)
+        GL(glGenTextures(1, &gb->Cid));
+    GL(glBindTexture(GL_TEXTURE_2D, gb->Cid));
+    GL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+    GL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gb->Cid, 0));
+
+
+    u32 attachments[3] = { 
+        GL_COLOR_ATTACHMENT0,
+        GL_COLOR_ATTACHMENT1,
+        GL_COLOR_ATTACHMENT2,
+    };
+    GL(glDrawBuffers(array_count(attachments), attachments));
+    GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
+}
+
+//
+// Main Render Batch Process.
+//
+internal void
 gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 {
     TIMED_FUNCTION();
+
     f32 time = batch->time;
+    G_Buffer *gb = &gl.gbuffer;
+
+    //
+    // Reallocate buffers dependent to changed window width & height.
+    //
+    if (batch->width != win_w ||
+        batch->height != win_h)
+    {
+        batch->width = win_w;
+        batch->height = win_h;
+
+        gl_reallocate_screen_dependent_buffers(win_w, win_h);
+    }
+
 
     u32 res = gl.octree_resolution;
     gl_gen_linear_buffer(&gl.DEBUG_buffer, &gl.DEBUG_buffer_texture, GL_R32UI, sizeof(u32)*res*res*res);
@@ -945,7 +1019,6 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     //
     // G-Buffer Pass (Deferred Rendering)
     //
-    G_Buffer *gb = &gl.gbuffer;
     GL(glBindFramebuffer(GL_FRAMEBUFFER, gb->id));
     GL(glBindBuffer(GL_ARRAY_BUFFER, gl.vbo));
 
@@ -1666,63 +1739,6 @@ gl_init()
         *at = 0xffffffff;
     }
     gl_alloc_texture(&gl.white_bitmap);
-
-
-    //
-    // G-Buffer
-    //
-    // @TODO: if screen dimension's changed, allocate new frame buffer to write...?
-#define DEBUG_WIDTH     2560
-#define DEBUG_HEIGHT    1440
-    s32 max_attachment;
-    GL(glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS, &max_attachment));
-    Assert(max_attachment >= 3);
-
-    G_Buffer *gb = &gl.gbuffer;
-    GL(glGenFramebuffers(1, &gb->id));
-    GL(glBindFramebuffer(GL_FRAMEBUFFER, gb->id));
-
-    // Depth-Buffer
-    u32 gdepth_buffer;
-    GL(glGenRenderbuffers(1, &gdepth_buffer));
-    GL(glBindRenderbuffer(GL_RENDERBUFFER, gdepth_buffer));
-    GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, DEBUG_WIDTH, DEBUG_HEIGHT));
-    GL(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, gdepth_buffer));
-
-    // Position
-    //   if there's an entity, alpha value is set to value other than 0.
-    GL(glGenTextures(1, &gb->Pid));
-    GL(glBindTexture(GL_TEXTURE_2D, gb->Pid));
-    GL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, DEBUG_WIDTH, DEBUG_HEIGHT, 0, GL_RGBA, GL_FLOAT, 0));
-    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-    GL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gb->Pid, 0));
-
-    // Normal
-    GL(glGenTextures(1, &gb->Nid));
-    GL(glBindTexture(GL_TEXTURE_2D, gb->Nid));
-    GL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, DEBUG_WIDTH, DEBUG_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL));
-    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-    GL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gb->Nid, 0);) 
-
-    // Color (Albedo + Specular)
-    GL(glGenTextures(1, &gb->Cid));
-    GL(glBindTexture(GL_TEXTURE_2D, gb->Cid));
-    GL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, DEBUG_WIDTH, DEBUG_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL));
-    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-    GL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gb->Cid, 0));
-
-
-    u32 attachments[3] = { 
-        GL_COLOR_ATTACHMENT0,
-        GL_COLOR_ATTACHMENT1,
-        GL_COLOR_ATTACHMENT2,
-    };
-    GL(glDrawBuffers(array_count(attachments), attachments));
-
-    GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 
 
     // Experiment

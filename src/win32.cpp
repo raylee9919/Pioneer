@@ -808,9 +808,12 @@ win32_window_callback(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 internal void
 win32_init_render_batch(Render_Batch *batch, size_t size) 
 {
-    batch->base = VirtualAlloc(0, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-    batch->size = size;
-    batch->used = 0;
+    batch->base     = VirtualAlloc(0, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    batch->size     = size;
+    batch->used     = 0;
+
+    batch->width    = 0;
+    batch->height   = 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1081,6 +1084,11 @@ Debug_Table *g_debug_table = &g_debug_table_;
 int WINAPI
 WinMain(HINSTANCE hinst, HINSTANCE deprecated, LPSTR cmd, int show_cmd) 
 {
+    int a = 0;
+    if (a == 1)
+    {
+        printf("apple");
+    }
     //
     // Multi-Threading
     //

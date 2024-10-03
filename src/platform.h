@@ -187,6 +187,9 @@ struct Render_Batch
 
     f32     time;
     f32     dt;
+
+    u32     width;
+    u32     height;
 };
 
 struct Game_Memory 
