@@ -124,12 +124,22 @@ typedef void (APIENTRY  *GLDEBUGPROCARB)(GLenum source,GLenum type,GLuint id,GLe
 #define GL_RGB10_A2UI                       0x906F
 #define GL_RGBA8                            0x8058
 #define GL_TEXTURE_BUFFER                   0x8C2A
-#define GL_ALL_BARRIER_BITS                 0xFFFFFFFF
-#define GL_SHADER_IMAGE_ACCESS_BARRIER_BIT  0x00000020
 #define GL_MAX_COMPUTE_WORK_GROUP_COUNT     0x91BE
 #define GL_MAX_COMPUTE_WORK_GROUP_SIZE      0x91BF
 #define GL_MAP_PERSISTENT_BIT               0x0040
+#define GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT  0x00000001
+#define GL_ELEMENT_ARRAY_BARRIER_BIT        0x00000002
+#define GL_UNIFORM_BARRIER_BIT              0x00000004
+#define GL_TEXTURE_FETCH_BARRIER_BIT        0x00000008
+#define GL_SHADER_IMAGE_ACCESS_BARRIER_BIT  0x00000020
+#define GL_COMMAND_BARRIER_BIT              0x00000040
+#define GL_PIXEL_BUFFER_BARRIER_BIT         0x00000080
+#define GL_TEXTURE_UPDATE_BARRIER_BIT       0x00000100
+#define GL_BUFFER_UPDATE_BARRIER_BIT        0x00000200
+#define GL_FRAMEBUFFER_BARRIER_BIT          0x00000400
+#define GL_TRANSFORM_FEEDBACK_BARRIER_BIT   0x00000800
 #define GL_ATOMIC_COUNTER_BARRIER_BIT       0x00001000
+#define GL_ALL_BARRIER_BITS                 0xFFFFFFFF
 
 
 typedef BOOL        Type_wglSwapIntervalEXT(int interval);
@@ -672,7 +682,7 @@ gl_reallocate_screen_dependent_buffers(u32 width, u32 height)
     GL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gb->Nid, 0);) 
 
         // Color (Albedo + Specular)
-        GL(glGenTextures(1, &gb->Cid));
+    GL(glGenTextures(1, &gb->Cid));
     GL(glBindTexture(GL_TEXTURE_2D, gb->Cid));
     GL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL));
     GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
@@ -1097,7 +1107,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                         GL(glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms));
 
                     GL(glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0));
-                    GL(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
+                    GL(glMemoryBarrier(GL_FRAMEBUFFER_BARRIER_BIT));
 
                     GL(glDisableVertexAttribArray(0));
                     GL(glDisableVertexAttribArray(1));
