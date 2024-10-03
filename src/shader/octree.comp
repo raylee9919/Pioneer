@@ -21,7 +21,7 @@ void main()
         u32 node    = 0;
 
         for (u32 level = 0;
-             level < octree_level;
+             level <= octree_level;
              ++level)
         {
             u32 s = (octree_level - level);
@@ -38,9 +38,8 @@ void main()
         //
         // Diffuse
         //
+#if 1
         v4 diffuse = imageLoad(flist_diffuse, s32(tid));
-#if 0
-
         u32 new_val = v4_to_rgba8(diffuse);
         u32 prev = 0;
         u32 cur;
@@ -48,7 +47,7 @@ void main()
     
         // @TODO: this is taxy.
         while((cur = imageAtomicCompSwap(octree_diffuse, s32(idx), prev, new_val)) != prev &&
-              count < 10)
+              count < 5)
         {
             prev = cur;
             v4 rval = rgba8_to_v4(cur);
@@ -59,7 +58,7 @@ void main()
             ++count;
         }
 #else
-        imageAtomicExchange(octree_diffuse, s32(idx), v4_to_rgba8(v4(1, 0, 1, 1)));
+        imageAtomicExchange(octree_diffuse, s32(idx), v4_to_rgba8(v4(1, 0, 0, 1)));
 #endif
     }
 }

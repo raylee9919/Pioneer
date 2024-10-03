@@ -5,6 +5,7 @@ in v2 fUV;
 
 out v4 C;
 
+uniform u32 octree_level;
 uniform u32 octree_resolution;
 
 uniform m4x4  voxel_P;
@@ -17,7 +18,9 @@ uniform layout (binding = 1) sampler2D   gP;
 uniform layout (binding = 2) sampler2D   gN;
 uniform layout (binding = 3) sampler2D   gC;
 
-uniform layout (binding = 0, r32ui) uimageBuffer DEBUG_buffer;
+uniform layout(binding = 0, r32ui) uimageBuffer octree_nodes;
+uniform layout(binding = 1, r32ui) uimageBuffer octree_diffuse;
+uniform layout(binding = 2, r32ui) uimageBuffer DEBUG_buffer;
 
 void main()
 {
@@ -26,8 +29,6 @@ void main()
     v3 fP = fP_read.xyz;
     v3 fN = normalize(texture(gN, fUV).xyz); // we normalized on previous pass... but for safety.
     v3 fC = texture(gC, fUV).rgb;
-
-
 
     if (fP_read.a != 0)
     {
@@ -60,9 +61,27 @@ void main()
             v3 cen = fP + to_light * march;
 
             v3 idx_01 = (voxel_P * v4(cen, 1)).xyz * 0.5f + v3(0.5f);
-            iv3 idx = iv3(voxel_size * idx_01);
-            u32 res = octree_resolution;
-            u32 val = imageLoad(DEBUG_buffer, s32(idx.x + idx.y*res + idx.z*res*res)).r;
+            uv3 ucoord = uv3(idx_01 * octree_resolution);
+
+            u32 idx = 0;
+            u32 node = 0;
+
+            for (u32 level = 0;
+                 level <= octree_level;
+                 ++level)
+            {
+                u32 s = (octree_level - level);
+                uv3 sub = ucoord;
+                sub >>= s;
+                u32 offset = sub.x + (sub.y << 1) + (sub.z << 2);
+                sub <<= s;
+                ucoord -= sub;
+                idx = node + offset;
+
+                node = (imageLoad(octree_nodes, s32(idx)).r & 0x7fffffff);
+            }
+
+            u32 val = imageLoad(octree_diffuse, s32(idx)).r;
             v4 S = rgba8_to_v4(val);
             if (S.a > 0)
             {

@@ -9,8 +9,6 @@ uniform u32 octree_level;
 uniform u32 octree_resolution;
 uniform u32 fragment_count;
 
-#define MSB 0x80000000
-
 void main()
 {
     u32 tid = (gl_GlobalInvocationID.y << 10) + gl_GlobalInvocationID.x;
@@ -38,7 +36,7 @@ void main()
 
         // Since storing occurs on the last level, it is safe to ignore
         // lower 31 bits since it points to no node.
-        imageStore(octree_nodes, s32(idx), uv4(MSB, 0, 0, 0));
+        imageStore(octree_nodes, s32(idx), uv4(0x80000000, 0, 0, 0));
     }
 }
 

@@ -22,10 +22,10 @@ void main()
     u32 idx = 0;
     u32 node = 0;
 
-#if 0
-    b32 DEBUG_leaf = true;
+#if 1
+    b32 DEBUG_leaf = false;
     for (u32 level = 0;
-         level < octree_level;
+         level <= octree_level;
          ++level)
     {
         u32 s = (octree_level - level);
@@ -37,9 +37,12 @@ void main()
         idx = node + offset;
 
         node = (imageLoad(octree_nodes, s32(idx)).r & 0x7fffffff);
-        if ((node == 0) && (level != octree_level - 1))
+        if (node == 0)
         {
-            DEBUG_leaf = false;
+            if (level == octree_level)
+            {
+                DEBUG_leaf = true;
+            }
             break;
         }
     }
@@ -47,10 +50,11 @@ void main()
     if (DEBUG_leaf)
     {
         C = v4(rgba8_to_v4(imageLoad(octree_diffuse, s32(idx)).r).rgb, 1);
+        //C = v4(1, 0, 1, 1);
     }
     else
     {
-        C = v4(1, 0, 0, 1);
+        C = v4(1, 1, 0, 1);
     }
 #else
     s32 I = s32(ucoord.x + ucoord.y * octree_resolution + ucoord.z * octree_resolution * octree_resolution);

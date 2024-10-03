@@ -93,6 +93,7 @@ struct Voxelization_Program
     s32     specular;
     s32     octree_level;
     s32     octree_resolution;
+    s32     write;
 
     s32     DEBUG_light_P;
     s32     DEBUG_light_color;
@@ -160,7 +161,7 @@ struct Octree_Program
 };
 
 
-struct Deffer_Program
+struct Defer_Program
 {
     s32     id;
 
@@ -173,6 +174,7 @@ struct Deffer_Program
     s32     DEBUG_light_strength;
 
     s32     voxel_P;
+    s32     octree_level;
     s32     octree_resolution;
 };
 
@@ -203,7 +205,7 @@ struct GL
     Init_Program            init_program;
     Octree_Program          octree_program;
 
-    Deffer_Program          deffer_program;
+    Defer_Program           defer_program;
 
     G_Buffer                gbuffer;
 
@@ -224,9 +226,10 @@ struct GL
 
 
     u32     octree_resolution;
-    u32     fragment_list_capacity;
     u32     fragment_counter;
     u32     alloc_count;
+    u32     max_fragment_count;
+    u32     max_node_count;
     s32     max_compute_work_group_count[3];
 
     u32     octree_nodes;

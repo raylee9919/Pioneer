@@ -19,6 +19,7 @@ uniform f32 DEBUG_light_strength;
 
 uniform u32 octree_level;
 uniform u32 octree_resolution;
+uniform u32 write;
 
 in v3 clip_fP;
 in v3 world_fP;
@@ -46,40 +47,46 @@ void main()
     
         // Increment fragment count.
         s32 next_empty = s32(atomicCounterIncrement(fragment_counter));
-    
-        //
-        // Assign voxel coordinate to fragment list
-        //
-        imageStore(flist_P, next_empty, uv4(ucoord, 0));
-    
-        //
-        // Diffuse Light
-        //
-        imageStore(flist_diffuse, next_empty, v4(fC.xyz * (ambient + diffuse), 1));
-    
-    
-        //
-        // DEBUG buffer
-        //
-        u32 res = octree_resolution;
-        s32 idx = s32(ucoord.x + ucoord.y*res + ucoord.z*res*res);
 
-        v4 val = v4(DEBUG_light_color * (fC.xyz * diffuse) * cos_falloff * attenuation, 1);
-        u32 new_val = v4_to_rgba8(val);
-        u32 prev = 0;
-        u32 cur;
-        u32 count = 0;
-    
-        while((cur = imageAtomicCompSwap(DEBUG_buffer, s32(idx), prev, new_val)) != prev &&
-              count < 5)
+        if (write == 1)
         {
-            prev = cur;
-            v4 rval = rgba8_to_v4(cur);
-            rval.rgb = (rval.rgb * rval.a);
-            v4 cur_f = rval + val;
-            cur_f.rgb /= cur_f.a;
-            new_val = v4_to_rgba8(cur_f);
-            ++count;
+            //v4 val = v4(DEBUG_light_color * (fC.xyz * diffuse) * cos_falloff * attenuation, 1);
+            v4 val = v4(fC.xyz * diffuse, 1);
+            //v4 val = v4(1, 0, 1, 1);
+
+            //
+            // Assign voxel coordinate to fragment list
+            //
+            imageStore(flist_P, next_empty, uv4(ucoord, 0));
+    
+            //
+            // Diffuse Light
+            //
+            imageStore(flist_diffuse, next_empty, val);
+    
+    
+            //
+            // DEBUG buffer
+            //
+            u32 res = octree_resolution;
+            s32 idx = s32(ucoord.x + ucoord.y*res + ucoord.z*res*res);
+
+            u32 new_val = v4_to_rgba8(val);
+            u32 prev = 0;
+            u32 cur;
+            u32 count = 0;
+    
+            while((cur = imageAtomicCompSwap(DEBUG_buffer, s32(idx), prev, new_val)) != prev &&
+                  count < 5)
+            {
+                prev = cur;
+                v4 rval = rgba8_to_v4(cur);
+                rval.rgb = (rval.rgb * rval.a);
+                v4 cur_f = rval + val;
+                cur_f.rgb /= cur_f.a;
+                new_val = v4_to_rgba8(cur_f);
+                ++count;
+            }
         }
     
     

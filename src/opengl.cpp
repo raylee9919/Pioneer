@@ -14,10 +14,9 @@
 #include "render_group.h"
 #include "opengl.h"
 
-#define OCTREE_LEVEL        8       // For debug buffer, LEVEL 10 won't work. Too big.
-#define VOXEL_HALF_SIDE     10
-#define SVOGI               0
-#define VOXEL_VISUALIZE     1
+#define OCTREE_LEVEL        10       // For debug buffer, LEVEL 10 won't work. Too big.
+#define VOXEL_HALF_SIDE     30
+#define VV                  0
 
 
 #if __DEVELOPER
@@ -726,7 +725,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     u32 res = gl.octree_resolution;
     gl_gen_linear_buffer(&gl.DEBUG_buffer, &gl.DEBUG_buffer_texture, GL_R32UI, sizeof(u32)*res*res*res);
 
-    v3 light_P = v3{cos(time), 2, 0};
+    v3 light_P = v3{0, 2, 0};
     v3 light_color = v3{1, 1, 1};
     f32 light_strength = 1.0f;
 
@@ -756,18 +755,13 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.fragment_counter));
     GL(glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, 0, gl.fragment_counter));
 
-
-    GL(glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI));
-    GL(glBindImageTexture(1, gl.flist_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8));
-    GL(glBindImageTexture(2, gl.DEBUG_buffer_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
-
     for (Render_Group *group = (Render_Group *)batch->base;
          (u8 *)group < (u8 *)batch->base + batch->used;
          ++group)
     {
         for (u8 *at = group->base;
              at < group->base + group->used;
-            at += ((Render_Entity_Header *)at)->size)
+             at += ((Render_Entity_Header *)at)->size)
         {
             Render_Entity_Header *entity = (Render_Entity_Header *)at;
             switch (entity->type)
@@ -779,12 +773,10 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     Mesh *mesh            = piece->mesh;
                     Material *mat         = piece->material;
 
-
                     // Use voxelization program.
                     Voxelization_Program *program = &gl.voxelization_program;
                     s32 pid = program->id;
                     GL(glUseProgram(pid));
-
 
                     // @TEMPORARY...?
                     Camera *camera = group->camera;
@@ -799,6 +791,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
                     GL(glUniform1ui(program->octree_level, OCTREE_LEVEL));
                     GL(glUniform1ui(program->octree_resolution, gl.octree_resolution));
+                    GL(glUniform1ui(program->write, 0));
 
                     GL(glUniform3fv(program->DEBUG_light_P, 1, (GLfloat *)&light_P));
                     GL(glUniform3fv(program->DEBUG_light_color, 1, (GLfloat *)&light_color));
@@ -859,14 +852,128 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         }
     }
 
-    //
-    // Map GPU side fragment counter to CPU and generate Fragment List.
-    // 
     GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.fragment_counter));
     u32 *mapped_fragment_count = (u32 *)glMapBufferRange(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(GLuint), GL_MAP_READ_BIT|GL_MAP_WRITE_BIT);
     u32 fragment_count = mapped_fragment_count[0];
-    Assert(fragment_count <= gl.fragment_list_capacity); // Since fragment count can be bigger than total voxel #. @TODO: Better idea...? Probably check for the count first?
-    *mapped_fragment_count = 0; // Reset counter to zerogl.fragment_counter
+    *mapped_fragment_count = 0;
+    GL(glUnmapBuffer(GL_ATOMIC_COUNTER_BUFFER));
+    GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0));
+
+    if (gl.max_fragment_count < fragment_count)
+    {
+        gl.max_fragment_count = fragment_count;
+        gl_gen_linear_buffer(&gl.flist_P, &gl.flist_P_texture, GL_R32UI, sizeof(u32) * fragment_count);
+        gl_gen_linear_buffer(&gl.flist_diffuse, &gl.flist_diffuse_texture, GL_RGBA8, sizeof(u32) * fragment_count);
+    }
+
+    GL(glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGB10_A2UI));
+    GL(glBindImageTexture(1, gl.flist_diffuse_texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8));
+    GL(glBindImageTexture(2, gl.DEBUG_buffer_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
+
+    for (Render_Group *group = (Render_Group *)batch->base;
+         (u8 *)group < (u8 *)batch->base + batch->used;
+         ++group)
+    {
+        for (u8 *at = group->base;
+             at < group->base + group->used;
+             at += ((Render_Entity_Header *)at)->size)
+        {
+            Render_Entity_Header *entity = (Render_Entity_Header *)at;
+            switch (entity->type)
+            {
+                case eRender_Mesh:
+                {
+#if 1
+                    Render_Mesh *piece = (Render_Mesh *)entity;
+                    Mesh *mesh            = piece->mesh;
+                    Material *mat         = piece->material;
+
+
+                    // Use voxelization program.
+                    Voxelization_Program *program = &gl.voxelization_program;
+                    s32 pid = program->id;
+                    GL(glUseProgram(pid));
+
+
+                    // @TEMPORARY...?
+                    Camera *camera = group->camera;
+
+                    GL(glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]));
+                    GL(glUniformMatrix4fv(program->V, 1, GL_TRUE, &camera->V.e[0][0]));
+                    GL(glUniformMatrix4fv(program->voxel_P, 1, GL_TRUE, &voxelize_clip_P.e[0][0]));
+                    GL(glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0));
+                    GL(glUniform3fv(program->ambient, 1, (GLfloat *)&mat->color_ambient));
+                    GL(glUniform3fv(program->diffuse, 1, (GLfloat *)&mat->color_diffuse));
+                    GL(glUniform3fv(program->specular, 1, (GLfloat *)&mat->color_specular));
+
+                    GL(glUniform1ui(program->octree_level, OCTREE_LEVEL));
+                    GL(glUniform1ui(program->octree_resolution, gl.octree_resolution));
+                    GL(glUniform1ui(program->write, 1));
+
+                    GL(glUniform3fv(program->DEBUG_light_P, 1, (GLfloat *)&light_P));
+                    GL(glUniform3fv(program->DEBUG_light_color, 1, (GLfloat *)&light_color));
+                    GL(glUniform1f(program->DEBUG_light_strength, light_strength));
+
+                    GL(glEnableVertexAttribArray(0));
+                    GL(glEnableVertexAttribArray(1));
+                    GL(glEnableVertexAttribArray(2));
+                    GL(glEnableVertexAttribArray(3));
+                    GL(glEnableVertexAttribArray(4));
+                    GL(glEnableVertexAttribArray(5));
+
+                    GL(glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, pos))));
+                    GL(glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, normal))));
+                    GL(glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, uv))));
+                    GL(glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Vertex), (GLvoid *)(offset_of(Vertex, color))));
+                    GL(glVertexAttribIPointer(4, MAX_BONE_PER_VERTEX, GL_INT, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_ids))));
+                    GL(glVertexAttribPointer(5, MAX_BONE_PER_VERTEX, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_weights))));
+
+                    GL(glBufferData(GL_ARRAY_BUFFER,
+                                 mesh->vertex_count * sizeof(Vertex),
+                                 mesh->vertices,
+                                 GL_DYNAMIC_DRAW));
+
+                    GL(glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                                 mesh->index_count * sizeof(u32),
+                                 mesh->indices,
+                                 GL_DYNAMIC_DRAW));
+
+                    if (piece->animation_transforms)
+                        GL(glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms));
+
+                    GL(glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0));
+
+                    GL(glDisableVertexAttribArray(0));
+                    GL(glDisableVertexAttribArray(1));
+                    GL(glDisableVertexAttribArray(2));
+                    GL(glDisableVertexAttribArray(3));
+                    GL(glDisableVertexAttribArray(4));
+                    GL(glDisableVertexAttribArray(5));
+#endif
+                } break;
+
+                case eRender_Grass:
+                {
+                } break;
+
+                case eRender_Star:
+                {
+                } break;
+
+                case eRender_Bitmap:
+                {
+                } break;
+
+                INVALID_DEFAULT_CASE;
+            }
+        }
+    }
+
+    GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.fragment_counter));
+    mapped_fragment_count = (u32 *)glMapBufferRange(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(GLuint), GL_MAP_READ_BIT|GL_MAP_WRITE_BIT);
+    u32 fragment_count2 = mapped_fragment_count[0];
+    Assert(fragment_count == fragment_count2);
+    *mapped_fragment_count = 0;
     GL(glUnmapBuffer(GL_ATOMIC_COUNTER_BUFFER)); // @TODO: Is unmapping necessary?
     GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0));
 
@@ -886,36 +993,35 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
            group_y <= gl.max_compute_work_group_count[1]);
 
     // Reset variables
-    u32 zero = 0;
+    u32 one = 1;
     u32 start = 0;
+
+    // Reset alloc counter to 1.
     GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.alloc_count));
-    GL(glBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &zero));
+    GL(glBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &one));
     GL(glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, 0, gl.alloc_count));
     
     // 'Level' to be allocated.
-    for (u32 level = 0;
+    for (u32 level = 1;
          level <= OCTREE_LEVEL;
          ++level)
     {
         //
         // 1. Flag
         //
+        Flag_Program *fp = &gl.flag_program;
+        GL(glUseProgram(fp->id));
 
-        if (level != 0)
-        {
-            Flag_Program *fp = &gl.flag_program;
-            GL(glUseProgram(fp->id));
+        GL(glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI));
+        GL(glBindImageTexture(1, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
+        GL(glUniform1ui(fp->current_level, level));
+        GL(glUniform1ui(fp->octree_level, OCTREE_LEVEL));
+        GL(glUniform1ui(fp->octree_resolution, gl.octree_resolution));
+        GL(glUniform1ui(fp->fragment_count, fragment_count));
 
-            GL(glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI));
-            GL(glBindImageTexture(1, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
-            GL(glUniform1ui(fp->current_level, level));
-            GL(glUniform1ui(fp->octree_level, OCTREE_LEVEL));
-            GL(glUniform1ui(fp->octree_resolution, gl.octree_resolution));
-            GL(glUniform1ui(fp->fragment_count, fragment_count));
+        GL(glDispatchCompute(group_x, group_y, 1));
+        GL(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
 
-            GL(glDispatchCompute(group_x, group_y, 1));
-            GL(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
-        }
 
         //
         // 2. Alloc
@@ -927,45 +1033,10 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         GL(glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &prev_alloc_count));
         u32 node_count = (prev_alloc_count - (start >> 3));
         u32 alloc_size = (prev_alloc_count << 3);
+
         GL(glUniform1ui(ap->alloc_size, alloc_size));
         GL(glUniform1ui(ap->start, start));
         GL(glBindImageTexture(0, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
-
-        if (level != 0)
-        {
-            s32 dw = 1024;
-            s32 dh = (node_count + dw - 1) / dw;
-            s32 gx = (dw >> 3);
-            s32 gy = ((dh + 7) >> 3);
-            Assert(gx * gy * 8 * 8 >= (s32)node_count);
-            Assert(gx <= gl.max_compute_work_group_count[0] &&
-                   gy <= gl.max_compute_work_group_count[1]);
-            GL(glDispatchCompute(gx, gy, 1));
-            start = (prev_alloc_count << 3);
-        }
-        else
-        {
-            u32 one = 1;
-            GL(glBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &one));
-            start = 0;
-        }
-
-        GL(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT|GL_ATOMIC_COUNTER_BARRIER_BIT));
-
-
-        //
-        // 3. Init
-        //
-        Init_Program *ip = &gl.init_program;
-        GL(glUseProgram(ip->id));
-
-        GL(glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &prev_alloc_count));
-        node_count = (prev_alloc_count - (start >> 3));
-        alloc_size = (prev_alloc_count << 3);
-
-        GL(glBindImageTexture(0, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
-        GL(glUniform1ui(ip->start, start));
-        GL(glUniform1ui(ip->alloc_size, alloc_size));
 
         s32 dw = 1024;
         s32 dh = (node_count + dw - 1) / dw;
@@ -976,23 +1047,33 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                gy <= gl.max_compute_work_group_count[1]);
         GL(glDispatchCompute(gx, gy, 1));
         GL(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT|GL_ATOMIC_COUNTER_BARRIER_BIT));
+
+        // Update
+        start = (prev_alloc_count << 3);
+        GL(glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &prev_alloc_count));
+        node_count = (prev_alloc_count - (start >> 3));
+        alloc_size = (prev_alloc_count << 3);
+
+        //
+        // 3. Init
+        //
+        Init_Program *ip = &gl.init_program;
+        GL(glUseProgram(ip->id));
+
+        GL(glBindImageTexture(0, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
+        GL(glUniform1ui(ip->start, start));
+        GL(glUniform1ui(ip->alloc_size, alloc_size));
+
+        dw = 1024;
+        dh = (node_count + dw - 1) / dw;
+        gx = (dw >> 3);
+        gy = ((dh + 7) >> 3);
+        Assert(gx * gy * 8 * 8 >= (s32)node_count);
+        Assert(gx <= gl.max_compute_work_group_count[0] &&
+               gy <= gl.max_compute_work_group_count[1]);
+        GL(glDispatchCompute(gx, gy, 1));
+        GL(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT|GL_ATOMIC_COUNTER_BARRIER_BIT));
     }
-
-  #if 0
-    // Flag leaf nodes.
-    Flag_Program *fp = &gl.flag_program;
-    glUseProgram(fp->id);
-
-    glBindImageTexture(0, gl.flist_P_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGB10_A2UI);
-    glBindImageTexture(1, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
-    glUniform1ui(fp->current_level, OCTREE_LEVEL + 1);
-    glUniform1ui(fp->octree_level, OCTREE_LEVEL);
-    glUniform1ui(fp->octree_resolution, gl.octree_resolution);
-    glUniform1ui(fp->fragment_count, fragment_count);
-
-    glDispatchCompute(group_x, group_y, 1);
-    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-  #endif
 
     // Get allocated node count.
     u32 node_count;
@@ -1003,7 +1084,11 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     //
     // Creating (probably) memory-saved Octree Attribute Buffer.
     //
-    gl_gen_linear_buffer(&gl.octree_diffuse, &gl.octree_diffuse_texture, GL_R32UI, sizeof(u32) * node_count);
+    if (gl.max_node_count < node_count)
+    {
+        gl.max_node_count = node_count;
+        gl_gen_linear_buffer(&gl.octree_diffuse, &gl.octree_diffuse_texture, GL_R32UI, sizeof(u32) * (node_count << 3));
+    }
 
     Octree_Program *op = &gl.octree_program;
     GL(glUseProgram(op->id));
@@ -1153,9 +1238,8 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     GL(glCullFace(GL_BACK));
     GL(glFrontFace(GL_CCW));
 
-  #if 0
-    int DEBUG_DRAW_MODE //= SVOGI;
-                        = VOXEL_VISUALIZE;
+  #if 1
+    int DEBUG_DRAW_MODE = VV;
 
     for (Render_Group *group = (Render_Group *)batch->base;
          (u8 *)group < (u8 *)batch->base + batch->used;
@@ -1172,75 +1256,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                 {
                     switch (DEBUG_DRAW_MODE)
                     {
-                        case SVOGI:
-                        {
-                            Render_Mesh *piece = (Render_Mesh *)entity;
-                            Mesh *mesh            = piece->mesh;
-                            Material *mat         = piece->material;
-
-                            glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
-
-                            Mesh_Program *program = &gl.mesh_program;
-                            s32 pid = program->id;
-                            glUseProgram(pid);
-
-                            Camera *camera = group->camera;
-
-                            m4x4 voxel_VP = voxelize_clip_P;
-
-                            glUniformMatrix4fv(program->voxel_VP, 1, GL_TRUE, &voxel_VP.e[0][0]);
-                            glUniformMatrix4fv(program->persp_VP, 1, GL_TRUE, &group->camera->VP.e[0][0]);
-                            glUniform3fv(program->cam_pos, 1, (GLfloat *)&group->camera->world_translation);
-                            glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0);
-                            glUniform1ui(program->octree_resolution, gl.octree_resolution);
-                            glUniform3fv(program->DEBUG_light_P, 1, (GLfloat *)&light_P);
-                            glUniform3fv(program->DEBUG_light_color, 1, (GLfloat *)&light_color);
-                            glUniform1f(program->DEBUG_light_strength, light_strength);
-
-                            glBindImageTexture(0, gl.DEBUG_buffer_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
-
-                            glEnableVertexAttribArray(0);
-                            glEnableVertexAttribArray(1);
-                            glEnableVertexAttribArray(2);
-                            glEnableVertexAttribArray(3);
-                            glEnableVertexAttribArray(4);
-                            glEnableVertexAttribArray(5);
-
-                            glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, pos)));
-                            glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, normal)));
-                            glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, uv)));
-                            glVertexAttribPointer(3, 4, GL_FLOAT, true,  sizeof(Vertex), (GLvoid *)(offset_of(Vertex, color)));
-                            glVertexAttribIPointer(4, MAX_BONE_PER_VERTEX, GL_INT, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_ids)));
-                            glVertexAttribPointer(5, MAX_BONE_PER_VERTEX, GL_FLOAT, false, sizeof(Vertex), (GLvoid *)(offset_of(Vertex, node_weights)));
-
-                            glBufferData(GL_ARRAY_BUFFER,
-                                         mesh->vertex_count * sizeof(Vertex),
-                                         mesh->vertices,
-                                         GL_DYNAMIC_DRAW);
-
-                            glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                                         mesh->index_count * sizeof(u32),
-                                         mesh->indices,
-                                         GL_DYNAMIC_DRAW);
-
-                            glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]);
-                            if (piece->animation_transforms)
-                                glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
-                            glUniform3fv(program->color_ambient, 1, (GLfloat *)&mat->color_ambient);
-                            glUniform3fv(program->color_diffuse, 1, (GLfloat *)&mat->color_diffuse);
-                            glUniform3fv(program->color_specular, 1, (GLfloat *)&mat->color_specular);
-
-                            glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, (void *)0);
-
-                            glDisableVertexAttribArray(0);
-                            glDisableVertexAttribArray(1);
-                            glDisableVertexAttribArray(2);
-                            glDisableVertexAttribArray(3);
-                            glDisableVertexAttribArray(4);
-                            glDisableVertexAttribArray(5);
-                        } break;
-
-                        case VOXEL_VISUALIZE:
+                        case VV:
                         {
                             Render_Mesh *piece = (Render_Mesh *)entity;
                             Mesh *mesh            = piece->mesh;
@@ -1499,7 +1515,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
   #else
     GL(glBindBuffer(GL_ARRAY_BUFFER, gl.vbo));
 
-    Deffer_Program *program = &gl.deffer_program;
+    Defer_Program *program = &gl.defer_program;
     s32 pid = program->id;
     GL(glUseProgram(pid));
 
@@ -1512,12 +1528,15 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     GL(glBindTexture(GL_TEXTURE_2D, gb->Cid));
     GL(glActiveTexture(GL_TEXTURE0));
 
-    GL(glBindImageTexture(0, gl.DEBUG_buffer_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
+    GL(glBindImageTexture(0, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_R32UI));
+    GL(glBindImageTexture(1, gl.octree_diffuse_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_R32UI));
+    GL(glBindImageTexture(2, gl.DEBUG_buffer_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_R32UI));
 
     GL(glUniformMatrix4fv(program->voxel_P, 1, GL_TRUE, &voxelize_clip_P.e[0][0]));
     GL(glUniform3fv(program->DEBUG_light_P, 1, (GLfloat *)&light_P));
     GL(glUniform3fv(program->DEBUG_light_color, 1, (GLfloat *)&light_color));
     GL(glUniform1f(program->DEBUG_light_strength, light_strength));
+    GL(glUniform1ui(program->octree_level, OCTREE_LEVEL));
     GL(glUniform1ui(program->octree_resolution, gl.octree_resolution));
 
     // Draw full quad on screen.
@@ -1535,9 +1554,9 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     GL(glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(f32) * 5, (GLvoid *)(sizeof(f32) * 3)));
 
     GL(glBufferData(GL_ARRAY_BUFFER,
-                 sizeof(f32) * array_count(vertices),
-                 vertices,
-                 GL_DYNAMIC_DRAW));
+                    sizeof(f32) * array_count(vertices),
+                    vertices,
+                    GL_DYNAMIC_DRAW));
     GL(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
     GL(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
 
@@ -1637,10 +1656,10 @@ gl_init()
     const char *octree_cs = 
         #include "shader/octree.comp"
 
-    const char *deffer_vs = 
-        #include "shader/deffer.vs"
-    const char *deffer_fs = 
-        #include "shader/deffer.fs"
+    const char *defer_vs = 
+        #include "shader/defer.vs"
+    const char *defer_fs = 
+        #include "shader/defer.fs"
 
 
 
@@ -1684,6 +1703,7 @@ gl_init()
     GET_UNIFORM_LOCATION(voxelization_program, voxel_map);
     GET_UNIFORM_LOCATION(voxelization_program, octree_level);
     GET_UNIFORM_LOCATION(voxelization_program, octree_resolution);
+    GET_UNIFORM_LOCATION(voxelization_program, write);
     GET_UNIFORM_LOCATION(voxelization_program, ambient);
     GET_UNIFORM_LOCATION(voxelization_program, diffuse);
     GET_UNIFORM_LOCATION(voxelization_program, specular);
@@ -1726,15 +1746,16 @@ gl_init()
     GET_UNIFORM_LOCATION(octree_program, octree_resolution);
     GET_UNIFORM_LOCATION(octree_program, fragment_count);
 
-    gl.deffer_program.id = gl_create_program(header, deffer_vs, deffer_fs);
-    GET_UNIFORM_LOCATION(deffer_program, gP);
-    GET_UNIFORM_LOCATION(deffer_program, gN);
-    GET_UNIFORM_LOCATION(deffer_program, gC);
-    GET_UNIFORM_LOCATION(deffer_program, voxel_P);
-    GET_UNIFORM_LOCATION(deffer_program, octree_resolution);
-    GET_UNIFORM_LOCATION(deffer_program, DEBUG_light_P);
-    GET_UNIFORM_LOCATION(deffer_program, DEBUG_light_color);
-    GET_UNIFORM_LOCATION(deffer_program, DEBUG_light_strength);
+    gl.defer_program.id = gl_create_program(header, defer_vs, defer_fs);
+    GET_UNIFORM_LOCATION(defer_program, gP);
+    GET_UNIFORM_LOCATION(defer_program, gN);
+    GET_UNIFORM_LOCATION(defer_program, gC);
+    GET_UNIFORM_LOCATION(defer_program, voxel_P);
+    GET_UNIFORM_LOCATION(defer_program, octree_level);
+    GET_UNIFORM_LOCATION(defer_program, octree_resolution);
+    GET_UNIFORM_LOCATION(defer_program, DEBUG_light_P);
+    GET_UNIFORM_LOCATION(defer_program, DEBUG_light_color);
+    GET_UNIFORM_LOCATION(defer_program, DEBUG_light_strength);
 
 
 
@@ -1761,7 +1782,6 @@ gl_init()
     // Sparse Voxel Octree
     //
     gl.octree_resolution = (1 << OCTREE_LEVEL);
-    gl.fragment_list_capacity = MB(64);
     GL(glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &gl.max_compute_work_group_count[0]));
     GL(glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, &gl.max_compute_work_group_count[1]));
     GL(glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, &gl.max_compute_work_group_count[2]));
@@ -1780,16 +1800,14 @@ gl_init()
     GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0));
 
     // Fragment Lists
-    u32 max_cap = 0;
-    for (u32 level = 0, addend = 1;
+    u32 max_cap = 8;
+    for (u32 level = 1, tmp = 8;
          level <= OCTREE_LEVEL;
-         ++level, addend <<= 3)
+         ++level, tmp <<= 3)
     {
-        max_cap += addend;
+        max_cap += tmp;
     }
     gl_gen_linear_buffer(&gl.octree_nodes, &gl.octree_nodes_texture, GL_R32UI, sizeof(u32) * max_cap);
-    gl_gen_linear_buffer(&gl.flist_P, &gl.flist_P_texture, GL_R32UI, sizeof(u32) * gl.fragment_list_capacity);
-    gl_gen_linear_buffer(&gl.flist_diffuse, &gl.flist_diffuse_texture, GL_RGBA8, sizeof(u32) * gl.fragment_list_capacity);
 
 
     //
