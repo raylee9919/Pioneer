@@ -43,9 +43,6 @@ void main()
         f32 cos_falloff = max(dot(fN, to_light), 0.0f);
         v3 diffuse_light = cos_falloff * fC * DEBUG_light_strength * DEBUG_light_color * attenuation;
 
-
-
-
     
         #define SHADOW_STR 1.0f
         f32 occlusion = 0.0f;

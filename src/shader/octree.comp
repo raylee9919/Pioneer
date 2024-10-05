@@ -13,7 +13,7 @@ uniform u32 fragment_count;
 
 void main()
 {
-    u32 tid = (gl_GlobalInvocationID.y << 10) + gl_GlobalInvocationID.x;
+    u32 tid = (gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x) * 64 + gl_LocalInvocationIndex;
     if (tid < fragment_count)
     {
         uv4 coord   = imageLoad(flist_P, s32(tid));
@@ -32,7 +32,8 @@ void main()
             coord -= sub;
             idx = node + offset;
 
-            node = (imageLoad(octree_nodes, s32(idx)).r & 0x7fffffff);
+            if (idx < 1227133520)
+                node = (imageLoad(octree_nodes, s32(idx)).r & 0x7fffffff);
         }
 
         //

@@ -8,17 +8,11 @@ uniform layout(binding = 0, r32ui) uimageBuffer octree_nodes;
 
 void main()
 {
-    u32 tid = (gl_GlobalInvocationID.y << 10) + gl_GlobalInvocationID.x;
-    u32 node_idx = start + (tid << 3);
-    if (node_idx < alloc_size)
+    u32 tid = (gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x) * 64 + gl_LocalInvocationIndex;
+    u32 idx = start + tid;
+    if (idx < alloc_size)
     {
-        for (u32 i = 0;
-             i < 8;
-             ++i)
-        {
-            u32 idx = node_idx + i;
-            imageStore(octree_nodes, s32(idx), uv4(0, 0, 0, 0));
-        }
+        imageStore(octree_nodes, s32(idx), uv4(0, 0, 0, 0));
     }
 }
 

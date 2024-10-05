@@ -229,7 +229,6 @@ struct GL
     u32     fragment_counter;
     u32     alloc_count;
     u32     max_fragment_count;
-    u32     max_node_count;
     s32     max_compute_work_group_count[3];
 
     u32     octree_nodes;

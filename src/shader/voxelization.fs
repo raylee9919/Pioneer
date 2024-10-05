@@ -7,7 +7,6 @@ uniform layout(binding = 0, offset = 0) atomic_uint fragment_counter;
 uniform layout(binding = 0, rgb10_a2ui) uimageBuffer flist_P;
 uniform layout(binding = 1, rgba8) imageBuffer flist_diffuse;
 
-
 uniform v3 ambient;
 uniform v3 diffuse;
 uniform v3 specular;
@@ -34,7 +33,8 @@ void main()
     if (clip_fP.x >= fAABB.x &&
         clip_fP.y >= fAABB.y &&
         clip_fP.x <= fAABB.z &&
-        clip_fP.y <= fAABB.w)
+        clip_fP.y <= fAABB.w &&
+        is_in_clip_space(clip_fP))
     {
         v3 coord_01 = 0.5f * clip_fP + v3(0.5f);
         v3 coord = f32(octree_resolution) * coord_01;
@@ -53,14 +53,7 @@ void main()
             v4 val = v4(fC.xyz * diffuse, 1);
             //v4 val = v4(1, 0, 1, 1);
 
-            //
-            // Assign voxel coordinate to fragment list
-            //
             imageStore(flist_P, next_empty, uv4(ucoord, 0));
-    
-            //
-            // Diffuse Light
-            //
             imageStore(flist_diffuse, next_empty, val);
         }
     

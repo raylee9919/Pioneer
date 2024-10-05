@@ -692,6 +692,7 @@ GAME_UPDATE(game_update)
 
                             case Entity_Type::TILE: 
                             {
+#if 1
                                 Model *model = assets->cube_model;
                                 if (model)
                                 {
@@ -705,6 +706,7 @@ GAME_UPDATE(game_update)
                                         push_mesh(render_group, mesh, mat, world_transform);
                                     }
                                 }
+#endif
                             } break;
 
                             case Entity_Type::LIGHT:

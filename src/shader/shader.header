@@ -63,5 +63,15 @@ light_attenuation(v3 light_P, v3 world_P)
     return result;
 }
 
+b32
+is_in_clip_space(v3 V)
+{
+    b32 result = (
+        V.x >= -1.0f && V.x <= 1.0f &&
+        V.y >= -1.0f && V.y <= 1.0f &&
+        V.z >= -1.0f && V.z <= 1.0f
+    );
+    return result;
+}
 
 )";
