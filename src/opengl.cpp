@@ -831,9 +831,17 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
     u32 res = gl.octree_resolution;
 
+#if 1
+    f32 DEBUG_R = 20;
+    f32 DEBUG_T = time*0.2f;
+    v3 light_P = v3{DEBUG_R*cos(DEBUG_T), DEBUG_R*sin(DEBUG_T), 0};
+    v3 light_color = v3{1, 1, 1};
+    f32 light_strength = 20.0f;
+#else
     v3 light_P = v3{0, 2, 0};
     v3 light_color = v3{1, 1, 1};
     f32 light_strength = 1.0f;
+#endif
 
     //
     // Voxelization Pass
@@ -1154,7 +1162,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     GL(glCullFace(GL_BACK));
     GL(glFrontFace(GL_CCW));
 
-  #if 1
+  #if 0
     int DEBUG_DRAW_MODE = VV;
 
     for (Render_Group *group = (Render_Group *)batch->base;
@@ -1430,9 +1438,9 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
   #else
     GL(glBindBuffer(GL_ARRAY_BUFFER, gl.vbo));
 
-    Defer_Program *program = &gl.defer_program;
-    s32 pid = program->id;
-    GL(glUseProgram(pid));
+    Defer_Program *dp = &gl.defer_program;
+    s32 dpid = dp->id;
+    GL(glUseProgram(dpid));
 
     // G-Buffer
     GL(glActiveTexture(GL_TEXTURE1));
@@ -1446,12 +1454,12 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     GL(glBindImageTexture(0, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
     GL(glBindImageTexture(1, gl.octree_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
 
-    GL(glUniformMatrix4fv(program->voxel_P, 1, GL_TRUE, &voxelize_clip_P.e[0][0]));
-    GL(glUniform3fv(program->DEBUG_light_P, 1, (GLfloat *)&light_P));
-    GL(glUniform3fv(program->DEBUG_light_color, 1, (GLfloat *)&light_color));
-    GL(glUniform1f(program->DEBUG_light_strength, light_strength));
-    GL(glUniform1ui(program->octree_level, OCTREE_LEVEL));
-    GL(glUniform1ui(program->octree_resolution, gl.octree_resolution));
+    GL(glUniformMatrix4fv(dp->voxel_P, 1, GL_TRUE, &voxelize_clip_P.e[0][0]));
+    GL(glUniform3fv(dp->DEBUG_light_P, 1, (GLfloat *)&light_P));
+    GL(glUniform3fv(dp->DEBUG_light_color, 1, (GLfloat *)&light_color));
+    GL(glUniform1f(dp->DEBUG_light_strength, light_strength));
+    GL(glUniform1ui(dp->octree_level, OCTREE_LEVEL));
+    GL(glUniform1ui(dp->octree_resolution, gl.octree_resolution));
 
     // Draw full quad on screen.
     f32 vertices[] = { // P, UV
@@ -1476,6 +1484,68 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
     GL(glDisableVertexAttribArray(0));
     GL(glDisableVertexAttribArray(2));
+
+
+    // Draw else... overlay..
+    for (Render_Group *group = (Render_Group *)batch->base;
+         (u8 *)group < (u8 *)batch->base + batch->used;
+         ++group)
+    {
+        for (u8 *at = group->base;
+             at < group->base + group->used;
+             at += ((Render_Entity_Header *)at)->size)
+        {
+            Render_Entity_Header *entity = (Render_Entity_Header *)at;
+            switch (entity->type)
+            {
+                case eRender_Bitmap:
+                {
+                    Render_Bitmap *piece  = (Render_Bitmap *)entity;
+
+                    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+
+                    Sprite_Program *program = &gl.sprite_program;
+                    s32 pid = program->id;
+                    glUseProgram(pid);
+
+                    glUniformMatrix4fv(program->mvp, 1, GL_TRUE, &group->camera->VP.e[0][0]);
+                    glUniform4fv(program->color, 1, &piece->color.r);
+
+                    glEnableVertexAttribArray(0);
+                    glEnableVertexAttribArray(2);
+
+                    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)offset_of(Textured_Vertex, pos));
+                    glVertexAttribPointer(2, 2, GL_FLOAT, false, sizeof(Textured_Vertex), (GLvoid *)offset_of(Textured_Vertex, uv));
+
+                    gl_bind_texture(piece->bitmap);
+
+                    v3 min = piece->min;
+                    v3 max = piece->max;
+
+                    Textured_Vertex v[4];
+                    v[0].pos = _v3_(max.x, min.y, 0);
+                    v[0].uv  = _v2_(1, 0);
+
+                    v[1].pos = max;
+                    v[1].uv  = _v2_(1, 1);
+
+                    v[2].pos = min;
+                    v[2].uv  = _v2_(0, 0);
+
+                    v[3].pos = _v3_(min.x, max.y, 0);
+                    v[3].uv  = _v2_(0, 1);
+
+                    glBufferData(GL_ARRAY_BUFFER,
+                                 array_count(v) * sizeof(*v), v,
+                                 GL_STATIC_DRAW);
+                    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+                    glDisableVertexAttribArray(0);
+                    glDisableVertexAttribArray(2);
+                } break;
+            }
+        }
+    }
   #endif
 #endif
             

@@ -31,10 +31,7 @@ void main()
             coord -= sub;
             idx = node + offset;
 
-            if (idx < 1227133520)
-            {
-                node = (imageLoad(octree_nodes, s32(idx)).r & 0x7fffffff);
-            }
+            node = (imageLoad(octree_nodes, s32(idx)).r & 0x7fffffff);
         }
 
         // Since storing occurs on the last level, it is safe to ignore

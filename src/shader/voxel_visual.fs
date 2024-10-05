@@ -34,8 +34,7 @@ void main()
         ucoord -= sub;
         idx = node + offset;
 
-        if (idx < 1227133520)
-            node = (imageLoad(octree_nodes, s32(idx)).r & 0x7fffffff);
+        node = (imageLoad(octree_nodes, s32(idx)).r & 0x7fffffff);
 
         if (node == 0)
         {

@@ -47,7 +47,7 @@ void main()
         #define SHADOW_STR 1.0f
         f32 occlusion = 0.0f;
         f32 march = 0.001f;
-        f32 max_dist = distance(DEBUG_light_P, fP);
+        f32 max_dist = min(distance(DEBUG_light_P, fP), 10.0f);
 
         while (march < max_dist &&
                occlusion < 1.0f)
@@ -82,7 +82,7 @@ void main()
                 occlusion += (1 - occlusion) * smoothstep(0.0f, max_dist, sqrt(march) * SHADOW_STR);
             }
 
-            march += 0.01f;
+            march += 0.10f;
         }
 
         C = v4(v3(1 - occlusion) * diffuse_light, 1.0f);
