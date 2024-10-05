@@ -527,10 +527,6 @@ GAME_UPDATE(game_update)
         if (input->mouse.is_down[eMouse_Left])
         {
             push_rect(orthographic_group, rect2_cen_half_dim(v2{100, 100}, v2{100, 100}), 0.0f, v4{1.0f, 1.0f, 1.0f, 1.0f});
-            Camera *cam = game_state->using_camera;
-            v3 ray_origin = cam->world_translation;
-            v3 ray_direction = normalize(to_m4x4(cam->world_rotation) * v3{0, 0, -1});
-            f32 hit_dist = F32_MAX;
         }
 
     }

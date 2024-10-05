@@ -43,49 +43,7 @@ void main()
         f32 cos_falloff = max(dot(fN, to_light), 0.0f);
         v3 diffuse_light = cos_falloff * fC * DEBUG_light_strength * DEBUG_light_color * attenuation;
 
-    
-        #define SHADOW_STR 1.0f
-        f32 occlusion = 0.0f;
-        f32 march = 0.001f;
-        f32 max_dist = min(distance(DEBUG_light_P, fP), 10.0f);
-
-        while (march < max_dist &&
-               occlusion < 1.0f)
-        {
-            v3 cen = fP + to_light * march;
-
-            v3 idx_01 = (voxel_P * v4(cen, 1)).xyz * 0.5f + v3(0.5f);
-            uv3 ucoord = uv3(idx_01 * octree_resolution);
-
-            u32 idx = 0;
-            u32 node = 0;
-
-            for (u32 level = 0;
-                 level <= octree_level;
-                 ++level)
-            {
-                u32 s = (octree_level - level);
-                uv3 sub = ucoord;
-                sub >>= s;
-                u32 offset = sub.x + (sub.y << 1) + (sub.z << 2);
-                sub <<= s;
-                ucoord -= sub;
-                idx = node + offset;
-
-                node = (imageLoad(octree_nodes, s32(idx)).r & 0x7fffffff);
-            }
-
-            u32 val = imageLoad(octree_diffuse, s32(idx)).r;
-            v4 S = rgba8_to_v4(val);
-            if (S.a > 0)
-            {
-                occlusion += (1 - occlusion) * smoothstep(0.0f, max_dist, sqrt(march) * SHADOW_STR);
-            }
-
-            march += 0.10f;
-        }
-
-        C = v4(v3(1 - occlusion) * diffuse_light, 1.0f);
+        C = v4(diffuse_light, 1.0f);
     }
     else // DEBUG
     {

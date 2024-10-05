@@ -831,12 +831,12 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
 
     u32 res = gl.octree_resolution;
 
-#if 1
-    f32 DEBUG_R = 20;
-    f32 DEBUG_T = time*0.2f;
-    v3 light_P = v3{DEBUG_R*cos(DEBUG_T), DEBUG_R*sin(DEBUG_T), 0};
+#if 0
+    f32 DEBUG_R = 1;
+    f32 DEBUG_T = time;
+    v3 light_P = v3{DEBUG_R*cos(DEBUG_T), 2, DEBUG_R*sin(DEBUG_T)};
     v3 light_color = v3{1, 1, 1};
-    f32 light_strength = 20.0f;
+    f32 light_strength = 1.0f;
 #else
     v3 light_P = v3{0, 2, 0};
     v3 light_color = v3{1, 1, 1};
