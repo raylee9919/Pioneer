@@ -190,6 +190,9 @@ struct Render_Batch
 
     u32     width;
     u32     height;
+
+    // DEBUG
+    u32 DEBUG_voxel_level;
 };
 
 struct Game_Memory 

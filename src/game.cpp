@@ -524,11 +524,6 @@ GAME_UPDATE(game_update)
             }
         }
 
-        if (input->mouse.is_down[eMouse_Left])
-        {
-            push_rect(orthographic_group, rect2_cen_half_dim(v2{100, 100}, v2{100, 100}), 0.0f, v4{1.0f, 1.0f, 1.0f, 1.0f});
-        }
-
     }
 
 
@@ -814,12 +809,12 @@ GAME_UPDATE(game_update)
 #endif
 
         // Render Batch to Graphics API
+        game_memory->render_batch.DEBUG_voxel_level = 10;
         game_memory->render_batch.dt = dt;
         game_memory->render_batch.time = time;
         render_group_to_output_batch(render_group, &game_memory->render_batch);
         render_group_to_output_batch(orthographic_group, &game_memory->render_batch);
         end_temporary_memory(&render_memory);
-
 }
 
 

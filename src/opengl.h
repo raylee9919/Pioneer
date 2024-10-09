@@ -110,6 +110,7 @@ struct Voxel_Program
     s32     ortho_P;
     s32     is_skeletal;
     s32     bone_transforms;
+    s32     DEBUG_level;
 
     s32     octree_level;
     s32     octree_resolution;
@@ -123,6 +124,9 @@ struct G_Buffer_Program
     s32     VP;
     s32     is_skeletal;
     s32     bone_transforms;
+    s32     ambient;
+    s32     diffuse;
+    s32     specular;
 };
 
 struct Flag_Program
@@ -160,6 +164,22 @@ struct Octree_Program
     s32     fragment_count;
 };
 
+struct Flag_Leaf_Program
+{
+    s32     id;
+    
+    s32     leaf_start;
+    s32     leaf_end;
+};
+
+struct Mipmap_Program
+{
+    s32     id;
+
+    s32     level_start;
+    s32     level_end;
+};
+
 
 struct Defer_Program
 {
@@ -168,6 +188,10 @@ struct Defer_Program
     s32     gP;
     s32     gN;
     s32     gC;
+
+    s32     cam_P;
+
+    s32     voxel_in_meter;
 
     s32     DEBUG_light_P;
     s32     DEBUG_light_color;
@@ -204,6 +228,8 @@ struct GL
     Alloc_Program           alloc_program;
     Init_Program            init_program;
     Octree_Program          octree_program;
+    Flag_Leaf_Program       flag_leaf_program;
+    Mipmap_Program          mipmap_program;
 
     Defer_Program           defer_program;
 

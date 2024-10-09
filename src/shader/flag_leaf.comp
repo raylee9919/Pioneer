@@ -1,0 +1,20 @@
+R"===(
+
+layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+uniform layout(binding = 0, r32ui) uimageBuffer octree_nodes;
+
+uniform u32 leaf_start;
+uniform u32 leaf_end;
+
+void main()
+{
+    u32 tid = (gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x) * 64 + gl_LocalInvocationIndex;
+    u32 idx = leaf_start + tid;
+    if (idx < leaf_end)
+    {
+        imageStore( octree_nodes, s32(idx), uv4(0x80000000, 0, 0, 0) );
+    }
+}
+
+)===";

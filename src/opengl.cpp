@@ -15,7 +15,7 @@
 #include "opengl.h"
 
 #define OCTREE_LEVEL        10       // For debug buffer, LEVEL 10 won't work. Too big.
-#define VOXEL_HALF_SIDE     50
+#define VOXEL_HALF_SIDE     50 
 #define VV                  0
 
 
@@ -838,7 +838,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     v3 light_color = v3{1, 1, 1};
     f32 light_strength = 1.0f;
 #else
-    v3 light_P = v3{0, 2, 0};
+    v3 light_P = v3{0, 3, 0};
     v3 light_color = v3{1, 1, 1};
     f32 light_strength = 1.0f;
 #endif
@@ -853,6 +853,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         { 0,  0, -x , 0},
         { 0,  0,  0,  1}
     }};
+    f32 voxel_in_meter = ((2.0f*VOXEL_HALF_SIDE) / (gl.octree_resolution));
 
     // Settings
     GL(glViewport(0, 0, gl.octree_resolution, gl.octree_resolution));
@@ -908,6 +909,10 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     s32 wx, wy, gx, gy;
     u32 one = 1;
     u32 start = 0;
+    u32 level_start[OCTREE_LEVEL + 1];
+    u32 level_end[OCTREE_LEVEL + 1];
+    level_start[0] = 0;
+    level_end[0] = 1;
 
     // Reset alloc counter to 1.
     GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, gl.alloc_count));
@@ -973,6 +978,8 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         GL(glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &prev_alloc_count));
         node_count = (prev_alloc_count - (start >> 3));
         alloc_size = (prev_alloc_count << 3);
+        level_start[level] = start;
+        level_end[level] = alloc_size;
 
         //
         // 3. Init
@@ -995,10 +1002,32 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
         GL(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT|GL_ATOMIC_COUNTER_BARRIER_BIT));
     }
 
-    // Get allocated node count.
+    // get alloced node #.
     u32 node_count;
     GL(glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(u32), &node_count));
     GL(glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0));
+
+    // flag all leaves for mip-mapping.
+    u32 work_size;
+  #if 0
+    Flag_Leaf_Program *fp = &gl.flag_leaf_program;
+    GL(glUseProgram(fp->id));
+
+    GL(glBindImageTexture(0, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
+    GL(glUniform1ui(fp->leaf_start, level_start[OCTREE_LEVEL]));
+    GL(glUniform1ui(fp->leaf_end, level_end[OCTREE_LEVEL]));
+
+    work_size = (level_end[OCTREE_LEVEL] - level_start[OCTREE_LEVEL]);
+    wx = 1024;
+    wy = (work_size + wx - 1) / wx;
+    gx = 128;
+    gy = ((wy + 7) >> 3);
+    Assert((gx*gy*8*8) >= (s32)work_size);
+    Assert(gx <= gl.max_compute_work_group_count[0] &&
+           gy <= gl.max_compute_work_group_count[1]);
+    GL(glDispatchCompute(gx, gy, 1));
+    GL(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
+  #endif
 
     u32 zero = 0;
     //
@@ -1031,6 +1060,36 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     GL(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
 #endif
 
+    //
+    // build octree mipmap from leaf.
+    //
+#if 1
+    Mipmap_Program *mp = &gl.mipmap_program;
+    GL(glUseProgram(mp->id));
+
+    GL(glBindImageTexture(0, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
+    GL(glBindImageTexture(1, gl.octree_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
+
+    for (u32 i = 1; i <= OCTREE_LEVEL; ++i)
+    {
+        u32 level = (OCTREE_LEVEL - i);
+
+        GL(glUniform1ui(mp->level_start, level_start[level]));
+        GL(glUniform1ui(mp->level_end, level_end[level]));
+
+        work_size = (level_end[level] - level_start[level]);
+        wx = 1024;
+        wy = (work_size + wx - 1) / wx;
+        gx = 128;
+        gy = ((wy + 7) >> 3);
+        Assert((gx*gy*8*8) >= (s32)work_size);
+        Assert(gx <= gl.max_compute_work_group_count[0] &&
+               gy <= gl.max_compute_work_group_count[1]);
+        GL(glDispatchCompute(gx, gy, 1));
+        GL(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
+    }
+#endif
+
 
 
 
@@ -1052,15 +1111,14 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     GL(glClearDepth(1));
     GL(glClear(GL_DEPTH_BUFFER_BIT));
     GL(glDepthFunc(GL_LEQUAL));
-    GL(glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE));
-    GL(glEnable(GL_SAMPLE_ALPHA_TO_ONE));
-    GL(glEnable(GL_MULTISAMPLE));
+    GL(glDisable(GL_MULTISAMPLE));
     GL(glEnable(GL_CULL_FACE));
     GL(glCullFace(GL_BACK));
     GL(glFrontFace(GL_CCW));
 
     //
 
+    v3 cam_P;
     for (Render_Group *group = (Render_Group *)batch->base;
          (u8 *)group < (u8 *)batch->base + batch->used;
          ++group)
@@ -1083,10 +1141,14 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                     glUseProgram(pid);
 
                     Camera *camera = group->camera;
+                    cam_P = camera->world_translation;
 
                     GL(glUniformMatrix4fv(program->VP, 1, GL_TRUE, &group->camera->VP.e[0][0]));
                     GL(glUniform1i(program->is_skeletal, piece->animation_transforms ? 1 : 0));
                     GL(glUniformMatrix4fv(program->world_transform, 1, true, &piece->world_transform.e[0][0]));
+                    GL(glUniform3fv(program->ambient, 1, (GLfloat *)&mat->color_ambient));
+                    GL(glUniform3fv(program->diffuse, 1, (GLfloat *)&mat->color_diffuse));
+                    GL(glUniform3fv(program->specular, 1, (GLfloat *)&mat->color_specular));
 
                     GL(glEnableVertexAttribArray(0));
                     GL(glEnableVertexAttribArray(1));
@@ -1138,7 +1200,6 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     //
 #if 1
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
-    // Settings
     GL(glViewport(0, 0, win_w, win_h));
 
     GL(glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE));
@@ -1154,8 +1215,6 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     GL(glClear(GL_DEPTH_BUFFER_BIT));
     GL(glDepthFunc(GL_LEQUAL));
 
-    GL(glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE));
-    GL(glEnable(GL_SAMPLE_ALPHA_TO_ONE));
     GL(glDisable(GL_MULTISAMPLE));
 
     GL(glEnable(GL_CULL_FACE));
@@ -1203,6 +1262,7 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
                                 glUniformMatrix4fv(program->bone_transforms, MAX_BONE_PER_MESH, true, (GLfloat *)piece->animation_transforms);
                             glUniform1ui(program->octree_level, OCTREE_LEVEL);
                             glUniform1ui(program->octree_resolution, gl.octree_resolution);
+                            glUniform1ui(program->DEBUG_level, batch->DEBUG_voxel_level);
 
                             glBindImageTexture(0, gl.octree_nodes_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
                             glBindImageTexture(1, gl.octree_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
@@ -1455,13 +1515,15 @@ gl_render_batch(Render_Batch *batch, u32 win_w, u32 win_h)
     GL(glBindImageTexture(1, gl.octree_diffuse_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI));
 
     GL(glUniformMatrix4fv(dp->voxel_P, 1, GL_TRUE, &voxelize_clip_P.e[0][0]));
+    GL(glUniform3fv(dp->cam_P, 1, (GLfloat *)&cam_P));
     GL(glUniform3fv(dp->DEBUG_light_P, 1, (GLfloat *)&light_P));
     GL(glUniform3fv(dp->DEBUG_light_color, 1, (GLfloat *)&light_color));
     GL(glUniform1f(dp->DEBUG_light_strength, light_strength));
+    GL(glUniform1f(dp->voxel_in_meter, voxel_in_meter));
     GL(glUniform1ui(dp->octree_level, OCTREE_LEVEL));
     GL(glUniform1ui(dp->octree_resolution, gl.octree_resolution));
 
-    // Draw full quad on screen.
+    // Draw full quad on the screen.
     f32 vertices[] = { // P, UV
          1.0f, -1.0f, 0.0f,      1.0f,  0.0f,
          1.0f,  1.0f, 0.0f,      1.0f,  1.0f,
@@ -1639,6 +1701,10 @@ gl_init()
         #include "shader/init.comp"
     const char *octree_cs = 
         #include "shader/octree.comp"
+    const char *flag_leaf_cs = 
+        #include "shader/flag_leaf.comp"
+    const char *mipmap_cs = 
+        #include "shader/mipmap.comp"
 
     const char *defer_vs = 
         #include "shader/defer.vs"
@@ -1704,12 +1770,16 @@ gl_init()
     GET_UNIFORM_LOCATION(voxel_program, bone_transforms);
     GET_UNIFORM_LOCATION(voxel_program, octree_level);
     GET_UNIFORM_LOCATION(voxel_program, octree_resolution);
+    GET_UNIFORM_LOCATION(voxel_program, DEBUG_level);
 
     gl.gbuffer_program.id = gl_create_program(header, gbuffer_vs, gbuffer_fs);
     GET_UNIFORM_LOCATION(gbuffer_program, world_transform);
     GET_UNIFORM_LOCATION(gbuffer_program, VP);
     GET_UNIFORM_LOCATION(gbuffer_program, is_skeletal);
     GET_UNIFORM_LOCATION(gbuffer_program, bone_transforms);
+    GET_UNIFORM_LOCATION(gbuffer_program, ambient);
+    GET_UNIFORM_LOCATION(gbuffer_program, diffuse);
+    GET_UNIFORM_LOCATION(gbuffer_program, specular);
 
     gl.flag_program.id = gl_create_compute_program(header, flag_cs);
     GET_UNIFORM_LOCATION(flag_program, current_level);
@@ -1730,13 +1800,23 @@ gl_init()
     GET_UNIFORM_LOCATION(octree_program, octree_resolution);
     GET_UNIFORM_LOCATION(octree_program, fragment_count);
 
+    gl.flag_leaf_program.id = gl_create_compute_program(header, flag_leaf_cs);
+    GET_UNIFORM_LOCATION(flag_leaf_program, leaf_start);
+    GET_UNIFORM_LOCATION(flag_leaf_program, leaf_end);
+
+    gl.mipmap_program.id = gl_create_compute_program(header, mipmap_cs);
+    GET_UNIFORM_LOCATION(mipmap_program, level_start);
+    GET_UNIFORM_LOCATION(mipmap_program, level_end);
+
     gl.defer_program.id = gl_create_program(header, defer_vs, defer_fs);
     GET_UNIFORM_LOCATION(defer_program, gP);
     GET_UNIFORM_LOCATION(defer_program, gN);
     GET_UNIFORM_LOCATION(defer_program, gC);
     GET_UNIFORM_LOCATION(defer_program, voxel_P);
+    GET_UNIFORM_LOCATION(defer_program, voxel_in_meter);
     GET_UNIFORM_LOCATION(defer_program, octree_level);
     GET_UNIFORM_LOCATION(defer_program, octree_resolution);
+    GET_UNIFORM_LOCATION(defer_program, cam_P);
     GET_UNIFORM_LOCATION(defer_program, DEBUG_light_P);
     GET_UNIFORM_LOCATION(defer_program, DEBUG_light_color);
     GET_UNIFORM_LOCATION(defer_program, DEBUG_light_strength);

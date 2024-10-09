@@ -12,6 +12,8 @@ uniform layout(binding = 1, r32ui) uimageBuffer octree_diffuse;
 uniform u32 octree_level;
 uniform u32 octree_resolution;
 
+uniform u32 DEBUG_level;
+
 void main()
 {
     v3 coord_01 = 0.5f * ortho_clip_P + v3(0.5f);
@@ -21,9 +23,8 @@ void main()
     u32 idx = 0;
     u32 node = 0;
 
-    b32 DEBUG_leaf = false;
     for (u32 level = 0;
-         level <= octree_level;
+         level <= DEBUG_level;
          ++level)
     {
         u32 s = (octree_level - level);
@@ -38,23 +39,11 @@ void main()
 
         if (node == 0)
         {
-            if (level == octree_level)
-            {
-                DEBUG_leaf = true;
-            }
             break;
         }
     }
 
-    if (DEBUG_leaf)
-    {
-        C = v4(rgba8_to_v4(imageLoad(octree_diffuse, s32(idx)).r).rgb, 1);
-        //C = v4(1, 0, 1, 1);
-    }
-    else
-    {
-        C = v4(1, 1, 0, 1);
-    }
+    C = v4(rgba8_to_v4(imageLoad(octree_diffuse, s32(idx)).r).rgb, 1);
 }
 
 )MULTILINE"

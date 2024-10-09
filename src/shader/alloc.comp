@@ -17,7 +17,7 @@ void main()
         if ((val & 0x80000000) != 0)
         {
             u32 next_empty = (atomicCounterIncrement(alloc_count) << 3);
-            val |= next_empty;
+            val |= (next_empty & 0x7fffffff);
             imageStore(octree_nodes, s32(idx), uv4(val, 0, 0, 0));
         }
     }

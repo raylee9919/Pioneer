@@ -27,7 +27,7 @@ void main()
     //
     // Animation
     //
-    m4x4 final_transform;
+    m4x4 M;
     if (is_skeletal != 0)
     {
         mat4x4 bone_transform;
@@ -54,19 +54,19 @@ void main()
             bone_transform = identity();
         }
 
-        final_transform = world_transform * bone_transform;
+        M = world_transform * bone_transform;
     }
     else
     {
-        final_transform = world_transform;
+        M = world_transform;
     }
 
     //
     // Out
     //
-    v4 result_pos = final_transform * v4(vP, 1.0f);
+    v4 result_pos = M * v4(vP, 1.0f);
     fP  = result_pos.xyz;
-    fN  = normalize(m3x3(final_transform) * vN);
+    fN  = normalize(m3x3(M) * vN);
     fUV = vUV;
     fC  = vC;
 

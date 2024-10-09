@@ -38,7 +38,6 @@ void main()
         //
         // Diffuse
         //
-#if 1
         v4 diffuse = imageLoad(flist_diffuse, s32(tid));
         u32 new_val = v4_to_rgba8(diffuse);
         u32 prev = 0;
@@ -57,10 +56,9 @@ void main()
             new_val = v4_to_rgba8(cur_f);
             ++count;
         }
-#else
-        imageAtomicExchange(octree_diffuse, s32(idx), v4_to_rgba8(v4(1, 0, 0, 1)));
-#endif
+
     }
+
 }
 
 )===";

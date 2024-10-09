@@ -21,7 +21,9 @@ R"(
 #define LIGHT_ATTENUATION_LINEAR    0.3f
 #define LIGHT_ATTENUATION_QUADRATIC 0.1f
 
-#define PI32 3.14159f
+#define PI32    3.14159f
+#define EPS32   1e-30
+#define SQRT_3  1.73205080757f
 
 mat4x4 identity()
 {
