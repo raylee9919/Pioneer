@@ -919,7 +919,10 @@ int main(void)
          ++file_idx)
     {
         char *in_file_name = input_file_names[file_idx];
-        const aiScene *model = importer.ReadFile(in_file_name, aiProcessPreset_TargetRealtime_Quality);
+        const aiScene *model = importer.ReadFile(in_file_name,
+                                                 aiProcess_Triangulate |
+                                                 aiProcess_ImproveCacheLocality |
+                                                 aiProcess_JoinIdenticalVertices);
         if (model)
         {
             printf("\nok: load scene '%s'.\n", in_file_name);
