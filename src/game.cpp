@@ -502,10 +502,19 @@ GAME_UPDATE(game_update)
             }
 
             static v2 prev_mouse_P = v2{};
-            v2 D = 0.1f * (input->mouse.P - prev_mouse_P);
-            prev_mouse_P = input->mouse.P;
-            free_camera->world_rotation = rotate(free_camera->world_rotation, v3{0, 1, 0}, -dt*D.x);
-            free_camera->world_rotation = rotate(free_camera->world_rotation, v3{1, 0, 0},  dt*D.y);
+            if (input->mouse.is_down[eMouse_Left])
+            {
+                if (input->mouse.toggle[eMouse_Left])
+                {
+                    prev_mouse_P = input->mouse.click_p[eMouse_Left];
+                }
+                else
+                {
+                    v2 D = 0.001f * (input->mouse.P - prev_mouse_P);
+                    free_camera->world_rotation = rotate(free_camera->world_rotation, v3{0, 1, 0}, -dt*D.x);
+                    free_camera->world_rotation = rotate(free_camera->world_rotation, v3{1, 0, 0},  dt*D.y);
+                }
+            }
         }
         else if (game_state->using_camera == game_state->player_camera)
         {
@@ -702,7 +711,7 @@ GAME_UPDATE(game_update)
 
                             case Entity_Type::LIGHT:
                             {
-#if 1
+#if 0
                                 Model *model = assets->sphere_model;
                                 if (model)
                                 {

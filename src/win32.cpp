@@ -186,8 +186,8 @@ win32_set_pixel_format(HDC dc)
 
             WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB,   GL_TRUE,
 
-            WGL_SAMPLE_BUFFERS_ARB, GL_TRUE,
-            WGL_SAMPLES_ARB,        8,
+            //WGL_SAMPLE_BUFFERS_ARB, GL_TRUE,
+            //WGL_SAMPLES_ARB,        8,
             0, 0 };
 
 

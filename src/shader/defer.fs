@@ -40,9 +40,13 @@ void main()
         f32 march     = SQRT_3 * voxel_in_meter + 0.1f;
         f32 max_dist  = min(distance(fP, DEBUG_light_P), 10.0f);
         f32 occlusion = 0.0f;
-        f32 k = exp2(7.0f);
 
-        while (march < max_dist && occlusion < 1.0f)
+        f32 march_step = voxel_in_meter * 0.5f;
+        f32 marched_dist = 0.0f;
+        b32 is_in = false;
+
+        while (march < max_dist &&
+               occlusion < 1.0f)
         {
             v3 cen = fP + to_light * march;
             v3 clip_P = (voxel_P * v4(cen, 1)).xyz;
@@ -74,10 +78,18 @@ void main()
             v4 val = rgba8_to_v4(imageLoad(octree_diffuse, s32(idx)).r);
             if (val.a > 0)
             {
-                occlusion = 1;
+                marched_dist += march_step;
+                is_in = true;
+            }
+            else if (is_in)
+            {
+                f32 k = 0.25f;
+                occlusion += ((marched_dist*marched_dist) / (k*k));
+                marched_dist = 0.0f;
+                is_in = false;
             }
 
-            march += 0.1f;
+            march += march_step;
         }
 
         //

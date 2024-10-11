@@ -76,4 +76,11 @@ is_in_clip_space(v3 V)
     return result;
 }
 
+struct Light
+{
+    v3  P;
+    v3  color;
+    f32 intensity;
+};
+
 )";
