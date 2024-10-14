@@ -4,9 +4,7 @@
 > Powered by ❤️
 
 ## Current Status
-[![Watch the video](https://youtu.be/KgFsD6CSydk?si=RpzsC0Ax2LPZPDil/0.jpg)](https://youtu.be/KgFsD6CSydk?si=RpzsC0Ax2LPZPDil)
-
-## History
+![Status](/data/branding/status.png "Status")
 
 ## Why build from scratch?
 I simply wanted to understand how games worked under the hood.  
