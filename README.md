@@ -4,7 +4,7 @@
 > Powered by ❤️
 
 ## Current Status
-[![Watch the video](https://img.youtube.com/vi/_5tFXJQIzi4/0.jpg)](https://youtu.be/KgFsD6CSydk?si=RpzsC0Ax2LPZPDil)
+[![Watch the video](https://youtu.be/KgFsD6CSydk?si=RpzsC0Ax2LPZPDil/0.jpg)](https://youtu.be/KgFsD6CSydk?si=RpzsC0Ax2LPZPDil)
 
 ## History
 
