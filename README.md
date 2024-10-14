@@ -11,7 +11,8 @@
 I simply wanted to understand how games worked under the hood.  
 It turned out to be a programmer's deepest rabbit hole.  
 Fortunately, being a control freak (I mean, who isn’t?), I was fascinated by the fact that making a game from the lowest level requires a superior skill set.  
-If everyone relies solely on Unity and Unreal Engine, there will be no one left to create the next Unity or Unreal. No one will be left to build specialized game engines tailored for specific games.  
+If everyone relies solely on Unity and Unreal Engine, there will be no one left to create the next Unity or Unreal.  
+No one will be left to build specialized game engines tailored for specific games.  
 
 
 
