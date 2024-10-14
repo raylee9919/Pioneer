@@ -4,7 +4,7 @@
 > Powered by ❤️
 
 ## Current Status
-<iframe width="560" height="315" src="https://www.youtube.com/watch?v=KgFsD6CSydk&ab_channel=Ray" frameborder="0" allowfullscreen></iframe>
+[![Watch the video](https://img.youtube.com/vi/_5tFXJQIzi4/0.jpg)](https://youtu.be/KgFsD6CSydk?si=RpzsC0Ax2LPZPDil)
 
 ## History
 
