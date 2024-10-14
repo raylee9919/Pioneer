@@ -1,4 +1,3 @@
-# Pioneer Game Engine
 ![Pioneer](/data/branding/pioneer_banner.png "Pioneer")
 
 > Powered by ❤️
