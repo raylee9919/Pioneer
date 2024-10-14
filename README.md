@@ -5,7 +5,7 @@
 
 ## Current Status
 ![Status](/data/branding/status.png "Status")  
-Working on Sparse Voxel Octree Global Illumination.
+Working on Sparse Voxel Octree Global Illumination (SVOGI).
 
 ## Build
 #### Windows
