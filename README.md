@@ -4,7 +4,7 @@
 > Powered by ❤️
 
 ## Current Status
-![Youtube](/data/branding/youtube_icon.png "Youtube")(https://www.youtube.com/@sungwoolee484)
+[![Youtube](/data/branding/youtube_icon.png "Youtube")](https://www.youtube.com/@sungwoolee484)
 ![Status](/data/branding/status.png "Status")  
 Working on Sparse Voxel Octree Global Illumination (SVOGI).
 
