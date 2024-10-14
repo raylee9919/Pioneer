@@ -4,7 +4,16 @@
 > Powered by ❤️
 
 ## Current Status
-![Status](/data/branding/status.png "Status")
+![Status](/data/branding/status.png "Status")  
+Working on Sparse Voxel Octree Global Illumination.
+
+## Build
+### Windows
+``` console
+> build.bat
+```
+set the working directory to <code>data</code> folder and run <code>win32.exe</code>.
+
 
 ## Why build from scratch?
 I simply wanted to understand how games worked under the hood.  
