@@ -447,3 +447,6 @@ Caveat
   In the real world, photons hits something in the air and scatter. This is 
   called, "Participating Media". But it doesn't necessarily mean that those 
   media will make the perceived light dimmer.
+
+
+END
