@@ -13,4 +13,4 @@ Thanks to some apex programmers, like
 - [Casey Muratori](https://x.com/cmuratori)
 - [Jonathan Blow](https://x.com/Jonathan_Blow)
 - [Sean Barrett](https://nothings.org/)
-who consistently share quality knowledge on the internet, I’ve been able to push through until now.  
+<br>who consistently share quality knowledge on the internet, I’ve been able to push through until now.  
