@@ -14,7 +14,7 @@ Working on Sparse Voxel Octree Global Illumination ([SVOGI](https://research.nvi
 > cd src
 > build.bat
 ```
-Set the working directory to <code>data</code> folder and run <code>win32.exe</code>.
+Set the working directory to <code>data</code> folder and run <code>build\win32.exe</code>.
 
 
 ## Why build from scratch?
