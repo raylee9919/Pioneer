@@ -20,3 +20,4 @@ Thanks to some apex programmers, like
 - [Sean Barrett](https://nothings.org/)
 
 who consistently share quality knowledge on the internet, I’ve been able to push through until now.  
+For anyone looking to take the first step in building their own game from scratch, I highly recommend Casey Muratori's renowned project, [Handmade Hero](https://guide.handmadehero.org/code/#).
