@@ -16,7 +16,8 @@ For those who are interested, please visit [my BLOG](https://raylee9919.github.i
 > cd src
 > build.bat
 ```
-Set the working directory to <code>data</code> folder and run <code>build\win32.exe</code>.
+Set the working directory to <code>data</code> folder and run <code>build\win32.exe</code>.  
+No seven layers of dependecy hell!
 
 
 ## Why build from scratch?
