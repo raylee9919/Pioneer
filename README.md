@@ -7,7 +7,7 @@
 This project was initiated for academic purposes and is not yet at an industrial-strength level.  
 [![Youtube](/data/branding/youtube_icon.png "Youtube")](https://www.youtube.com/@sungwoolee484)
 ![Status](/data/branding/status.png "Status")  
-Working on Sparse Voxel Octree Global Illumination ([SVOGI](https://research.nvidia.com/sites/default/files/pubs/2011-09_Interactive-Indirect-Illumination/GIVoxels-pg2011-authors.pdf)).
+Working on Sparse Voxel Octree Global Illumination ([SVOGI](https://research.nvidia.com/sites/default/files/pubs/2011-09_Interactive-Indirect-Illumination/GIVoxels-pg2011-authors.pdf)).  
 For those who are interested, please visit [my BLOG](https://raylee9919.github.io)
 
 ## Build
